@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ../backend
+    ports:
+      - "8080:8080"
+    environment:
+      - EXTERNAL_DRIVE_PATH=file:/mnt/external-drive/cloud-sync.db
+      - APP_USERNAME=${APP_USERNAME:-admin}
+      - APP_PASSWORD=${APP_PASSWORD:-changeme}
+      - MICRONAUT_ENVIRONMENTS=docker
+      - ICLOUD_SERVICE_URL=http://icloud-service:8000
+    volumes:
+      - ${EXTERNAL_DRIVE_PATH:-/tmp/cloud-sync-dev}:/mnt/external-drive
+      - ../scripts:/scripts:ro
+    networks:
+      - cloud-sync-net
+    depends_on:
+      icloud-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  icloud-service:
+    build: ../icloud-service
+    networks:
+      - cloud-sync-net
+    # NOT exposed externally - internal only
+    environment:
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  frontend:
+    build: ../frontend
+    ports:
+      - "80:80"
+    networks:
+      - cloud-sync-net
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  cloud-sync-net:
+    driver: bridge

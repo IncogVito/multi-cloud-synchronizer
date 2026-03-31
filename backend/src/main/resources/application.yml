@@ -1,0 +1,44 @@
+micronaut:
+  application:
+    name: cloud-synchronizer-backend
+  server:
+    port: 8080
+  security:
+    enabled: true
+    authentication: basic
+    intercept-url-map:
+      - pattern: /api/health
+        access:
+          - isAnonymous()
+      - pattern: /health
+        access:
+          - isAnonymous()
+      - pattern: /**
+        access:
+          - isAuthenticated()
+  endpoints:
+    health:
+      enabled: true
+      sensitive: false
+
+datasources:
+  default:
+    url: ${DATASOURCE_URL:`jdbc:sqlite:${EXTERNAL_DRIVE_PATH:/mnt/external-drive/cloud-sync.db}`}
+    driver-class-name: org.sqlite.JDBC
+    dialect: H2  # SQLite uses basic SQL compatible with H2 dialect for Micronaut Data
+
+---
+micronaut:
+  environments: dev
+
+datasources:
+  default:
+    url: jdbc:sqlite:./dev-cloud-sync.db
+
+---
+micronaut:
+  environments: docker
+
+datasources:
+  default:
+    url: ${DATASOURCE_URL:`jdbc:sqlite:/mnt/external-drive/cloud-sync.db`}

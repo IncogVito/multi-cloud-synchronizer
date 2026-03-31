@@ -1,0 +1,17 @@
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel
+
+
+class PhotoInfo(BaseModel):
+    id: str
+    filename: str
+    size: int
+    created_date: datetime
+    dimensions: dict
+    asset_token: str
+
+
+class PhotoListResponse(BaseModel):
+    photos: list[PhotoInfo]
+    total: int
