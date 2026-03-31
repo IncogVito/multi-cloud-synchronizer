@@ -14,4 +14,3 @@ class PhotoInfo(BaseModel):
 
 class PhotoListResponse(BaseModel):
     photos: list[PhotoInfo]
-    total: int

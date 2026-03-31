@@ -26,7 +26,7 @@ DELETE /auth/sessions/{session_id}
 
 ### Obsługa wielu kont
 - Serwis musi obsługiwać jednoczesne sesje dla wielu kont iCloud.
-- Sesje trzymane w pamięci (dictionary). `# OPEN: Rozważyć persystencję sesji (Redis? plik?)`
+- Sesje trzymane w pamięci (dictionary). `# OPEN: Rozważyć persystencję sesji (Redis? plik?)` [Na razie z plikiem]
 - Każde kolejne wywołanie API wymaga session_id w headerze (X-Session-ID).
 
 ### Zdjęcia

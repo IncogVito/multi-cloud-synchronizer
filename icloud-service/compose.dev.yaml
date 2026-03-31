@@ -1,0 +1,23 @@
+services:
+  icloud-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app          # live-reload source
+      - icloud_cookies:/tmp/icloud_cookies
+      - icloud_sessions:/tmp
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=debug
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+
+volumes:
+  icloud_cookies:
+  icloud_sessions:
