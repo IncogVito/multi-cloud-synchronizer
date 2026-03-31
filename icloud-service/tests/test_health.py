@@ -1,30 +1,40 @@
+from unittest.mock import MagicMock, patch
+
 from fastapi.testclient import TestClient
 
+from app.exceptions import SessionNotFoundException
 from app.main import app
 
 client = TestClient(app)
 
 
 def test_health_endpoint_returns_ok():
-    # TODO: Implement test – GET /health, assert status 200 and body {"status": "ok", "version": "1.0.0"}.
-    # to be completed by secondary model
-    pass
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "version": "1.0.0"}
 
 
 def test_storage_requires_session_header():
-    # TODO: Implement test – GET /storage without X-Session-ID, assert HTTP 422.
-    # to be completed by secondary model
-    pass
+    response = client.get("/storage")
+    assert response.status_code == 422
 
 
 def test_storage_invalid_session_returns_401():
-    # TODO: Implement test – GET /storage with unknown session_id, assert HTTP 401.
-    # to be completed by secondary model
-    pass
+    with patch("app.routers.health.session_manager.get_api") as mock_get_api:
+        mock_get_api.side_effect = SessionNotFoundException("missing")
+
+        response = client.get("/storage", headers={"X-Session-ID": "missing"})
+
+    assert response.status_code == 401
 
 
 def test_storage_returns_used_and_total_bytes():
-    # TODO: Implement test – mock api.account.storage with known values,
-    # assert response has used_bytes and total_bytes.
-    # to be completed by secondary model
-    pass
+    mock_account = MagicMock(storage={"usageInBytes": 12345, "totalStorageInBytes": 98765})
+    mock_api = MagicMock(account=mock_account)
+
+    with patch("app.routers.health.session_manager.get_api", return_value=mock_api):
+        response = client.get("/storage", headers={"X-Session-ID": "active"})
+
+    assert response.status_code == 200
+    assert response.json() == {"used_bytes": 12345, "total_bytes": 98765}
+
