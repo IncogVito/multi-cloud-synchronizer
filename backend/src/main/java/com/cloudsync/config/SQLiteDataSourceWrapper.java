@@ -1,102 +1,100 @@
 package com.cloudsync.config;
 
+import com.zaxxer.hikari.HikariDataSource;
+import io.micronaut.configuration.jdbc.hikari.DatasourceConfiguration;
 import io.micronaut.context.event.BeanCreatedEvent;
 import io.micronaut.context.event.BeanCreatedEventListener;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Order;
+import io.micronaut.core.order.Ordered;
+import jakarta.inject.Named;
 import jakarta.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sqlite.SQLiteConfig;
+import org.sqlite.SQLiteDataSource;
 
 import javax.sql.DataSource;
-import java.io.PrintWriter;
 import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.util.logging.Logger;
 
-/**
- * Wraps the DataSource to return connections that silently ignore setReadOnly() calls.
- * SQLite's JDBC driver does not support changing the read-only flag after a connection
- * is established, but Micronaut Data JDBC sets it per-connection for read operations.
- */
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @Singleton
 public class SQLiteDataSourceWrapper implements BeanCreatedEventListener<DataSource> {
 
+    private static final Logger log = LoggerFactory.getLogger(SQLiteDataSourceWrapper.class);
+
+    private final DatasourceConfiguration datasourceConfig;
+
+    public SQLiteDataSourceWrapper(@Named("default") DatasourceConfiguration datasourceConfig) {
+        this.datasourceConfig = datasourceConfig;
+    }
+
     @Override
-    public DataSource onCreated(BeanCreatedEvent<DataSource> event) {
-        DataSource original = event.getBean();
-        return new DataSource() {
-            @Override
-            public Connection getConnection() throws SQLException {
-                return wrap(original.getConnection());
-            }
+    public DataSource onCreated(@NonNull BeanCreatedEvent<DataSource> event) {
+        SQLiteConfig config = new SQLiteConfig();
+        config.setJournalMode(SQLiteConfig.JournalMode.WAL);
+        config.setSynchronous(SQLiteConfig.SynchronousMode.NORMAL);
+        config.setTempStore(SQLiteConfig.TempStore.MEMORY);
+        config.setCacheSize(-32000);
+        config.setBusyTimeout(5000);
+        config.setTransactionMode(SQLiteConfig.TransactionMode.DEFERRED);
+        config.setLockingMode(SQLiteConfig.LockingMode.NORMAL);
+        config.setSharedCache(false);
 
-            @Override
-            public Connection getConnection(String username, String password) throws SQLException {
-                return wrap(original.getConnection(username, password));
-            }
+        CustomSQLiteDataSource dataSource = new CustomSQLiteDataSource(config);
+        dataSource.setUrl(datasourceConfig.getUrl());
 
-            @Override
-            public PrintWriter getLogWriter() throws SQLException {
-                return original.getLogWriter();
-            }
+        if (event.getBean() instanceof HikariDataSource hds) {
+            hds.close();
+        }
 
-            @Override
-            public void setLogWriter(PrintWriter out) throws SQLException {
-                original.setLogWriter(out);
-            }
+        log.debug("Replaced DataSource {} with a custom SQLiteDataSource", event.getBean());
 
-            @Override
-            public void setLoginTimeout(int seconds) throws SQLException {
-                original.setLoginTimeout(seconds);
-            }
-
-            @Override
-            public int getLoginTimeout() throws SQLException {
-                return original.getLoginTimeout();
-            }
-
-            @Override
-            public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-                return original.getParentLogger();
-            }
-
-            @Override
-            public <T> T unwrap(Class<T> iface) throws SQLException {
-                return original.unwrap(iface);
-            }
-
-            @Override
-            public boolean isWrapperFor(Class<?> iface) throws SQLException {
-                return original.isWrapperFor(iface);
-            }
-        };
+        return dataSource;
     }
 
-    private Connection wrap(Connection connection) {
-        return (Connection) Proxy.newProxyInstance(
-                connection.getClass().getClassLoader(),
-                new Class[]{Connection.class},
-                new ReadOnlyIgnoringHandler(connection)
-        );
-    }
-
-    private static class ReadOnlyIgnoringHandler implements InvocationHandler {
-        private final Connection delegate;
-
-        ReadOnlyIgnoringHandler(Connection delegate) {
-            this.delegate = delegate;
+    private static class CustomSQLiteDataSource extends SQLiteDataSource {
+        public CustomSQLiteDataSource(SQLiteConfig config) {
+            super(config);
         }
 
         @Override
+        public Connection getConnection() throws SQLException {
+            return wrapConnection(super.getConnection());
+        }
+
+        private Connection wrapConnection(Connection realConnection) {
+            return (Connection) Proxy.newProxyInstance(
+                    Connection.class.getClassLoader(),
+                    new Class<?>[]{ Connection.class },
+                    new ConnectionProxy(realConnection)
+            );
+        }
+    }
+
+    private record ConnectionProxy(Connection realConnection) implements InvocationHandler {
+
+        @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if ("setReadOnly".equals(method.getName())) {
+            String methodName = method.getName();
+
+            log.trace("Invoking {}({}) on {}", methodName, args, realConnection);
+
+            if ("setReadOnly".equals(methodName)) {
                 return null;
             }
+
             try {
-                return method.invoke(delegate, args);
-            } catch (java.lang.reflect.InvocationTargetException e) {
-                throw e.getCause();
+                return method.invoke(realConnection, args);
+            } catch (InvocationTargetException e) {
+                Throwable cause = e.getCause();
+                log.trace("Invocation of {}({}) on {} resulted in exception: {}", methodName, args, realConnection, cause.getMessage());
+                throw cause;
             }
         }
     }

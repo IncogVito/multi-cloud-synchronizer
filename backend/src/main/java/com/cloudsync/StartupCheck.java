@@ -21,10 +21,10 @@ public class StartupCheck {
         this.accountRepository = accountRepository;
     }
 
-    @EventListener
-    @Connectable
-    public void onStartup(ServerStartupEvent event) {
-        long count = accountRepository.count();
-        log.info("Repository check OK — accounts in DB: {}", count);
-    }
+//    @EventListener
+//    @Connectable
+//    public void onStartup(ServerStartupEvent event) {
+//        long count = accountRepository.count();
+//        log.info("Repository check OK — accounts in DB: {}", count);
+//    }
 }

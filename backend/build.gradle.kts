@@ -38,7 +38,7 @@ dependencies {
     implementation("net.coobird:thumbnailator:0.4.20")
 
     runtimeOnly("ch.qos.logback:logback-classic")
-    runtimeOnly("org.xerial:sqlite-jdbc:3.45.3.0")
+    implementation("org.xerial:sqlite-jdbc:3.45.3.0")
     runtimeOnly("org.yaml:snakeyaml")
 
     testImplementation("io.micronaut.test:micronaut-test-junit5")

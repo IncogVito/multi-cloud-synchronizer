@@ -23,12 +23,10 @@ micronaut:
 
 datasources:
   default:
-    url: ${DATASOURCE_URL:`jdbc:sqlite:${EXTERNAL_DRIVE_PATH:/mnt/external-drive}/cloud-sync.db`}
+    url: ${DATASOURCE_URL:`jdbc:sqlite:${EXTERNAL_DRIVE_PATH:/mnt/external-drive}/cloud-sync.db?journal_mode=WAL`}
     driverClassName: org.sqlite.JDBC
     connectionTestQuery: SELECT 1
     maximumPoolSize: 1
-    readOnly: false
-
 flyway:
   datasources:
     default:
@@ -50,7 +48,7 @@ micronaut:
 
 datasources:
   default:
-    url: jdbc:sqlite:./dev-cloud-sync.db
+    url: jdbc:sqlite:./dev-cloud-sync.db?journal_mode=WAL
 
 flyway:
   datasources:
@@ -63,7 +61,7 @@ micronaut:
 
 datasources:
   default:
-    url: ${DATASOURCE_URL:`jdbc:sqlite:./cloud-sync.db`}
+    url: ${DATASOURCE_URL:`jdbc:sqlite:./cloud-sync.db?journal_mode=WAL`}
 
 flyway:
   datasources:
