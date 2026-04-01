@@ -18,6 +18,7 @@ dependencies {
     annotationProcessor("io.micronaut.security:micronaut-security-annotations")
     annotationProcessor("io.micronaut.data:micronaut-data-processor")
     annotationProcessor("io.micronaut.validation:micronaut-validation-processor")
+    annotationProcessor("io.micronaut.openapi:micronaut-openapi")
 
     implementation("io.micronaut:micronaut-http-server-netty")
     implementation("io.micronaut:micronaut-http-client")
@@ -33,6 +34,8 @@ dependencies {
 
     // Flyway 9.x for SQLite support (SQLite moved to teams in v10)
     implementation("org.flywaydb:flyway-core:9.22.3")
+
+    implementation("io.micronaut.openapi:micronaut-openapi-annotations")
 
     // Thumbnail generation
     implementation("net.coobird:thumbnailator:0.4.20")
@@ -57,6 +60,14 @@ java {
 }
 
 graalvmNative.toolchainDetection.set(false)
+
+tasks.register<Copy>("exportSwagger") {
+    dependsOn("classes")
+    from(layout.buildDirectory.dir("classes/java/main/META-INF/swagger"))
+    include("*.yml")
+    rename { "openapi.yml" }
+    into(layout.projectDirectory.dir("../"))
+}
 
 micronaut {
     version("4.7.6")

@@ -3,6 +3,14 @@ micronaut:
     name: cloud-synchronizer-backend
   server:
     port: 8080
+  router:
+    static-resources:
+      swagger:
+        paths: classpath:META-INF/swagger
+        mapping: /swagger/**
+      swagger-ui:
+        paths: classpath:META-INF/swagger/views/swagger-ui
+        mapping: /swagger-ui/**
   security:
     enabled: true
     authentication: basic
@@ -11,6 +19,12 @@ micronaut:
         access:
           - isAnonymous()
       - pattern: /health
+        access:
+          - isAnonymous()
+      - pattern: /swagger/**
+        access:
+          - isAnonymous()
+      - pattern: /swagger-ui/**
         access:
           - isAnonymous()
       - pattern: /**

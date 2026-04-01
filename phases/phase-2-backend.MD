@@ -150,14 +150,15 @@ Response: Server-Sent Events (SSE) stream z krokami agenta
 - Przy synchronizacji zdjęcia z iCloud na dysk, generuj thumbnail.
 - `// OPEN: Biblioteka do thumbnailów – opcje: Thumbnailator (Java), ImageIO, lub wywołanie zewnętrznego narzędzia (imagemagick w kontenerze).`
 - Domyślny rozmiar: 300x300px, JPEG, quality 80%.
-- Thumbnails zapisywane w `/mnt/external-drive/thumbnails/{photo_id}.jpg`.
+- Thumbnails zapisywane w `/mnt/external-drive/synchronizer/thumbnails/{photo_id}.jpg`.
 - Thumbnail generowany asynchronicznie po pobraniu zdjęcia.
 
 ## Rozpoznawanie iPhone'a
 - Backend triggeruje skrypty shell z katalogu `/scripts/` zamontowanego jako volume.
 - Endpoint `POST /api/status/check-iphone` wywołuje `detect-iphone.sh`.
 - Skrypt zwraca JSON z informacją o podłączonym urządzeniu.
-- `// OPEN: Implementacja skryptu – użytkownik dostarczy. Backend parsuje stdout jako JSON.`
+- Napisz implementacje skryptu. Pamietaj ze backend bedzie sterowal tym z poziomu function calling, wiec moze trzeba mu 
+- dostarczyc roznych metod ( w skrypcie - albo rozne skrypty? Zrobmy rozne skrypty)
 
 ## Security (Micronaut Security)
 - Proste zabezpieczenie: Basic Auth lub Session-based auth.

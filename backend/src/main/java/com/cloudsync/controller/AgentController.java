@@ -9,9 +9,13 @@ import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.sse.Event;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 
+@Tag(name = "Agent")
 @Controller("/api/agent")
 @Secured(SecurityRule.IS_AUTHENTICATED)
 public class AgentController {
@@ -22,9 +26,8 @@ public class AgentController {
         this.diskDetectionAgent = diskDetectionAgent;
     }
 
-    /**
-     * Triggers the disk detection AI agent and streams step events as Server-Sent Events.
-     */
+    @Operation(summary = "Detect and mount drive", description = "Runs the AI disk detection agent and streams SSE step events")
+    @ApiResponse(responseCode = "200", description = "SSE stream with agent steps")
     @Post("/detect-drive")
     @Produces(MediaType.TEXT_EVENT_STREAM)
     public Publisher<Event<AgentStepEvent>> detectDrive() {

@@ -1,3 +1,4 @@
 build
 dev-drive
 .gradle
+.env

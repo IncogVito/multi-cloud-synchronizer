@@ -11,11 +11,15 @@ import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.sse.Event;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
 
+@Tag(name = "Status")
 @Controller("/api/status")
 @Secured(SecurityRule.IS_AUTHENTICATED)
 public class StatusController {
@@ -26,12 +30,16 @@ public class StatusController {
         this.deviceStatusService = deviceStatusService;
     }
 
+    @Operation(summary = "Get device statuses")
+    @ApiResponse(responseCode = "200", description = "List of device statuses")
     @Get("/devices")
     @Produces(MediaType.APPLICATION_JSON)
     public List<DeviceStatusResponse> getDeviceStatuses() {
         return deviceStatusService.getAllStatuses();
     }
 
+    @Operation(summary = "Check external drive", description = "Streams SSE events with drive detection steps")
+    @ApiResponse(responseCode = "200", description = "SSE stream")
     @Post("/check-drive")
     @Produces(MediaType.TEXT_EVENT_STREAM)
     public Publisher<Event<DeviceCheckEvent>> checkDrive() {
@@ -39,6 +47,8 @@ public class StatusController {
                 .map(evt -> Event.of(evt).name(evt.terminal() ? "device-check-final" : "device-check-step"));
     }
 
+    @Operation(summary = "Check iPhone", description = "Streams SSE events with iPhone detection steps")
+    @ApiResponse(responseCode = "200", description = "SSE stream")
     @Post("/check-iphone")
     @Produces(MediaType.TEXT_EVENT_STREAM)
     public Publisher<Event<DeviceCheckEvent>> checkIPhone() {
@@ -46,6 +56,8 @@ public class StatusController {
                 .map(evt -> Event.of(evt).name(evt.terminal() ? "device-check-final" : "device-check-step"));
     }
 
+    @Operation(summary = "Check iCloud connectivity", description = "Streams SSE events with iCloud check steps")
+    @ApiResponse(responseCode = "200", description = "SSE stream")
     @Post("/check-icloud")
     @Produces(MediaType.TEXT_EVENT_STREAM)
     public Publisher<Event<DeviceCheckEvent>> checkICloud() {

@@ -1,0 +1,70 @@
+version: '3.8'
+
+# Dev compose – uses JVM build (fast) and a local SQLite volume
+# Usage:
+#   docker compose -f compose.dev.yaml up --build
+#
+# The backend is accessible at http://localhost:8080
+# Default credentials: admin / changeme  (override via .env or env vars)
+#
+# icloud-service is exposed on port 8000 for direct testing.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
+    environment:
+      - MICRONAUT_ENVIRONMENTS=dev
+      - APP_USERNAME=${APP_USERNAME:-admin}
+      - APP_PASSWORD=${APP_PASSWORD:-changeme}
+      - ICLOUD_SERVICE_URL=http://icloud-service:8000
+      - EXTERNAL_DRIVE_PATH=/mnt/external-drive
+      - THUMBNAIL_DIR=/mnt/external-drive/thumbnails
+      - SCRIPTS_DIR=/scripts
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-001}
+    volumes:
+      # Simulated external drive persisted locally
+      - dev-drive:/mnt/external-drive
+      - ./scripts:/scripts:ro
+    networks:
+      - cloud-sync-dev
+    depends_on:
+      icloud-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/api/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    restart: on-failure
+
+  icloud-service:
+    build:
+      context: ./icloud-service
+    ports:
+      # Exposed for local testing / curl
+      - "8000:8000"
+    environment:
+      - LOG_LEVEL=debug
+    networks:
+      - cloud-sync-dev
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: on-failure
+
+volumes:
+  dev-drive:
+    driver: local
+
+networks:
+  cloud-sync-dev:
+    driver: bridge

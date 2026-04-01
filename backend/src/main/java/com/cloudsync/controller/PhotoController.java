@@ -12,10 +12,14 @@ import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.io.IOException;
 import java.util.Map;
 
+@Tag(name = "Photos")
 @Controller("/api/photos")
 @Secured(SecurityRule.IS_AUTHENTICATED)
 @ExecuteOn(TaskExecutors.BLOCKING)
@@ -29,6 +33,8 @@ public class PhotoController {
         this.syncService = syncService;
     }
 
+    @Operation(summary = "List photos", description = "Returns paginated photos with optional filters")
+    @ApiResponse(responseCode = "200", description = "Photo list")
     @Get
     @Produces(MediaType.APPLICATION_JSON)
     public PhotoListResponse listPhotos(
@@ -42,6 +48,9 @@ public class PhotoController {
         return photoService.listPhotos(accountIdParam, syncedParam, page, size);
     }
 
+    @Operation(summary = "Get photo details")
+    @ApiResponse(responseCode = "200", description = "Photo found")
+    @ApiResponse(responseCode = "404", description = "Photo not found")
     @Get("/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     public HttpResponse<PhotoResponse> getPhoto(@PathVariable String id) {
@@ -50,6 +59,9 @@ public class PhotoController {
                 .orElse(HttpResponse.notFound());
     }
 
+    @Operation(summary = "Get photo thumbnail")
+    @ApiResponse(responseCode = "200", description = "JPEG thumbnail")
+    @ApiResponse(responseCode = "404", description = "Photo not found")
     @Get("/{id}/thumbnail")
     @Produces("image/jpeg")
     public HttpResponse<byte[]> getThumbnail(@PathVariable String id) throws IOException {
@@ -58,6 +70,9 @@ public class PhotoController {
                 .orElse(HttpResponse.notFound());
     }
 
+    @Operation(summary = "Get full photo from disk")
+    @ApiResponse(responseCode = "200", description = "Photo binary")
+    @ApiResponse(responseCode = "404", description = "Photo not found")
     @Get("/{id}/full")
     @Produces(MediaType.APPLICATION_OCTET_STREAM)
     public HttpResponse<byte[]> getFullPhoto(@PathVariable String id) throws IOException {
@@ -66,6 +81,8 @@ public class PhotoController {
                 .orElse(HttpResponse.notFound());
     }
 
+    @Operation(summary = "Trigger iCloud sync", description = "Downloads new photos from iCloud to disk")
+    @ApiResponse(responseCode = "200", description = "Sync completed")
     @Post("/sync")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
@@ -74,6 +91,8 @@ public class PhotoController {
         return HttpResponse.ok(Map.of("synced", synced, "accountId", accountId));
     }
 
+    @Operation(summary = "Delete photos from iCloud", description = "Batch delete; photos must already be synced to disk")
+    @ApiResponse(responseCode = "204", description = "Deleted")
     @Delete("/icloud")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
@@ -84,6 +103,8 @@ public class PhotoController {
         return HttpResponse.noContent();
     }
 
+    @Operation(summary = "Delete photos from iPhone", description = "Batch delete; photos must already be synced to disk")
+    @ApiResponse(responseCode = "204", description = "Deleted")
     @Delete("/iphone")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)

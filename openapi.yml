@@ -1,0 +1,805 @@
+openapi: 3.0.1
+info:
+  title: Multi-Cloud Synchronizer API
+  description: "API for managing photos, accounts, folders and device status"
+  version: 1.0.0
+paths:
+  /api/accounts:
+    get:
+      tags:
+      - Accounts
+      summary: List accounts
+      operationId: listAccounts
+      responses:
+        "200":
+          description: List of iCloud accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccountResponse"
+  /api/accounts/2fa:
+    post:
+      tags:
+      - Accounts
+      summary: Submit 2FA code
+      operationId: twoFa
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFaRequest"
+        required: true
+      responses:
+        "200":
+          description: 2FA verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwoFaResponse"
+  /api/accounts/login:
+    post:
+      tags:
+      - Accounts
+      summary: Login
+      description: Authenticate with iCloud credentials
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: Login successful or 2FA required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+  /api/accounts/{id}:
+    delete:
+      tags:
+      - Accounts
+      summary: Delete account
+      operationId: deleteAccount
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Account deleted
+  /api/accounts/{id}/status:
+    get:
+      tags:
+      - Accounts
+      summary: Get account session status
+      operationId: getAccountStatus
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Account found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+        "404":
+          description: Account not found
+  /api/agent/detect-drive:
+    post:
+      tags:
+      - Agent
+      summary: Detect and mount drive
+      description: Runs the AI disk detection agent and streams SSE step events
+      operationId: detectDrive
+      responses:
+        "200":
+          description: SSE stream with agent steps
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_AgentStepEvent_"
+  /api/folders:
+    get:
+      tags:
+      - Folders
+      summary: Get folder tree
+      operationId: getFolderTree
+      responses:
+        "200":
+          description: Folder hierarchy
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FolderResponse"
+    post:
+      tags:
+      - Folders
+      summary: Create folder
+      operationId: createFolder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFolderRequest"
+        required: true
+      responses:
+        "201":
+          description: Folder created
+  /api/folders/auto-organize:
+    post:
+      tags:
+      - Folders
+      summary: Auto-organize photos into year/month folders
+      operationId: autoOrganize
+      parameters:
+      - name: granularity
+        in: query
+        required: true
+        schema:
+          type: string
+          default: YEAR
+      responses:
+        "200":
+          description: Organization done
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+  /api/folders/{id}:
+    put:
+      tags:
+      - Folders
+      summary: Update folder
+      operationId: updateFolder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFolderRequest"
+        required: true
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderResponse"
+        "404":
+          description: Not found
+    delete:
+      tags:
+      - Folders
+      summary: Delete folder
+      operationId: deleteFolder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+  /api/folders/{id}/photos:
+    get:
+      tags:
+      - Folders
+      summary: List photos in folder
+      operationId: getPhotosInFolder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Photos in folder
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PhotoResponse"
+    post:
+      tags:
+      - Folders
+      summary: Assign photos to folder
+      operationId: assignPhotos
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchPhotoRequest"
+        required: true
+      responses:
+        "200":
+          description: Photos assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/health:
+    get:
+      tags:
+      - Health
+      summary: Health check
+      operationId: health
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthController.HealthResponse"
+  /api/photos:
+    get:
+      tags:
+      - Photos
+      summary: List photos
+      description: Returns paginated photos with optional filters
+      operationId: listPhotos
+      parameters:
+      - name: accountId
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: synced
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: page
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - name: size
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      responses:
+        "200":
+          description: Photo list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotoListResponse"
+  /api/photos/icloud:
+    delete:
+      tags:
+      - Photos
+      summary: Delete photos from iCloud
+      description: Batch delete; photos must already be synced to disk
+      operationId: deleteFromICloud
+      parameters:
+      - name: accountId
+        in: query
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchPhotoRequest"
+        required: true
+      responses:
+        "204":
+          description: Deleted
+  /api/photos/iphone:
+    delete:
+      tags:
+      - Photos
+      summary: Delete photos from iPhone
+      description: Batch delete; photos must already be synced to disk
+      operationId: deleteFromIPhone
+      parameters:
+      - name: accountId
+        in: query
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchPhotoRequest"
+        required: true
+      responses:
+        "204":
+          description: Deleted
+  /api/photos/sync:
+    post:
+      tags:
+      - Photos
+      summary: Trigger iCloud sync
+      description: Downloads new photos from iCloud to disk
+      operationId: syncPhotos
+      parameters:
+      - name: accountId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Sync completed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/photos/{id}:
+    get:
+      tags:
+      - Photos
+      summary: Get photo details
+      operationId: getPhoto
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Photo found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotoResponse"
+        "404":
+          description: Photo not found
+  /api/photos/{id}/full:
+    get:
+      tags:
+      - Photos
+      summary: Get full photo from disk
+      operationId: getFullPhoto
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Photo binary
+          content:
+            application/octet-stream:
+              schema:
+                type: array
+                items:
+                  type: string
+                  format: byte
+        "404":
+          description: Photo not found
+  /api/photos/{id}/thumbnail:
+    get:
+      tags:
+      - Photos
+      summary: Get photo thumbnail
+      operationId: getThumbnail
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: JPEG thumbnail
+          content:
+            image/jpeg:
+              schema:
+                type: array
+                items:
+                  type: string
+                  format: byte
+        "404":
+          description: Photo not found
+  /api/status/check-drive:
+    post:
+      tags:
+      - Status
+      summary: Check external drive
+      description: Streams SSE events with drive detection steps
+      operationId: checkDrive
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_DeviceCheckEvent_"
+  /api/status/check-icloud:
+    post:
+      tags:
+      - Status
+      summary: Check iCloud connectivity
+      description: Streams SSE events with iCloud check steps
+      operationId: checkICloud
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_DeviceCheckEvent_"
+  /api/status/check-iphone:
+    post:
+      tags:
+      - Status
+      summary: Check iPhone
+      description: Streams SSE events with iPhone detection steps
+      operationId: checkIPhone
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_DeviceCheckEvent_"
+  /api/status/devices:
+    get:
+      tags:
+      - Status
+      summary: Get device statuses
+      operationId: getDeviceStatuses
+      responses:
+        "200":
+          description: List of device statuses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceStatusResponse"
+components:
+  schemas:
+    AccountResponse:
+      required:
+      - appleId
+      - createdAt
+      - displayName
+      - hasActiveSession
+      - id
+      - lastSyncAt
+      type: object
+      properties:
+        id:
+          type: string
+        appleId:
+          type: string
+        displayName:
+          type: string
+        hasActiveSession:
+          type: boolean
+        lastSyncAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    AgentStepEvent:
+      required:
+      - action
+      - message
+      - result
+      - step
+      - success
+      type: object
+      properties:
+        step: {}
+        action:
+          type: string
+        result:
+          type: string
+        success:
+          type: boolean
+        message:
+          type: string
+    BatchPhotoRequest:
+      required:
+      - photoIds
+      type: object
+      properties:
+        photoIds:
+          type: array
+          items:
+            type: string
+    CreateFolderRequest:
+      required:
+      - folderType
+      - name
+      - parentId
+      - sortOrder
+      type: object
+      properties:
+        name:
+          type: string
+        parentId:
+          type: string
+        folderType:
+          type: string
+        sortOrder:
+          type: integer
+          format: int32
+    DeviceCheckEvent:
+      required:
+      - details
+      - deviceType
+      - status
+      - stepDescription
+      - terminal
+      type: object
+      properties:
+        deviceType:
+          type: string
+        status:
+          type: string
+        stepDescription:
+          type: string
+        details:
+          type: string
+        terminal:
+          type: boolean
+    DeviceStatusResponse:
+      required:
+      - connected
+      - details
+      - deviceType
+      - id
+      - lastCheckedAt
+      - status
+      type: object
+      properties:
+        id:
+          type: string
+        deviceType:
+          type: string
+        status:
+          type: string
+        connected:
+          type: boolean
+        lastCheckedAt:
+          type: string
+          format: date-time
+        details:
+          type: string
+    Event_AgentStepEvent_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/AgentStepEvent"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
+    Event_DeviceCheckEvent_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/DeviceCheckEvent"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
+    FolderResponse:
+      required:
+      - children
+      - createdAt
+      - folderType
+      - id
+      - name
+      - parentId
+      - sortOrder
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        parentId:
+          type: string
+        folderType:
+          type: string
+        sortOrder:
+          type: integer
+          format: int32
+        createdAt:
+          type: string
+          format: date-time
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/FolderResponse"
+    HealthController.HealthResponse:
+      required:
+      - status
+      - version
+      type: object
+      properties:
+        status:
+          type: string
+        version:
+          type: string
+    LoginRequest:
+      required:
+      - appleId
+      - password
+      type: object
+      properties:
+        appleId:
+          type: string
+        password:
+          type: string
+    LoginResponse:
+      required:
+      - accountId
+      - requires2fa
+      - sessionId
+      type: object
+      properties:
+        sessionId:
+          type: string
+        requires2fa:
+          type: boolean
+        accountId:
+          type: string
+    PhotoListResponse:
+      required:
+      - page
+      - photos
+      - size
+      - total
+      type: object
+      properties:
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/PhotoResponse"
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+    PhotoResponse:
+      required:
+      - accountId
+      - checksum
+      - createdDate
+      - existsOnIcloud
+      - existsOnIphone
+      - filePath
+      - fileSize
+      - filename
+      - height
+      - icloudPhotoId
+      - id
+      - importedDate
+      - mediaType
+      - syncedToDisk
+      - thumbnailPath
+      - width
+      type: object
+      properties:
+        id:
+          type: string
+        icloudPhotoId:
+          type: string
+        accountId:
+          type: string
+        filename:
+          type: string
+        filePath:
+          type: string
+        thumbnailPath:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        width:
+          type: integer
+          format: int32
+        height:
+          type: integer
+          format: int32
+        createdDate:
+          type: string
+          format: date-time
+        importedDate:
+          type: string
+          format: date-time
+        checksum:
+          type: string
+        syncedToDisk:
+          type: boolean
+        existsOnIcloud:
+          type: boolean
+        existsOnIphone:
+          type: boolean
+        mediaType:
+          type: string
+    TwoFaRequest:
+      required:
+      - accountId
+      - code
+      type: object
+      properties:
+        accountId:
+          type: string
+        code:
+          type: string
+    TwoFaResponse:
+      required:
+      - message
+      - success
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+    UpdateFolderRequest:
+      required:
+      - name
+      - parentId
+      - sortOrder
+      type: object
+      properties:
+        name:
+          type: string
+        parentId:
+          type: string
+        sortOrder:
+          type: integer
+          format: int32
