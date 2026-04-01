@@ -68,7 +68,8 @@
               "buildTarget": "cloud-synchronizer:build:production"
             },
             "development": {
-              "buildTarget": "cloud-synchronizer:build:development"
+              "buildTarget": "cloud-synchronizer:build:development",
+              "proxyConfig": "proxy.conf.json"
             }
           },
           "defaultConfiguration": "development"

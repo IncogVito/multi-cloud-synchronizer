@@ -1,74 +1,101 @@
 <div class="login-wrapper">
-  <div class="profile-grid" *ngIf="profiles.length">
-      <button
-        type="button"
-        class="profile-card"
-        *ngFor="let profile of profiles"
-        [class.selected]="selectedProfile === profile"
-        (click)="selectProfile(profile)"
-      >
-        <div class="profile-name">{{ profile.name }}</div>
-
-        <div
-          class="profile-login-row"
-          *ngIf="profile.showPassword"
-          (click)="$event.stopPropagation()"
-        >
-          <input
-            type="password"
-            [value]="profile.enteredPassword || ''"
-            (input)="profile.enteredPassword = $event.target.value"
-            placeholder="Password"
-            class="profile-password-input"
-          />
-          <button
-            type="button"
-            class="btn btn-primary profile-login-btn"
-            (click)="loginProfile(profile)"
-          >
-            Login
-          </button>
-        </div>
-      </button>
-
-      <ng-container *ngIf="!addProfileMode">
-        <button type="button" class="profile-card add-profile" (click)="toggleAddProfile()">
-          <div class="profile-name">+</div>
-          <div class="profile-password">Add profile</div>
-        </button>
-      </ng-container>
-
-      <ng-container *ngIf="addProfileMode">
-        <div class="profile-card add-profile active">
-          <form [formGroup]="addProfileForm" (ngSubmit)="onAddProfileSubmit()" class="add-profile-inline-form">
-            <div class="form-group">
-              <input
-                id="newUsername"
-                type="text"
-                formControlName="name"
-                placeholder="Username"
-                autocomplete="off"
-              />
-            </div>
-            <div class="form-group">
-              <input
-                id="newPassword"
-                type="password"
-                formControlName="password"
-                placeholder="Password"
-                autocomplete="new-password"
-              />
-            </div>
-            <div class="add-actions inline-actions">
-              <button type="submit" class="btn btn-primary" [disabled]="addProfileForm.invalid">Add</button>
-              <button type="button" class="btn btn-secondary" (click)="toggleAddProfile()">Cancel</button>
-            </div>
-          </form>
-        </div>
-      </ng-container>
+  <div class="login-container">
+    <div class="login-header">
+      <h1>Cloud Synchronizer</h1>
+      <p>Sign in to your account</p>
     </div>
 
+    <!-- Error Message -->
     <div class="error-message" *ngIf="errorMessage">
+      <span class="error-icon">⚠️</span>
       {{ errorMessage }}
     </div>
+
+    <!-- Login Form -->
+    <form [formGroup]="loginForm" (ngSubmit)="onLoginSubmit()" *ngIf="!requires2fa">
+      <div class="form-group">
+        <label for="username">Username or Email</label>
+        <input
+          id="username"
+          type="text"
+          formControlName="username"
+          placeholder="Enter your username"
+          autocomplete="username"
+          [disabled]="isLoading"
+        />
+        <span class="error-text" *ngIf="loginForm.get('username')?.invalid && loginForm.get('username')?.touched">
+          Username is required
+        </span>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          id="password"
+          type="password"
+          formControlName="password"
+          placeholder="Enter your password"
+          autocomplete="current-password"
+          [disabled]="isLoading"
+        />
+        <span class="error-text" *ngIf="loginForm.get('password')?.invalid && loginForm.get('password')?.touched">
+          Password is required
+        </span>
+      </div>
+
+      <button
+        type="submit"
+        class="btn btn-primary btn-submit"
+        [disabled]="loginForm.invalid || isLoading"
+      >
+        <span *ngIf="!isLoading">Sign In</span>
+        <span *ngIf="isLoading">Signing in...</span>
+      </button>
+    </form>
+
+    <!-- 2FA Form -->
+    <form [formGroup]="twoFaForm" (ngSubmit)="onTwoFaSubmit()" *ngIf="requires2fa">
+      <div class="twofa-header">
+        <h2>Two-Factor Authentication</h2>
+        <p>Enter the 6-digit code from your authenticator app</p>
+      </div>
+
+      <div class="form-group">
+        <label for="twofa-code">Verification Code</label>
+        <input
+          id="twofa-code"
+          type="text"
+          formControlName="code"
+          placeholder="000000"
+          maxlength="6"
+          autocomplete="off"
+          [disabled]="isLoading"
+          class="twofa-input"
+        />
+        <span class="error-text" *ngIf="twoFaForm.get('code')?.invalid && twoFaForm.get('code')?.touched">
+          Code must be at least 4 digits
+        </span>
+      </div>
+
+      <div class="twofa-actions">
+        <button
+          type="submit"
+          class="btn btn-primary btn-submit"
+          [disabled]="twoFaForm.invalid || isLoading"
+        >
+          <span *ngIf="!isLoading">Verify</span>
+          <span *ngIf="isLoading">Verifying...</span>
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="goBackToLogin()"
+          [disabled]="isLoading"
+        >
+          Back
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
+

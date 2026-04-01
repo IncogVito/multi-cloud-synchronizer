@@ -3,14 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-
-type Profile = {
-  id: number;
-  name: string;
-  password: string;
-  showPassword: boolean;
-  enteredPassword?: string;
-};
+import { AccountService } from '../../core/services/account.service';
 
 @Component({
   selector: 'app-login',
@@ -21,16 +14,18 @@ type Profile = {
 })
 export class LoginComponent {
   loginForm: FormGroup;
-  addProfileForm: FormGroup;
-  profiles: Profile[] = [];
-  selectedProfile: Profile | null = null;
-  addProfileMode = false;
+  twoFaForm: FormGroup;
   isLoading = false;
   errorMessage = '';
+  
+  // 2FA state
+  requires2fa = false;
+  sessionId = '';
 
   constructor(
     private fb: FormBuilder,
     private authService: AuthService,
+    private accountService: AccountService,
     private router: Router
   ) {
     this.loginForm = this.fb.group({
@@ -38,81 +33,76 @@ export class LoginComponent {
       password: ['', [Validators.required]]
     });
 
-    this.addProfileForm = this.fb.group({
-      name: ['', [Validators.required]],
-      password: ['', [Validators.required]]
+    this.twoFaForm = this.fb.group({
+      code: ['', [Validators.required, Validators.minLength(4)]]
     });
-
-    this.loadProfiles();
   }
 
-  private loadProfiles() {
-    const stored = localStorage.getItem('loginProfiles');
-    if (stored) {
-      this.profiles = JSON.parse(stored);
-    } else {
-      this.profiles = [
-        { id: 1, name: 'user1', password: 'password1', showPassword: false },
-        { id: 2, name: 'user2', password: 'password2', showPassword: false }
-      ];
-      this.saveProfiles();
-    }
-  }
-
-  private saveProfiles() {
-    localStorage.setItem('loginProfiles', JSON.stringify(this.profiles));
-  }
-
-  selectProfile(profile: Profile) {
-    this.profiles.forEach(p => (p.showPassword = false));
-    profile.showPassword = true;
-    profile.enteredPassword = profile.password || '';
-    this.selectedProfile = profile;
-    this.errorMessage = '';
-  }
-
-  toggleAddProfile() {
-    this.addProfileMode = !this.addProfileMode;
-    if (!this.addProfileMode) {
-      this.addProfileForm.reset();
-    }
-  }
-
-  onAddProfileSubmit() {
-    if (this.addProfileForm.invalid) {
-      return;
-    }
-
-    const newProfile = {
-      id: Date.now(),
-      name: this.addProfileForm.value.name,
-      password: this.addProfileForm.value.password,
-      showPassword: false,
-      enteredPassword: this.addProfileForm.value.password
-    };
-
-    this.profiles.push(newProfile);
-    this.saveProfiles();
-    this.addProfileForm.reset();
-    this.addProfileMode = false;
-  }
-
-  loginProfile(profile: Profile) {
-    if (!profile.enteredPassword) {
-      this.errorMessage = 'Please enter password';
+  onLoginSubmit() {
+    if (this.loginForm.invalid) {
+      this.errorMessage = 'Please enter valid credentials';
       return;
     }
 
     this.isLoading = true;
     this.errorMessage = '';
+    const { username, password } = this.loginForm.value;
 
-    try {
-      this.authService.login(profile.name, profile.enteredPassword);
-      this.router.navigate(['/dashboard']);
-    } catch (error) {
-      this.errorMessage = 'Login failed. Please check your credentials.';
-    } finally {
-      this.isLoading = false;
+    this.accountService.login({ appleId: username, password }).subscribe({
+      next: (response) => {
+        if (response.requires2fa) {
+          // 2FA required - show 2FA form
+          this.requires2fa = true;
+          this.sessionId = response.sessionId || '';
+          this.isLoading = false;
+        } else {
+          // Login successful without 2FA
+          this.authService.setCredentials(username, password);
+          this.isLoading = false;
+          this.router.navigate(['/dashboard']);
+        }
+      },
+      error: (err) => {
+        this.isLoading = false;
+        this.errorMessage = err.error?.message || 'Login failed. Please check your credentials.';
+      }
+    });
+  }
+
+  onTwoFaSubmit() {
+    if (this.twoFaForm.invalid || !this.sessionId) {
+      this.errorMessage = 'Please enter a valid 2FA code';
+      return;
     }
+
+    this.isLoading = true;
+    this.errorMessage = '';
+    const { code } = this.twoFaForm.value;
+    const { username, password } = this.loginForm.value;
+
+    this.accountService.submitTwoFa({ sessionId: this.sessionId, code }).subscribe({
+      next: (response) => {
+        if (response.authenticated) {
+          // 2FA verified - store credentials and redirect
+          this.authService.setCredentials(username, password);
+          this.isLoading = false;
+          this.router.navigate(['/dashboard']);
+        } else {
+          this.isLoading = false;
+          this.errorMessage = response.message || '2FA verification failed';
+        }
+      },
+      error: (err) => {
+        this.isLoading = false;
+        this.errorMessage = err.error?.message || 'Invalid 2FA code. Please try again.';
+      }
+    });
+  }
+
+  goBackToLogin() {
+    this.requires2fa = false;
+    this.sessionId = '';
+    this.twoFaForm.reset();
+    this.errorMessage = '';
   }
 }

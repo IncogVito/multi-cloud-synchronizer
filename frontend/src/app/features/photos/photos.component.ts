@@ -145,7 +145,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
       this.detailBlobUrl = null;
     }
 
-    this.http.get(`/api/api/photos/${photo.id}/full`, { responseType: 'blob' }).subscribe({
+    this.http.get(`/api/photos/${photo.id}/full`, { responseType: 'blob' }).subscribe({
       next: (blob) => {
         this.detailBlobUrl = URL.createObjectURL(blob);
         this.detailImageUrl = this.detailBlobUrl;
@@ -247,7 +247,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
       error: (err) => alert('Failed: ' + (err?.message ?? 'Unknown error'))
     });
   }
-  
+
   clearSelection() {
     this.selectedIds = new Set()
   }
@@ -317,7 +317,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
     for (const photo of photos) {
       if (this.thumbnailUrls.has(photo.id)) continue;
 
-      this.http.get(`/api/api/photos/${photo.id}/thumbnail`, { responseType: 'blob' }).subscribe({
+      this.http.get(`/api/photos/${photo.id}/thumbnail`, { responseType: 'blob' }).subscribe({
         next: (blob) => {
           const url = URL.createObjectURL(blob);
           this.thumbnailUrls.set(photo.id, url);

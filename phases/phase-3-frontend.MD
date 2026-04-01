@@ -10,8 +10,11 @@ Interfejs użytkownika: delikatny, minimalistyczny design UX. Logowanie, statusy
 - Delikatne cienie, zaokrąglone rogi, dużo white space.
 - Animacje subtelne (transitions 200-300ms).
 - Paleta neutralna z jednym kolorem akcentowym.
+- Toolbar pionowy z lewej strony 
 
 ### Globalne style (styles/global.scss)
+APLIKACJA POWINNA MIEC DELIKATNY DESIGN, COŚ MOŻE A'LA APPLE. 
+
 ```scss
 :root {
   // Colors

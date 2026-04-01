@@ -12,11 +12,15 @@ public class DeviceStatus {
     @Id
     private String id;
 
+    @MappedProperty("device_type")
     private String deviceType;
 
     @MappedProperty("is_connected")
-    private boolean isConnected;
+    private boolean connected;
+
+    @MappedProperty("last_checked_at")
     private Instant lastCheckedAt;
+
     private String details;
     private String status;
 
@@ -28,8 +32,8 @@ public class DeviceStatus {
     public String getDeviceType() { return deviceType; }
     public void setDeviceType(String deviceType) { this.deviceType = deviceType; }
 
-    public boolean isConnected() { return isConnected; }
-    public void setConnected(boolean connected) { isConnected = connected; }
+    public boolean isConnected() { return connected; }
+    public void setConnected(boolean connected) { this.connected = connected; }
 
     public Instant getLastCheckedAt() { return lastCheckedAt; }
     public void setLastCheckedAt(Instant lastCheckedAt) { this.lastCheckedAt = lastCheckedAt; }

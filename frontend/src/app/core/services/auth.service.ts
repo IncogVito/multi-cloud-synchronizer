@@ -2,29 +2,31 @@ import { Injectable } from '@angular/core';
 
 const CREDENTIALS_KEY = 'auth_credentials';
 
+export interface AuthCredentials {
+  username: string;
+  encoded: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
 
-  login(username: string, password: string): void {
-    // TODO: Implement - call backend auth endpoint and validate credentials
+  setCredentials(username: string, password: string): void {
+    // Store credentials as Basic Auth for use by AuthInterceptor
     const encoded = btoa(`${username}:${password}`);
     sessionStorage.setItem(CREDENTIALS_KEY, JSON.stringify({ username, encoded }));
   }
 
   logout(): void {
-    // TODO: Implement - invalidate session on backend
     sessionStorage.removeItem(CREDENTIALS_KEY);
   }
 
   isAuthenticated(): boolean {
-    // TODO: Implement - validate token/session with backend
     return sessionStorage.getItem(CREDENTIALS_KEY) !== null;
   }
 
-  getCredentials(): { username: string; encoded: string } | null {
-    // TODO: Implement - return current credentials or null
+  getCredentials(): AuthCredentials | null {
     const raw = sessionStorage.getItem(CREDENTIALS_KEY);
     if (!raw) return null;
     try {
@@ -32,5 +34,10 @@ export class AuthService {
     } catch {
       return null;
     }
+  }
+
+  getUsername(): string | null {
+    const credentials = this.getCredentials();
+    return credentials?.username || null;
   }
 }

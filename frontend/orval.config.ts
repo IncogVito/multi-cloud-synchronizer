@@ -10,7 +10,7 @@ export default defineConfig({
       schemas: './src/app/core/api/generated/model',
       client: 'angular',
       mode: 'tags-split',
-      baseUrl: '/api',
+      baseUrl: '',
       prettier: true,
     },
   },

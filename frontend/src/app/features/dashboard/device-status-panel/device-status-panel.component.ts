@@ -27,9 +27,9 @@ export class DeviceStatusPanelComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
 
   devices: DeviceCard[] = [
-    { deviceType: 'DRIVE', label: 'External Drive', endpoint: '/api/api/status/check-drive', status: null, sseLog: [], sseExpanded: false, checking: false },
-    { deviceType: 'IPHONE', label: 'iPhone', endpoint: '/api/api/status/check-iphone', status: null, sseLog: [], sseExpanded: false, checking: false },
-    { deviceType: 'ICLOUD', label: 'iCloud', endpoint: '/api/api/status/check-icloud', status: null, sseLog: [], sseExpanded: false, checking: false },
+    { deviceType: 'DRIVE', label: 'External Drive', endpoint: '/api/status/check-drive', status: null, sseLog: [], sseExpanded: false, checking: false },
+    { deviceType: 'IPHONE', label: 'iPhone', endpoint: '/api/status/check-iphone', status: null, sseLog: [], sseExpanded: false, checking: false },
+    { deviceType: 'ICLOUD', label: 'iCloud', endpoint: '/api/status/check-icloud', status: null, sseLog: [], sseExpanded: false, checking: false },
   ];
 
   loadingStatuses = false;
