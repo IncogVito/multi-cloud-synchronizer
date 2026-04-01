@@ -16,14 +16,17 @@ import io.micronaut.security.rules.SecurityRule;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
 @Tag(name = "Accounts")
 @Controller("/api/accounts")
-@Secured(SecurityRule.IS_AUTHENTICATED)
 @ExecuteOn(TaskExecutors.BLOCKING)
 public class AccountController {
+
+    private static final Logger LOG = LoggerFactory.getLogger(AccountController.class);
 
     private final AccountService accountService;
 
@@ -37,7 +40,14 @@ public class AccountController {
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
     public LoginResponse login(@Body LoginRequest request) {
-        return accountService.login(request);
+        LOG.info("[CTRL] POST /api/accounts/login");
+        try {
+            LoginResponse response = accountService.login(request);
+            return response;
+        } catch (Exception e) {
+            LOG.error("[CTRL] POST /api/accounts/login - Error: {}", e.getMessage());
+            throw e;
+        }
     }
 
     @Operation(summary = "Submit 2FA code")
@@ -46,15 +56,30 @@ public class AccountController {
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
     public TwoFaResponse twoFa(@Body TwoFaRequest request) {
-        return accountService.twoFa(request);
+        LOG.debug("[CTRL] POST /api/accounts/2fa");
+        try {
+            TwoFaResponse response = accountService.twoFa(request);
+            return response;
+        } catch (Exception e) {
+            LOG.error("[CTRL] POST /api/accounts/2fa - Error: {}", e.getMessage());
+            throw e;
+        }
     }
 
     @Operation(summary = "List accounts")
     @ApiResponse(responseCode = "200", description = "List of iCloud accounts")
     @Get
     @Produces(MediaType.APPLICATION_JSON)
+    @Secured(SecurityRule.IS_AUTHENTICATED)
     public List<AccountResponse> listAccounts() {
-        return accountService.listAccounts();
+        LOG.debug("[CTRL] GET /api/accounts");
+        try {
+            List<AccountResponse> response = accountService.listAccounts();
+            return response;
+        } catch (Exception e) {
+            LOG.error("[CTRL] GET /api/accounts - Error: {}", e.getMessage());
+            throw e;
+        }
     }
 
     @Operation(summary = "Get account session status")
@@ -62,17 +87,32 @@ public class AccountController {
     @ApiResponse(responseCode = "404", description = "Account not found")
     @Get("/{id}/status")
     @Produces(MediaType.APPLICATION_JSON)
+    @Secured(SecurityRule.IS_AUTHENTICATED)
     public HttpResponse<AccountResponse> getAccountStatus(@PathVariable String id) {
-        return accountService.getAccountStatus(id)
-                .map(HttpResponse::ok)
-                .orElse(HttpResponse.notFound());
+        LOG.debug("[CTRL] GET /api/accounts/{}/status", id);
+        try {
+            HttpResponse<AccountResponse> response = accountService.getAccountStatus(id)
+                    .map(HttpResponse::ok)
+                    .orElse(HttpResponse.notFound());
+            return response;
+        } catch (Exception e) {
+            LOG.error("[CTRL] GET /api/accounts/{}/status - Error: {}", id, e.getMessage());
+            throw e;
+        }
     }
 
     @Operation(summary = "Delete account")
     @ApiResponse(responseCode = "204", description = "Account deleted")
     @Delete("/{id}")
+    @Secured(SecurityRule.IS_AUTHENTICATED)
     public HttpResponse<Void> deleteAccount(@PathVariable String id) {
-        accountService.deleteAccount(id);
-        return HttpResponse.noContent();
+        LOG.debug("[CTRL] DELETE /api/accounts/{}", id);
+        try {
+            accountService.deleteAccount(id);
+            return HttpResponse.noContent();
+        } catch (Exception e) {
+            LOG.error("[CTRL] DELETE /api/accounts/{} - Error: {}", id, e.getMessage());
+            throw e;
+        }
     }
 }

@@ -9,13 +9,22 @@
     </appender>
 
     <!-- Datasource / Hikari -->
-    <logger name="com.zaxxer.hikari" level="DEBUG"/>
-    <logger name="com.zaxxer.hikari.HikariConfig" level="DEBUG"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="com.zaxxer.hikari.HikariConfig" level="WARN"/>
 
     <!-- Our app -->
     <logger name="com.cloudsync" level="DEBUG"/>
 
-    <!-- Root at INFO to cut noise -->
+    <!-- HTTP Server - tylko requests i responses -->
+    <logger name="io.micronaut.http.server.netty.RoutingInBoundHandler" level="DEBUG"/>
+    <logger name="io.micronaut.http.server.netty.NettyRequestLifecycle" level="DEBUG"/>
+
+    <!-- Wyłącz verbose framework logery -->
+    <logger name="io.micronaut.context.DefaultBeanContext" level="WARN"/>
+    <logger name="io.micronaut.security" level="WARN"/>
+    <logger name="io.micronaut.http.server.netty.RoutingInBoundHandler.decorator" level="WARN"/>
+
+    <!-- Root at INFO -->
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
