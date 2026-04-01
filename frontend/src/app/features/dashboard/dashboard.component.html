@@ -1,0 +1,17 @@
+<div class="dashboard">
+  <div class="dashboard-header">
+    <h1>Dashboard</h1>
+  </div>
+
+  <app-device-status-panel></app-device-status-panel>
+
+  <app-accounts-panel
+    (addAccountRequested)="onAddAccountRequested()"
+  ></app-accounts-panel>
+
+  <app-add-account-modal
+    [visible]="showModal"
+    (closed)="onModalClosed()"
+    (accountAdded)="onAccountAdded()"
+  ></app-add-account-modal>
+</div>

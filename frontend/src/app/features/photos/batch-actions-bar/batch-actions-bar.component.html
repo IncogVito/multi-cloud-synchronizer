@@ -1,0 +1,22 @@
+<div class="batch-bar" *ngIf="selectedCount > 0">
+  <span class="batch-count">{{ selectedCount }} selected</span>
+  <div class="batch-actions">
+    <button
+      class="btn btn-danger"
+      (click)="deleteFromICloud.emit()"
+      [disabled]="!canDelete"
+      [title]="!canDelete ? 'All selected photos must be synced to disk' : ''"
+    >
+      Delete from iCloud
+    </button>
+    <button
+      class="btn btn-danger"
+      (click)="deleteFromIPhone.emit()"
+      [disabled]="!canDelete"
+      [title]="!canDelete ? 'All selected photos must be synced to disk' : ''"
+    >
+      Delete from iPhone
+    </button>
+    <button class="btn btn-ghost" (click)="clearSelection.emit()">Clear selection</button>
+  </div>
+</div>

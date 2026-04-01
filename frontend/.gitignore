@@ -4,6 +4,7 @@ build
 coverage
 .vscode
 .idea
+.angular
 
 # Generated API clients (orval)
 src/app/core/api/generated/

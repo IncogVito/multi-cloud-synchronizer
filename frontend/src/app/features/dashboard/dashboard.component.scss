@@ -1,0 +1,14 @@
+.dashboard {
+  padding: var(--spacing-8) var(--spacing-8);
+  max-width: 1100px;
+}
+
+.dashboard-header {
+  margin-bottom: var(--spacing-8);
+
+  h1 {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+  }
+}

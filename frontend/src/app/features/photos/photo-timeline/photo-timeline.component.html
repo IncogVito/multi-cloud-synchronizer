@@ -1,0 +1,76 @@
+<div class="content-area">
+  <div *ngIf="!selectedAccountId" class="empty-state">
+    Select an account to view photos.
+  </div>
+
+  <div *ngIf="selectedAccountId && loading" class="loading-state">
+    <span class="spinner"></span> Loading photos...
+  </div>
+
+  <div *ngIf="loadError" class="error-state">{{ loadError }}</div>
+
+  <ng-container *ngIf="selectedAccountId && !loading && !loadError">
+    <div *ngIf="groups.length === 0" class="empty-state">No photos found for this account.</div>
+
+    <div class="timeline" *ngFor="let group of groups">
+      <div class="group-header">
+        <div class="group-title-row">
+          <input
+            type="checkbox"
+            class="checkbox"
+            [checked]="isGroupFullySelected(group)"
+            [indeterminate]="isGroupPartiallySelected(group)"
+            (change)="toggleGroupSelection(group)"
+          />
+          <h2 class="group-label">{{ group.label }}</h2>
+          <span class="group-count">{{ group.photos.length }} photos</span>
+        </div>
+      </div>
+
+      <div class="photo-grid">
+        <div
+          class="photo-thumb"
+          *ngFor="let photo of group.photos"
+          [class.selected]="selectedIds.has(photo.id)"
+          [class.any-selected]="selectedIds.size > 0"
+          (click)="photoClicked.emit(photo)"
+        >
+          <img
+            *ngIf="thumbnailUrls.has(photo.id)"
+            [src]="thumbnailUrls.get(photo.id)"
+            [alt]="photo.filename"
+            loading="lazy"
+          />
+          <div class="thumb-placeholder" *ngIf="!thumbnailUrls.has(photo.id)">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </div>
+          <div class="thumb-overlay" (click)="$event.stopPropagation()">
+            <input
+              type="checkbox"
+              class="thumb-checkbox"
+              [checked]="selectedIds.has(photo.id)"
+              (change)="togglePhotoSelection(photo.id)"
+            />
+          </div>
+          <div class="thumb-media-type" *ngIf="photo.mediaType && photo.mediaType !== 'IMAGE'">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load more -->
+    <div class="load-more" *ngIf="hasMore && !loading">
+      <button class="btn btn-ghost" (click)="loadMoreRequested.emit()" [disabled]="loadingMore">
+        <span *ngIf="loadingMore" class="spinner"></span>
+        {{ loadingMore ? 'Loading...' : 'Load more' }}
+      </button>
+    </div>
+  </ng-container>
+</div>

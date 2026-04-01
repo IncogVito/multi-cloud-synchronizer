@@ -1,21 +1,30 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ViewChild } from '@angular/core';
+import { DeviceStatusPanelComponent } from './device-status-panel/device-status-panel.component';
+import { AccountsPanelComponent } from './accounts-panel/accounts-panel.component';
+import { AddAccountModalComponent } from './add-account-modal/add-account-modal.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule],
-  template: `
-    <div class="container">
-      <div class="section-header">
-        <h2>Dashboard</h2>
-      </div>
-      <div class="card">
-        <p>Dashboard - Coming Soon</p>
-      </div>
-    </div>
-  `
+  imports: [DeviceStatusPanelComponent, AccountsPanelComponent, AddAccountModalComponent],
+  templateUrl: './dashboard.component.html',
+  styleUrl: './dashboard.component.scss'
 })
 export class DashboardComponent {
-  title = 'Dashboard';
+  @ViewChild(AccountsPanelComponent) accountsPanel!: AccountsPanelComponent;
+
+  showModal = false;
+
+  onAddAccountRequested(): void {
+    this.showModal = true;
+  }
+
+  onModalClosed(): void {
+    this.showModal = false;
+  }
+
+  onAccountAdded(): void {
+    this.showModal = false;
+    this.accountsPanel.loadAccounts();
+  }
 }

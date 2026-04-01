@@ -3,7 +3,7 @@ import { defineConfig } from 'orval';
 export default defineConfig({
   cloudSync: {
     input: {
-      target: '../openapi/openapi.yml',
+      target: '../openapi.yml',
     },
     output: {
       target: './src/app/core/api/generated/index.ts',

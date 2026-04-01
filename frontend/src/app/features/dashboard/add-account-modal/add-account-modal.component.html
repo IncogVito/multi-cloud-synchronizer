@@ -1,0 +1,69 @@
+<div class="modal-overlay" *ngIf="visible" (click)="close()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>{{ pendingAccountId ? 'Two-Factor Authentication' : 'Add iCloud Account' }}</h3>
+      <button class="modal-close" (click)="close()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div *ngIf="modalError" class="form-error">{{ modalError }}</div>
+
+      <!-- Step 1: Credentials -->
+      <ng-container *ngIf="!pendingAccountId">
+        <div class="form-group">
+          <label class="form-label">Apple ID</label>
+          <input
+            type="email"
+            class="form-input"
+            [(ngModel)]="addForm.appleId"
+            placeholder="your@icloud.com"
+            autocomplete="username"
+          />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input
+            type="password"
+            class="form-input"
+            [(ngModel)]="addForm.password"
+            placeholder="App-specific password"
+            autocomplete="current-password"
+          />
+        </div>
+      </ng-container>
+
+      <!-- Step 2: 2FA -->
+      <ng-container *ngIf="pendingAccountId">
+        <p class="form-hint">A verification code has been sent to your trusted device.</p>
+        <div class="form-group">
+          <label class="form-label">Verification Code</label>
+          <input
+            type="text"
+            class="form-input"
+            [(ngModel)]="addForm.twoFaCode"
+            placeholder="000000"
+            maxlength="6"
+            autocomplete="one-time-code"
+          />
+        </div>
+      </ng-container>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" (click)="close()" [disabled]="modalLoading">Cancel</button>
+      <button
+        class="btn btn-primary"
+        (click)="submit()"
+        [disabled]="modalLoading"
+      >
+        <span *ngIf="modalLoading" class="spinner spinner-white"></span>
+        {{ pendingAccountId ? 'Verify' : 'Login' }}
+      </button>
+    </div>
+  </div>
+</div>
