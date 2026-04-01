@@ -8,6 +8,8 @@ import com.cloudsync.service.SyncService;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
 
@@ -16,6 +18,7 @@ import java.util.Map;
 
 @Controller("/api/photos")
 @Secured(SecurityRule.IS_AUTHENTICATED)
+@ExecuteOn(TaskExecutors.BLOCKING)
 public class PhotoController {
 
     private final PhotoService photoService;

@@ -7,12 +7,11 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 /**
- * Fallback LLM provider: simple heuristic-based agent when no real LLM is configured.
- * // OPEN: Replace with OpenAI/Ollama/local LLM implementation.
+ * Fallback LLM provider: simple heuristic-based agent used when OpenRouter API key is not set.
  *
  * Strategy:
- * 1. list_block_devices → find unmounted /dev/sd* or /dev/nvme* (excluding sda)
- * 2. check_mount_point /mnt/external-drive → if already mounted, done
+ * 1. check_mount_point /mnt/external-drive → if already mounted, done
+ * 2. list_block_devices → find candidate /dev/sd* or /dev/nvme*
  * 3. mount_device found_device:/mnt/external-drive
  * 4. check_disk_space /mnt/external-drive
  * 5. Final answer

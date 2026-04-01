@@ -2,6 +2,7 @@ package com.cloudsync.model.entity;
 
 import io.micronaut.data.annotation.Id;
 import io.micronaut.data.annotation.MappedEntity;
+import io.micronaut.data.annotation.MappedProperty;
 
 import java.time.Instant;
 
@@ -12,9 +13,12 @@ public class DeviceStatus {
     private String id;
 
     private String deviceType;
+
+    @MappedProperty("is_connected")
     private boolean isConnected;
     private Instant lastCheckedAt;
     private String details;
+    private String status;
 
     public DeviceStatus() {}
 
@@ -32,4 +36,7 @@ public class DeviceStatus {
 
     public String getDetails() { return details; }
     public void setDetails(String details) { this.details = details; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 }

@@ -1,0 +1,1 @@
+ALTER TABLE device_status ADD COLUMN status TEXT DEFAULT 'UNKNOWN';

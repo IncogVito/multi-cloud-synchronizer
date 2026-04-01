@@ -5,37 +5,42 @@ import org.junit.jupiter.api.Test;
 public class DeviceStatusServiceTest {
 
     @Test
-    void getAllStatuses_shouldReturnAllDeviceStatusRecords() {
-        // TODO: Implement test – to be completed by secondary model
+    void checkDriveStream_whenMounted_emitsConnectedImmediately() {
+        // TODO: Implement test
     }
 
     @Test
-    void checkDrive_shouldReturnConnectedTrueWhenMountPointExists() {
-        // TODO: Implement test – to be completed by secondary model
+    void checkDriveStream_whenNotMounted_invokesAgent() {
+        // TODO: Implement test
     }
 
     @Test
-    void checkDrive_shouldReturnConnectedFalseWhenMountPointMissing() {
-        // TODO: Implement test – to be completed by secondary model
+    void checkDriveStream_onError_emitsErrorEvent() {
+        // TODO: Implement test
     }
 
     @Test
-    void checkDrive_shouldPersistStatusInDb() {
-        // TODO: Implement test – to be completed by secondary model
+    void checkIPhoneStream_whenConnected_emitsTrustCheck() {
+        // TODO: Implement test
     }
 
     @Test
-    void checkIPhone_shouldParseScriptOutputAndSetConnectedFlag() {
-        // TODO: Implement test – to be completed by secondary model
+    void checkIPhoneStream_whenDisconnected_emitsDisconnected() {
+        // TODO: Implement test
     }
 
     @Test
-    void checkIPhone_shouldReturnConnectedFalseWhenScriptFails() {
-        // TODO: Implement test – to be completed by secondary model
+    void checkICloudStream_whenReachable_checksActiveSessions() {
+        // TODO: Implement test
     }
 
     @Test
-    void checkIPhone_shouldSaveScriptStdoutAsDetails() {
-        // TODO: Implement test – to be completed by secondary model
+    void checkICloudStream_whenUnreachable_emitsUnreachable() {
+        // TODO: Implement test
+    }
+
+    @Test
+    void persistStatus_savesCorrectDeviceStatus() {
+        // TODO: Implement test
     }
 }

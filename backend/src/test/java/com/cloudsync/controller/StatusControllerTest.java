@@ -5,17 +5,22 @@ import org.junit.jupiter.api.Test;
 public class StatusControllerTest {
 
     @Test
-    void getDeviceStatuses_shouldReturn200WithAllThreeDevices() {
-        // TODO: Implement test – to be completed by secondary model
+    void checkDriveReturnsSseStream() {
+        // TODO: Implement test
     }
 
     @Test
-    void postCheckDrive_shouldReturn200WithUpdatedStatus() {
-        // TODO: Implement test – to be completed by secondary model
+    void checkIPhoneReturnsSseStream() {
+        // TODO: Implement test
     }
 
     @Test
-    void postCheckIPhone_shouldReturn200WithUpdatedStatus() {
-        // TODO: Implement test – to be completed by secondary model
+    void checkICloudReturnsSseStream() {
+        // TODO: Implement test
+    }
+
+    @Test
+    void getDevicesReturnsLastKnownStatus() {
+        // TODO: Implement test
     }
 }

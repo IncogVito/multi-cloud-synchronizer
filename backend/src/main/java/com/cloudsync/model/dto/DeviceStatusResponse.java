@@ -8,6 +8,7 @@ import java.time.Instant;
 public record DeviceStatusResponse(
         String id,
         String deviceType,
+        String status,
         boolean connected,
         Instant lastCheckedAt,
         String details

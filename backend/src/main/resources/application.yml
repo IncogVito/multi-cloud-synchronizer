@@ -36,6 +36,10 @@ icloud:
   service:
     url: ${ICLOUD_SERVICE_URL:http://localhost:8000}
 
+openrouter:
+  api-key: ${OPENROUTER_API_KEY:}
+  model: ${OPENROUTER_MODEL:google/gemini-2.0-flash-001}
+
 app:
   username: ${APP_USERNAME:admin}
   password: ${APP_PASSWORD:changeme}
