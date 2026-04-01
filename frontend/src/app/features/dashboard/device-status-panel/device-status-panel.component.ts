@@ -1,5 +1,5 @@
-import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { StatusService } from '../../../core/api/generated/status/status.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { DeviceStatusResponse } from '../../../core/api/generated/model/deviceStatusResponse';
@@ -17,39 +17,38 @@ export interface DeviceCard {
 @Component({
   selector: 'app-device-status-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [DatePipe],
   templateUrl: './device-status-panel.component.html',
   styleUrl: './device-status-panel.component.scss'
 })
 export class DeviceStatusPanelComponent implements OnInit {
   private statusService = inject(StatusService);
   private authService = inject(AuthService);
-  private cdr = inject(ChangeDetectorRef);
 
-  devices: DeviceCard[] = [
+  devices = signal<DeviceCard[]>([
     { deviceType: 'DRIVE', label: 'External Drive', endpoint: '/api/status/check-drive', status: null, sseLog: [], sseExpanded: false, checking: false },
     { deviceType: 'IPHONE', label: 'iPhone', endpoint: '/api/status/check-iphone', status: null, sseLog: [], sseExpanded: false, checking: false },
     { deviceType: 'ICLOUD', label: 'iCloud', endpoint: '/api/status/check-icloud', status: null, sseLog: [], sseExpanded: false, checking: false },
-  ];
+  ]);
 
-  loadingStatuses = false;
+  loadingStatuses = signal(false);
 
   ngOnInit(): void {
     this.loadStatuses();
   }
 
   loadStatuses(): void {
-    this.loadingStatuses = true;
+    this.loadingStatuses.set(true);
     this.statusService.getDeviceStatuses().subscribe({
       next: (statuses) => {
-        for (const s of statuses) {
-          const device = this.devices.find(d => d.deviceType === s.deviceType);
-          if (device) device.status = s;
-        }
-        this.loadingStatuses = false;
+        this.devices.update(devs => devs.map(d => {
+          const s = statuses.find(s => s.deviceType === d.deviceType);
+          return s ? { ...d, status: s } : d;
+        }));
+        this.loadingStatuses.set(false);
       },
       error: () => {
-        this.loadingStatuses = false;
+        this.loadingStatuses.set(false);
       }
     });
   }
@@ -58,11 +57,18 @@ export class DeviceStatusPanelComponent implements OnInit {
     return connected ? 'connected' : 'disconnected';
   }
 
+  toggleSseExpanded(deviceType: string): void {
+    this.devices.update(devs => devs.map(d =>
+      d.deviceType === deviceType ? { ...d, sseExpanded: !d.sseExpanded } : d
+    ));
+  }
+
   async recheckDevice(device: DeviceCard): Promise<void> {
-    device.checking = true;
-    device.sseLog = [];
-    device.sseExpanded = true;
-    this.cdr.detectChanges();
+    const deviceType = device.deviceType;
+
+    this.devices.update(devs => devs.map(d =>
+      d.deviceType === deviceType ? { ...d, checking: true, sseLog: [], sseExpanded: true } : d
+    ));
 
     const creds = this.authService.getCredentials();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -87,28 +93,34 @@ export class DeviceStatusPanelComponent implements OnInit {
               const logEntry = event.stepDescription
                 ? `[${event.status ?? ''}] ${event.stepDescription}`
                 : JSON.stringify(event);
-              device.sseLog = [...device.sseLog, logEntry];
 
-              if (event.terminal) {
-                device.status = {
-                  id: '',
-                  deviceType: device.deviceType,
-                  status: event.status ?? '',
-                  connected: event.status === 'CONNECTED',
-                  lastCheckedAt: new Date().toISOString(),
-                  details: event.details ?? ''
-                };
-              }
+              this.devices.update(devs => devs.map(d => {
+                if (d.deviceType !== deviceType) return d;
+                const updated: DeviceCard = { ...d, sseLog: [...d.sseLog, logEntry] };
+                if (event.terminal) {
+                  updated.status = {
+                    id: '',
+                    deviceType,
+                    status: event.status ?? '',
+                    connected: event.status === 'CONNECTED',
+                    lastCheckedAt: new Date().toISOString(),
+                    details: event.details ?? ''
+                  };
+                }
+                return updated;
+              }));
             } catch { /* ignore parse errors */ }
-            this.cdr.detectChanges();
           }
         }
       }
     } catch (err) {
-      device.sseLog = [...device.sseLog, 'Error: ' + String(err)];
+      this.devices.update(devs => devs.map(d =>
+        d.deviceType === deviceType ? { ...d, sseLog: [...d.sseLog, 'Error: ' + String(err)] } : d
+      ));
     } finally {
-      device.checking = false;
-      this.cdr.detectChanges();
+      this.devices.update(devs => devs.map(d =>
+        d.deviceType === deviceType ? { ...d, checking: false } : d
+      ));
     }
   }
 }

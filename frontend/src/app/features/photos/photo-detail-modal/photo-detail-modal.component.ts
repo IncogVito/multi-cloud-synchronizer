@@ -1,22 +1,22 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, input, output } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { PhotoResponse } from '../../../core/api/generated/model/photoResponse';
 
 @Component({
   selector: 'app-photo-detail-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [DatePipe],
   templateUrl: './photo-detail-modal.component.html',
   styleUrl: './photo-detail-modal.component.scss'
 })
 export class PhotoDetailModalComponent {
-  @Input() photo: PhotoResponse | null = null;
-  @Input() imageUrl: string | null = null;
-  @Input() loading = false;
+  photo = input<PhotoResponse | null>(null);
+  imageUrl = input<string | null>(null);
+  loading = input(false);
 
-  @Output() closed = new EventEmitter<void>();
-  @Output() deleteFromICloud = new EventEmitter<PhotoResponse>();
-  @Output() deleteFromIPhone = new EventEmitter<PhotoResponse>();
+  closed = output<void>();
+  deleteFromICloud = output<PhotoResponse>();
+  deleteFromIPhone = output<PhotoResponse>();
 
   formatFileSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;

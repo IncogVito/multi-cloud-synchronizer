@@ -1,25 +1,18 @@
 .login-wrapper {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-primary) 100%);
   padding: var(--spacing-4);
 }
 
-.login-container {
-  width: 100%;
-  max-width: 28rem;
-  background-color: var(--color-bg-primary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-6);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
 .login-header {
   text-align: center;
   margin-bottom: var(--spacing-6);
+  width: 100%;
+  max-width: 28rem;
 
   h1 {
     font-size: 2rem;
@@ -33,6 +26,16 @@
     color: var(--color-text-secondary);
     margin: 0;
   }
+}
+
+.login-container {
+  width: 100%;
+  max-width: 28rem;
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-6);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .error-message {
@@ -51,6 +54,104 @@
     flex-shrink: 0;
     font-size: 1.2rem;
   }
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-8);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+// Grid of account tiles
+.accounts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-4);
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Account tile button
+.account-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  background-color: var(--color-bg-primary);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  font-family: inherit;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    background-color: var(--color-primary-bg);
+    transform: translateY(-2px);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .tile-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    word-break: break-word;
+  }
+}
+
+// Add account tile with dashed border
+.add-account-tile {
+  border-style: dashed;
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-bg);
+  opacity: 0.8;
+
+  &:hover:not(:disabled) {
+    opacity: 1;
+    background-color: var(--color-primary-bg);
+  }
+}
+
+// Selected account tile (displayed in forms)
+.selected-account-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  background-color: var(--color-primary-bg);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-4);
+
+  .tile-name {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-primary);
+    word-break: break-word;
+  }
+}
+
+// Add account form tile
+.add-account-form-tile {
+  border-style: dashed;
 }
 
 form {
@@ -97,6 +198,12 @@ form {
   }
 }
 
+.form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
 .btn-submit {
   width: 100%;
   padding: var(--spacing-3);
@@ -116,14 +223,6 @@ form {
 
 .twofa-header {
   text-align: center;
-  margin-bottom: var(--spacing-4);
-
-  h2 {
-    font-size: 1.4rem;
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text-primary);
-    margin: 0 0 var(--spacing-1) 0;
-  }
 
   p {
     font-size: var(--font-size-sm);
@@ -141,12 +240,6 @@ form {
   &::placeholder {
     letter-spacing: 0.05em;
   }
-}
-
-.twofa-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
 }
 
 // Responsive

@@ -1,101 +1,191 @@
 <div class="login-wrapper">
+  <div class="login-header">
+    <h1>Cloud Synchronizer</h1>
+    <p>Wybierz konto lub dodaj nowe</p>
+  </div>
+
   <div class="login-container">
-    <div class="login-header">
-      <h1>Cloud Synchronizer</h1>
-      <p>Sign in to your account</p>
-    </div>
-
-    <!-- Error Message -->
-    <div class="error-message" *ngIf="errorMessage">
-      <span class="error-icon">⚠️</span>
-      {{ errorMessage }}
-    </div>
-
-    <!-- Login Form -->
-    <form [formGroup]="loginForm" (ngSubmit)="onLoginSubmit()" *ngIf="!requires2fa">
-      <div class="form-group">
-        <label for="username">Username or Email</label>
-        <input
-          id="username"
-          type="text"
-          formControlName="username"
-          placeholder="Enter your username"
-          autocomplete="username"
-          [disabled]="isLoading"
-        />
-        <span class="error-text" *ngIf="loginForm.get('username')?.invalid && loginForm.get('username')?.touched">
-          Username is required
-        </span>
+    @if (errorMessage()) {
+      <div class="error-message">
+        <span class="error-icon">⚠️</span>
+        {{ errorMessage() }}
       </div>
+    }
 
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          formControlName="password"
-          placeholder="Enter your password"
-          autocomplete="current-password"
-          [disabled]="isLoading"
-        />
-        <span class="error-text" *ngIf="loginForm.get('password')?.invalid && loginForm.get('password')?.touched">
-          Password is required
-        </span>
+    @if (isLoadingAccounts()) {
+      <div class="loading-state">
+        <p>Ładowanie kont...</p>
       </div>
+    }
 
-      <button
-        type="submit"
-        class="btn btn-primary btn-submit"
-        [disabled]="loginForm.invalid || isLoading"
-      >
-        <span *ngIf="!isLoading">Sign In</span>
-        <span *ngIf="isLoading">Signing in...</span>
-      </button>
-    </form>
-
-    <!-- 2FA Form -->
-    <form [formGroup]="twoFaForm" (ngSubmit)="onTwoFaSubmit()" *ngIf="requires2fa">
-      <div class="twofa-header">
-        <h2>Two-Factor Authentication</h2>
-        <p>Enter the 6-digit code from your authenticator app</p>
-      </div>
-
-      <div class="form-group">
-        <label for="twofa-code">Verification Code</label>
-        <input
-          id="twofa-code"
-          type="text"
-          formControlName="code"
-          placeholder="000000"
-          maxlength="6"
-          autocomplete="off"
-          [disabled]="isLoading"
-          class="twofa-input"
-        />
-        <span class="error-text" *ngIf="twoFaForm.get('code')?.invalid && twoFaForm.get('code')?.touched">
-          Code must be at least 4 digits
-        </span>
-      </div>
-
-      <div class="twofa-actions">
+    @if (!selectedAccount() && !isAddingNewAccount() && !isLoadingAccounts()) {
+      <div class="accounts-grid">
+        @for (account of accounts(); track account.id) {
+          <button
+            class="account-tile"
+            (click)="selectAccount(account)"
+            [disabled]="isLoading()"
+          >
+            <div class="tile-name">{{ account.displayName }}</div>
+          </button>
+        }
         <button
-          type="submit"
-          class="btn btn-primary btn-submit"
-          [disabled]="twoFaForm.invalid || isLoading"
+          class="account-tile add-account-tile"
+          (click)="showAddNewAccount()"
+          [disabled]="isLoading()"
         >
-          <span *ngIf="!isLoading">Verify</span>
-          <span *ngIf="isLoading">Verifying...</span>
-        </button>
-        <button
-          type="button"
-          class="btn btn-secondary"
-          (click)="goBackToLogin()"
-          [disabled]="isLoading"
-        >
-          Back
+          <div class="tile-name">Dodaj nowe konto</div>
         </button>
       </div>
-    </form>
+    }
+
+    @if (selectedAccount(); as account) {
+      @if (!requires2fa() && !isAddingNewAccount()) {
+        <form [formGroup]="loginForm" (ngSubmit)="onLoginSubmit()">
+          <div class="selected-account-tile">
+            <div class="tile-name">{{ account.displayName }}</div>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Hasło</label>
+            <input
+              id="password"
+              type="password"
+              formControlName="password"
+              placeholder="Wpisz swoje hasło"
+              autocomplete="current-password"
+              [disabled]="isLoading()"
+              autofocus
+            />
+            @if (loginForm.get('password')?.invalid && loginForm.get('password')?.touched) {
+              <span class="error-text">Hasło jest wymagane</span>
+            }
+          </div>
+
+          <div class="form-actions">
+            <button
+              type="submit"
+              class="btn btn-primary btn-submit"
+              [disabled]="loginForm.invalid || isLoading()"
+            >
+              @if (isLoading()) { Logowanie... } @else { Zaloguj }
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="goBackToAccountSelection()"
+              [disabled]="isLoading()"
+            >
+              Wróć
+            </button>
+          </div>
+        </form>
+      }
+    }
+
+    @if (isAddingNewAccount() && !requires2fa()) {
+      <form [formGroup]="newAccountForm" (ngSubmit)="onAddNewAccountSubmit()">
+        <div class="selected-account-tile add-account-form-tile">
+          <div class="tile-name">Nowe konto</div>
+        </div>
+
+        <div class="form-group">
+          <label for="new-username">Apple ID / Email</label>
+          <input
+            id="new-username"
+            type="text"
+            formControlName="username"
+            placeholder="Wpisz Apple ID"
+            autocomplete="username"
+            [disabled]="isLoading()"
+            autofocus
+          />
+          @if (newAccountForm.get('username')?.invalid && newAccountForm.get('username')?.touched) {
+            <span class="error-text">Nazwa użytkownika jest wymagana</span>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="new-password">Hasło</label>
+          <input
+            id="new-password"
+            type="password"
+            formControlName="password"
+            placeholder="Wpisz swoje hasło"
+            autocomplete="new-password"
+            [disabled]="isLoading()"
+          />
+          @if (newAccountForm.get('password')?.invalid && newAccountForm.get('password')?.touched) {
+            <span class="error-text">Hasło jest wymagane</span>
+          }
+        </div>
+
+        <div class="form-actions">
+          <button
+            type="submit"
+            class="btn btn-primary btn-submit"
+            [disabled]="newAccountForm.invalid || isLoading()"
+          >
+            @if (isLoading()) { Dodawanie... } @else { Dodaj konto }
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="goBackToAccountSelection()"
+            [disabled]="isLoading()"
+          >
+            Anuluj
+          </button>
+        </div>
+      </form>
+    }
+
+    @if (requires2fa()) {
+      <form [formGroup]="twoFaForm" (ngSubmit)="onTwoFaSubmit()">
+        <div class="selected-account-tile">
+          <div class="tile-name">Weryfikacja 2FA</div>
+        </div>
+
+        <div class="twofa-header">
+          <p>Wpisz 6-cyfrowy kod z aplikacji uwierzytelniającą</p>
+        </div>
+
+        <div class="form-group">
+          <label for="twofa-code">Kod weryfikacyjny</label>
+          <input
+            id="twofa-code"
+            type="text"
+            formControlName="code"
+            placeholder="000000"
+            maxlength="6"
+            autocomplete="off"
+            [disabled]="isLoading()"
+            class="twofa-input"
+            autofocus
+          />
+          @if (twoFaForm.get('code')?.invalid && twoFaForm.get('code')?.touched) {
+            <span class="error-text">Kod musi mieć co najmniej 4 cyfry</span>
+          }
+        </div>
+
+        <div class="form-actions">
+          <button
+            type="submit"
+            class="btn btn-primary btn-submit"
+            [disabled]="twoFaForm.invalid || isLoading()"
+          >
+            @if (isLoading()) { Weryfikowanie... } @else { Weryfikuj }
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="goBackToAccountSelection()"
+            [disabled]="isLoading()"
+          >
+            Wróć
+          </button>
+        </div>
+      </form>
+    }
   </div>
 </div>
-

@@ -1,41 +1,41 @@
 <div class="photos-page">
   <app-photos-toolbar
-    [accounts]="accounts"
-    [selectedAccountId]="selectedAccountId"
-    [granularity]="granularity"
-    [syncing]="syncing"
-    [canSync]="!!selectedAccountId"
+    [accounts]="accounts()"
+    [selectedAccountId]="selectedAccountId()"
+    [granularity]="granularity()"
+    [syncing]="syncing()"
+    [canSync]="!!selectedAccountId()"
     (accountChanged)="onAccountChanged($event)"
     (granularityChanged)="onGranularityChanged($event)"
     (syncRequested)="onSyncRequested()"
   ></app-photos-toolbar>
 
   <app-photo-timeline
-    [groups]="groups"
-    [selectedIds]="selectedIds"
-    [thumbnailUrls]="thumbnailUrls"
-    [loading]="loading"
-    [loadingMore]="loadingMore"
-    [hasMore]="hasMore"
-    [selectedAccountId]="selectedAccountId"
-    [loadError]="loadError"
+    [groups]="groups()"
+    [selectedIds]="selectedIds()"
+    [thumbnailUrls]="thumbnailUrls()"
+    [loading]="loading()"
+    [loadingMore]="loadingMore()"
+    [hasMore]="hasMore()"
+    [selectedAccountId]="selectedAccountId()"
+    [loadError]="loadError()"
     (photoClicked)="onPhotoClicked($event)"
     (selectionChanged)="onSelectionChanged($event)"
     (loadMoreRequested)="onLoadMoreRequested()"
   ></app-photo-timeline>
 
   <app-batch-actions-bar
-    [selectedCount]="selectedIds.size"
-    [canDelete]="canDeleteSelected"
+    [selectedCount]="selectedIds().size"
+    [canDelete]="canDeleteSelected()"
     (deleteFromICloud)="onDeleteFromICloud()"
     (deleteFromIPhone)="onDeleteFromIPhone()"
     (clearSelection)="clearSelection()"
   ></app-batch-actions-bar>
 
   <app-photo-detail-modal
-    [photo]="detailPhoto"
-    [imageUrl]="detailImageUrl"
-    [loading]="!detailImageUrl && !!detailPhoto"
+    [photo]="detailPhoto()"
+    [imageUrl]="detailImageUrl()"
+    [loading]="!detailImageUrl() && !!detailPhoto()"
     (closed)="onDetailClosed()"
     (deleteFromICloud)="onDetailDeleteFromICloud($event)"
     (deleteFromIPhone)="onDetailDeleteFromIPhone($event)"

@@ -1,18 +1,17 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, input, output } from '@angular/core';
 
 @Component({
   selector: 'app-batch-actions-bar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './batch-actions-bar.component.html',
   styleUrl: './batch-actions-bar.component.scss'
 })
 export class BatchActionsBarComponent {
-  @Input() selectedCount = 0;
-  @Input() canDelete = false;
+  selectedCount = input(0);
+  canDelete = input(false);
 
-  @Output() deleteFromICloud = new EventEmitter<void>();
-  @Output() deleteFromIPhone = new EventEmitter<void>();
-  @Output() clearSelection = new EventEmitter<void>();
+  deleteFromICloud = output<void>();
+  deleteFromIPhone = output<void>();
+  clearSelection = output<void>();
 }

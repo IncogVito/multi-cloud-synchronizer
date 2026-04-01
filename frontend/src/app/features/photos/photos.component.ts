@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { PhotosService } from '../../core/api/generated/photos/photos.service';
 import { AccountsService } from '../../core/api/generated/accounts/accounts.service';
@@ -28,36 +28,40 @@ export class PhotosComponent implements OnInit, OnDestroy {
   private photosService = inject(PhotosService);
   private accountsService = inject(AccountsService);
   private http = inject(HttpClient);
-  private cdr = inject(ChangeDetectorRef);
 
-  accounts: AccountResponse[] = [];
-  selectedAccountId = '';
-  granularity: Granularity = 'year';
+  accounts = signal<AccountResponse[]>([]);
+  selectedAccountId = signal('');
+  granularity = signal<Granularity>('year');
 
-  allPhotos: PhotoResponse[] = [];
-  groups: PhotoGroup[] = [];
+  allPhotos = signal<PhotoResponse[]>([]);
+  groups = computed<PhotoGroup[]>(() => this.buildGroups(this.allPhotos(), this.granularity()));
 
-  loading = false;
-  loadingMore = false;
-  loadError = '';
-  hasMore = false;
-  currentPage = 0;
+  loading = signal(false);
+  loadingMore = signal(false);
+  loadError = signal('');
+  hasMore = signal(false);
+  currentPage = signal(0);
   pageSize = 100;
 
-  syncing = false;
+  syncing = signal(false);
 
-  selectedIds = new Set<string>();
-  thumbnailUrls = new Map<string, string>();
-  thumbnailBlobUrls: string[] = [];
+  selectedIds = signal(new Set<string>());
+  thumbnailUrls = signal(new Map<string, string>());
+  private thumbnailBlobUrls: string[] = [];
 
-  detailPhoto: PhotoResponse | null = null;
-  detailImageUrl: string | null = null;
+  detailPhoto = signal<PhotoResponse | null>(null);
+  detailImageUrl = signal<string | null>(null);
   private detailBlobUrl: string | null = null;
+
+  canDeleteSelected = computed(() => {
+    const selectedPhotos = this.allPhotos().filter(p => this.selectedIds().has(p.id));
+    return selectedPhotos.length > 0 && selectedPhotos.every(p => p.syncedToDisk);
+  });
 
   ngOnInit(): void {
     this.accountsService.listAccounts().subscribe({
       next: (accounts) => {
-        this.accounts = accounts;
+        this.accounts.set(accounts);
       }
     });
   }
@@ -72,73 +76,70 @@ export class PhotosComponent implements OnInit, OnDestroy {
   }
 
   onAccountChanged(accountId: string): void {
-    this.selectedAccountId = accountId;
-    this.allPhotos = [];
-    this.groups = [];
-    this.selectedIds = new Set();
-    this.currentPage = 0;
-    this.hasMore = false;
-    this.loadError = '';
+    this.selectedAccountId.set(accountId);
+    this.allPhotos.set([]);
+    this.selectedIds.set(new Set());
+    this.currentPage.set(0);
+    this.hasMore.set(false);
+    this.loadError.set('');
 
-    if (this.selectedAccountId) {
+    if (accountId) {
       this.loadPhotos();
     }
   }
 
   onGranularityChanged(g: Granularity): void {
-    this.granularity = g;
-    this.buildGroups();
+    this.granularity.set(g);
   }
 
   onSyncRequested(): void {
-    if (!this.selectedAccountId || this.syncing) return;
-    this.syncing = true;
-    this.photosService.syncPhotos({ accountId: this.selectedAccountId }).subscribe({
+    if (!this.selectedAccountId() || this.syncing()) return;
+    this.syncing.set(true);
+    this.photosService.syncPhotos({ accountId: this.selectedAccountId() }).subscribe({
       next: () => {
-        this.syncing = false;
-        this.allPhotos = [];
-        this.currentPage = 0;
+        this.syncing.set(false);
+        this.allPhotos.set([]);
+        this.currentPage.set(0);
         this.loadPhotos();
       },
       error: (err) => {
-        this.syncing = false;
+        this.syncing.set(false);
         alert('Sync failed: ' + (err?.message ?? 'Unknown error'));
       }
     });
   }
 
   onSelectionChanged(ids: Set<string>): void {
-    this.selectedIds = ids;
+    this.selectedIds.set(ids);
   }
 
   onLoadMoreRequested(): void {
-    if (this.loadingMore || !this.hasMore) return;
-    this.loadingMore = true;
-    this.currentPage++;
+    if (this.loadingMore() || !this.hasMore()) return;
+    this.loadingMore.set(true);
+    this.currentPage.update(p => p + 1);
 
     this.photosService.listPhotos({
-      accountId: this.selectedAccountId,
+      accountId: this.selectedAccountId(),
       synced: 'all',
-      page: this.currentPage,
+      page: this.currentPage(),
       size: this.pageSize
     }).subscribe({
       next: (resp) => {
         const photos = resp.photos ?? [];
-        this.allPhotos = [...this.allPhotos, ...photos];
-        this.hasMore = this.allPhotos.length < (resp.total ?? 0);
-        this.buildGroups();
-        this.loadingMore = false;
+        this.allPhotos.update(existing => [...existing, ...photos]);
+        this.hasMore.set(this.allPhotos().length < (resp.total ?? 0));
+        this.loadingMore.set(false);
         this.loadThumbnails(photos);
       },
       error: () => {
-        this.loadingMore = false;
+        this.loadingMore.set(false);
       }
     });
   }
 
   onPhotoClicked(photo: PhotoResponse): void {
-    this.detailPhoto = photo;
-    this.detailImageUrl = null;
+    this.detailPhoto.set(photo);
+    this.detailImageUrl.set(null);
 
     if (this.detailBlobUrl) {
       URL.revokeObjectURL(this.detailBlobUrl);
@@ -148,20 +149,18 @@ export class PhotosComponent implements OnInit, OnDestroy {
     this.http.get(`/api/photos/${photo.id}/full`, { responseType: 'blob' }).subscribe({
       next: (blob) => {
         this.detailBlobUrl = URL.createObjectURL(blob);
-        this.detailImageUrl = this.detailBlobUrl;
-        this.cdr.detectChanges();
+        this.detailImageUrl.set(this.detailBlobUrl);
       },
       error: () => {
-        const thumbUrl = this.thumbnailUrls.get(photo.id);
-        if (thumbUrl) this.detailImageUrl = thumbUrl;
-        this.cdr.detectChanges();
+        const thumbUrl = this.thumbnailUrls().get(photo.id);
+        if (thumbUrl) this.detailImageUrl.set(thumbUrl);
       }
     });
   }
 
   onDetailClosed(): void {
-    this.detailPhoto = null;
-    this.detailImageUrl = null;
+    this.detailPhoto.set(null);
+    this.detailImageUrl.set(null);
     if (this.detailBlobUrl) {
       URL.revokeObjectURL(this.detailBlobUrl);
       this.detailBlobUrl = null;
@@ -169,40 +168,38 @@ export class PhotosComponent implements OnInit, OnDestroy {
   }
 
   onDeleteFromICloud(): void {
-    if (!this.canDeleteSelected) return;
-    if (!confirm(`Delete ${this.selectedIds.size} photo(s) from iCloud? This cannot be undone.`)) return;
+    if (!this.canDeleteSelected()) return;
+    if (!confirm(`Delete ${this.selectedIds().size} photo(s) from iCloud? This cannot be undone.`)) return;
 
-    const photoIds = Array.from(this.selectedIds);
+    const photoIds = Array.from(this.selectedIds());
     this.photosService.deleteFromICloud(
       { photoIds },
-      { accountId: this.selectedAccountId }
+      { accountId: this.selectedAccountId() }
     ).subscribe({
       next: () => {
-        this.allPhotos = this.allPhotos.map(p =>
+        this.allPhotos.update(photos => photos.map(p =>
           photoIds.includes(p.id) ? { ...p, existsOnIcloud: false } : p
-        );
-        this.buildGroups();
-        this.selectedIds = new Set();
+        ));
+        this.selectedIds.set(new Set());
       },
       error: (err) => alert('Delete from iCloud failed: ' + (err?.message ?? 'Unknown error'))
     });
   }
 
   onDeleteFromIPhone(): void {
-    if (!this.canDeleteSelected) return;
-    if (!confirm(`Delete ${this.selectedIds.size} photo(s) from iPhone? This cannot be undone.`)) return;
+    if (!this.canDeleteSelected()) return;
+    if (!confirm(`Delete ${this.selectedIds().size} photo(s) from iPhone? This cannot be undone.`)) return;
 
-    const photoIds = Array.from(this.selectedIds);
+    const photoIds = Array.from(this.selectedIds());
     this.photosService.deleteFromIPhone(
       { photoIds },
-      { accountId: this.selectedAccountId }
+      { accountId: this.selectedAccountId() }
     ).subscribe({
       next: () => {
-        this.allPhotos = this.allPhotos.map(p =>
+        this.allPhotos.update(photos => photos.map(p =>
           photoIds.includes(p.id) ? { ...p, existsOnIphone: false } : p
-        );
-        this.buildGroups();
-        this.selectedIds = new Set();
+        ));
+        this.selectedIds.set(new Set());
       },
       error: (err) => alert('Delete from iPhone failed: ' + (err?.message ?? 'Unknown error'))
     });
@@ -216,12 +213,11 @@ export class PhotosComponent implements OnInit, OnDestroy {
       { accountId: photo.accountId }
     ).subscribe({
       next: () => {
-        this.allPhotos = this.allPhotos.map(p =>
+        this.allPhotos.update(photos => photos.map(p =>
           p.id === photo.id ? { ...p, existsOnIcloud: false } : p
-        );
-        this.buildGroups();
-        if (this.detailPhoto?.id === photo.id) {
-          this.detailPhoto = { ...this.detailPhoto, existsOnIcloud: false };
+        ));
+        if (this.detailPhoto()?.id === photo.id) {
+          this.detailPhoto.update(p => p ? { ...p, existsOnIcloud: false } : p);
         }
       },
       error: (err) => alert('Failed: ' + (err?.message ?? 'Unknown error'))
@@ -236,59 +232,52 @@ export class PhotosComponent implements OnInit, OnDestroy {
       { accountId: photo.accountId }
     ).subscribe({
       next: () => {
-        this.allPhotos = this.allPhotos.map(p =>
+        this.allPhotos.update(photos => photos.map(p =>
           p.id === photo.id ? { ...p, existsOnIphone: false } : p
-        );
-        this.buildGroups();
-        if (this.detailPhoto?.id === photo.id) {
-          this.detailPhoto = { ...this.detailPhoto, existsOnIphone: false };
+        ));
+        if (this.detailPhoto()?.id === photo.id) {
+          this.detailPhoto.update(p => p ? { ...p, existsOnIphone: false } : p);
         }
       },
       error: (err) => alert('Failed: ' + (err?.message ?? 'Unknown error'))
     });
   }
 
-  clearSelection() {
-    this.selectedIds = new Set()
-  }
-
-  get canDeleteSelected(): boolean {
-    const selectedPhotos = this.allPhotos.filter(p => this.selectedIds.has(p.id));
-    return selectedPhotos.length > 0 && selectedPhotos.every(p => p.syncedToDisk);
+  clearSelection(): void {
+    this.selectedIds.set(new Set());
   }
 
   private loadPhotos(): void {
-    this.loading = true;
-    this.loadError = '';
+    this.loading.set(true);
+    this.loadError.set('');
     this.photosService.listPhotos({
-      accountId: this.selectedAccountId,
+      accountId: this.selectedAccountId(),
       synced: 'all',
-      page: this.currentPage,
+      page: this.currentPage(),
       size: this.pageSize
     }).subscribe({
       next: (resp) => {
         const photos = resp.photos ?? [];
-        this.allPhotos = [...this.allPhotos, ...photos];
-        this.hasMore = this.allPhotos.length < (resp.total ?? 0);
-        this.buildGroups();
-        this.loading = false;
+        this.allPhotos.update(existing => [...existing, ...photos]);
+        this.hasMore.set(this.allPhotos().length < (resp.total ?? 0));
+        this.loading.set(false);
         this.loadThumbnails(photos);
       },
       error: (err) => {
-        this.loadError = 'Failed to load photos: ' + (err?.message ?? 'Unknown error');
-        this.loading = false;
+        this.loadError.set('Failed to load photos: ' + (err?.message ?? 'Unknown error'));
+        this.loading.set(false);
       }
     });
   }
 
-  private buildGroups(): void {
+  private buildGroups(photos: PhotoResponse[], granularity: Granularity): PhotoGroup[] {
     const groupMap = new Map<string, PhotoResponse[]>();
 
-    for (const photo of this.allPhotos) {
+    for (const photo of photos) {
       const date = new Date(photo.createdDate);
       let key: string;
 
-      if (this.granularity === 'year') {
+      if (granularity === 'year') {
         key = String(date.getFullYear());
       } else {
         const year = date.getFullYear();
@@ -302,11 +291,11 @@ export class PhotosComponent implements OnInit, OnDestroy {
       groupMap.get(key)!.push(photo);
     }
 
-    this.groups = Array.from(groupMap.entries())
+    return Array.from(groupMap.entries())
       .sort((a, b) => b[0].localeCompare(a[0]))
       .map(([key, photos]) => ({
         key,
-        label: this.granularity === 'year' ? key : photos[0]
+        label: granularity === 'year' ? key : photos[0]
           ? new Date(photos[0].createdDate).toLocaleString('default', { month: 'long', year: 'numeric' })
           : key,
         photos: photos.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())
@@ -315,14 +304,13 @@ export class PhotosComponent implements OnInit, OnDestroy {
 
   private loadThumbnails(photos: PhotoResponse[]): void {
     for (const photo of photos) {
-      if (this.thumbnailUrls.has(photo.id)) continue;
+      if (this.thumbnailUrls().has(photo.id)) continue;
 
       this.http.get(`/api/photos/${photo.id}/thumbnail`, { responseType: 'blob' }).subscribe({
         next: (blob) => {
           const url = URL.createObjectURL(blob);
-          this.thumbnailUrls.set(photo.id, url);
           this.thumbnailBlobUrls.push(url);
-          this.cdr.detectChanges();
+          this.thumbnailUrls.update(urls => new Map(urls).set(photo.id, url));
         },
         error: () => { /* thumbnail failed, leave placeholder */ }
       });

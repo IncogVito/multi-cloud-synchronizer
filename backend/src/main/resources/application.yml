@@ -33,6 +33,9 @@ micronaut:
       - pattern: /api/accounts/2fa
         access:
           - isAnonymous()
+      - pattern: /api/accounts
+        access:
+          - isAnonymous()
       - pattern: /**
         access:
           - isAuthenticated()

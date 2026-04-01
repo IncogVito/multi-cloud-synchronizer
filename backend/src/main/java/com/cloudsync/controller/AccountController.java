@@ -70,7 +70,6 @@ public class AccountController {
     @ApiResponse(responseCode = "200", description = "List of iCloud accounts")
     @Get
     @Produces(MediaType.APPLICATION_JSON)
-    @Secured(SecurityRule.IS_AUTHENTICATED)
     public List<AccountResponse> listAccounts() {
         LOG.debug("[CTRL] GET /api/accounts");
         try {

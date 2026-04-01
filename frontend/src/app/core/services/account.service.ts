@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
+import { AccountResponse } from '../api/generated/model';
 
 export interface LoginRequest {
   appleId: string;
@@ -24,10 +25,12 @@ export interface TwoFaResponse {
   message?: string;
 }
 
-export interface AccountResponse {
-  id: string;
-  username: string;
-  email?: string;
+export interface AvailableAccountsResponse {
+  accounts: Array<{
+    id: string;
+    name: string;
+    appleId: string;
+  }>;
 }
 
 @Injectable({

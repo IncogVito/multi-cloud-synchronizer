@@ -1,5 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AccountsService } from '../../../core/api/generated/accounts/accounts.service';
 import { LoginResponse } from '../../../core/api/generated/model/loginResponse';
@@ -13,32 +12,32 @@ interface AddAccountForm {
 @Component({
   selector: 'app-add-account-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './add-account-modal.component.html',
   styleUrl: './add-account-modal.component.scss'
 })
 export class AddAccountModalComponent {
   private accountsService = inject(AccountsService);
 
-  @Input() visible = false;
-  @Output() closed = new EventEmitter<void>();
-  @Output() accountAdded = new EventEmitter<void>();
+  visible = input(false);
+  closed = output<void>();
+  accountAdded = output<void>();
 
-  modalLoading = false;
-  modalError = '';
-  pendingAccountId: string | null = null;
+  modalLoading = signal(false);
+  modalError = signal('');
+  pendingAccountId = signal<string | null>(null);
 
   addForm: AddAccountForm = { appleId: '', password: '', twoFaCode: '' };
 
   close(): void {
-    this.pendingAccountId = null;
+    this.pendingAccountId.set(null);
     this.addForm = { appleId: '', password: '', twoFaCode: '' };
-    this.modalError = '';
+    this.modalError.set('');
     this.closed.emit();
   }
 
   submit(): void {
-    if (this.pendingAccountId) {
+    if (this.pendingAccountId()) {
       this.submit2FA();
     } else {
       this.submitLogin();
@@ -47,46 +46,46 @@ export class AddAccountModalComponent {
 
   private submitLogin(): void {
     if (!this.addForm.appleId || !this.addForm.password) {
-      this.modalError = 'Please fill in all fields.';
+      this.modalError.set('Please fill in all fields.');
       return;
     }
-    this.modalLoading = true;
-    this.modalError = '';
+    this.modalLoading.set(true);
+    this.modalError.set('');
 
     this.accountsService.login({ appleId: this.addForm.appleId, password: this.addForm.password }).subscribe({
       next: (resp: LoginResponse) => {
-        this.modalLoading = false;
+        this.modalLoading.set(false);
         if (resp.requires2fa) {
-          this.pendingAccountId = resp.accountId;
+          this.pendingAccountId.set(resp.accountId ?? null);
         } else {
           this.close();
           this.accountAdded.emit();
         }
       },
       error: (err) => {
-        this.modalLoading = false;
-        this.modalError = err?.error?.message ?? err?.message ?? 'Login failed. Please check your credentials.';
+        this.modalLoading.set(false);
+        this.modalError.set(err?.error?.message ?? err?.message ?? 'Login failed. Please check your credentials.');
       }
     });
   }
 
   private submit2FA(): void {
     if (!this.addForm.twoFaCode) {
-      this.modalError = 'Please enter the verification code.';
+      this.modalError.set('Please enter the verification code.');
       return;
     }
-    this.modalLoading = true;
-    this.modalError = '';
+    this.modalLoading.set(true);
+    this.modalError.set('');
 
-    this.accountsService.twoFa({ accountId: this.pendingAccountId!, code: this.addForm.twoFaCode }).subscribe({
+    this.accountsService.twoFa({ accountId: this.pendingAccountId()!, code: this.addForm.twoFaCode }).subscribe({
       next: () => {
-        this.modalLoading = false;
+        this.modalLoading.set(false);
         this.close();
         this.accountAdded.emit();
       },
       error: (err) => {
-        this.modalLoading = false;
-        this.modalError = err?.error?.message ?? err?.message ?? '2FA verification failed.';
+        this.modalLoading.set(false);
+        this.modalError.set(err?.error?.message ?? err?.message ?? '2FA verification failed.');
       }
     });
   }

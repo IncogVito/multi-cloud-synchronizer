@@ -1,4 +1,4 @@
-import { Component, ViewChild } from '@angular/core';
+import { Component, ViewChild, signal } from '@angular/core';
 import { DeviceStatusPanelComponent } from './device-status-panel/device-status-panel.component';
 import { AccountsPanelComponent } from './accounts-panel/accounts-panel.component';
 import { AddAccountModalComponent } from './add-account-modal/add-account-modal.component';
@@ -13,18 +13,18 @@ import { AddAccountModalComponent } from './add-account-modal/add-account-modal.
 export class DashboardComponent {
   @ViewChild(AccountsPanelComponent) accountsPanel!: AccountsPanelComponent;
 
-  showModal = false;
+  showModal = signal(false);
 
   onAddAccountRequested(): void {
-    this.showModal = true;
+    this.showModal.set(true);
   }
 
   onModalClosed(): void {
-    this.showModal = false;
+    this.showModal.set(false);
   }
 
   onAccountAdded(): void {
-    this.showModal = false;
+    this.showModal.set(false);
     this.accountsPanel.loadAccounts();
   }
 }

@@ -1,5 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, input, output } from '@angular/core';
 import { PhotoResponse } from '../../../core/api/generated/model/photoResponse';
 
 export interface PhotoGroup {
@@ -11,35 +10,35 @@ export interface PhotoGroup {
 @Component({
   selector: 'app-photo-timeline',
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './photo-timeline.component.html',
   styleUrl: './photo-timeline.component.scss'
 })
 export class PhotoTimelineComponent {
-  @Input() groups: PhotoGroup[] = [];
-  @Input() selectedIds = new Set<string>();
-  @Input() thumbnailUrls = new Map<string, string>();
-  @Input() loading = false;
-  @Input() loadingMore = false;
-  @Input() hasMore = false;
-  @Input() selectedAccountId = '';
-  @Input() loadError = '';
+  groups = input<PhotoGroup[]>([]);
+  selectedIds = input(new Set<string>());
+  thumbnailUrls = input(new Map<string, string>());
+  loading = input(false);
+  loadingMore = input(false);
+  hasMore = input(false);
+  selectedAccountId = input('');
+  loadError = input('');
 
-  @Output() photoClicked = new EventEmitter<PhotoResponse>();
-  @Output() selectionChanged = new EventEmitter<Set<string>>();
-  @Output() loadMoreRequested = new EventEmitter<void>();
+  photoClicked = output<PhotoResponse>();
+  selectionChanged = output<Set<string>>();
+  loadMoreRequested = output<void>();
 
   isGroupFullySelected(group: PhotoGroup): boolean {
-    return group.photos.length > 0 && group.photos.every(p => this.selectedIds.has(p.id));
+    return group.photos.length > 0 && group.photos.every(p => this.selectedIds().has(p.id));
   }
 
   isGroupPartiallySelected(group: PhotoGroup): boolean {
-    return group.photos.some(p => this.selectedIds.has(p.id)) && !this.isGroupFullySelected(group);
+    return group.photos.some(p => this.selectedIds().has(p.id)) && !this.isGroupFullySelected(group);
   }
 
   toggleGroupSelection(group: PhotoGroup): void {
-    const allSelected = group.photos.every(p => this.selectedIds.has(p.id));
-    const next = new Set(this.selectedIds);
+    const allSelected = group.photos.every(p => this.selectedIds().has(p.id));
+    const next = new Set(this.selectedIds());
     if (allSelected) {
       group.photos.forEach(p => next.delete(p.id));
     } else {
@@ -49,7 +48,7 @@ export class PhotoTimelineComponent {
   }
 
   togglePhotoSelection(id: string): void {
-    const next = new Set(this.selectedIds);
+    const next = new Set(this.selectedIds());
     if (next.has(id)) {
       next.delete(id);
     } else {

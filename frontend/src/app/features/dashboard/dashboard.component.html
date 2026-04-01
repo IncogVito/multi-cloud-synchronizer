@@ -10,7 +10,7 @@
   ></app-accounts-panel>
 
   <app-add-account-modal
-    [visible]="showModal"
+    [visible]="showModal()"
     (closed)="onModalClosed()"
     (accountAdded)="onAccountAdded()"
   ></app-add-account-modal>

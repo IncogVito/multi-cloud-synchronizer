@@ -1,7 +1,7 @@
 <section class="section">
   <div class="section-header">
     <h2>Device Status</h2>
-    <button class="btn btn-ghost" (click)="loadStatuses()" [disabled]="loadingStatuses">
+    <button class="btn btn-ghost" (click)="loadStatuses()" [disabled]="loadingStatuses()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="23 4 23 10 17 10"/>
         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -11,61 +11,74 @@
   </div>
 
   <div class="device-cards">
-    <div class="card device-card" *ngFor="let device of devices">
-      <div class="device-card-header">
-        <div class="device-info">
-          <span class="device-label">{{ device.label }}</span>
-          <ng-container *ngIf="device.status; else noStatus">
-            <span class="status-badge" [class]="statusBadgeClass(device.status.connected)">
-              {{ device.status.connected ? 'Connected' : 'Disconnected' }}
-            </span>
-          </ng-container>
-          <ng-template #noStatus>
-            <span class="status-badge pending">Unknown</span>
-          </ng-template>
-        </div>
-        <button
-          class="btn btn-ghost recheck-btn"
-          (click)="recheckDevice(device)"
-          [disabled]="device.checking"
-        >
-          <svg *ngIf="!device.checking" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"/>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-          </svg>
-          <span *ngIf="device.checking" class="spinner"></span>
-          {{ device.checking ? 'Checking...' : 'Re-check' }}
-        </button>
-      </div>
-
-      <div class="device-card-meta" *ngIf="device.status">
-        <span class="meta-label">Last checked:</span>
-        <span class="meta-value">{{ device.status.lastCheckedAt | date:'short' }}</span>
-      </div>
-
-      <div class="device-card-meta" *ngIf="device.status?.details">
-        <span class="meta-value muted">{{ device.status?.details }}</span>
-      </div>
-
-      <!-- SSE Log -->
-      <div class="sse-log" *ngIf="device.sseLog.length > 0">
-        <button
-          class="sse-toggle"
-          (click)="device.sseExpanded = !device.sseExpanded"
-        >
-          <svg
-            width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            [style.transform]="device.sseExpanded ? 'rotate(90deg)' : 'rotate(0)'"
-            style="transition: transform 0.2s ease"
+    @for (device of devices(); track device.deviceType) {
+      <div class="card device-card">
+        <div class="device-card-header">
+          <div class="device-info">
+            <span class="device-label">{{ device.label }}</span>
+            @if (device.status) {
+              <span class="status-badge" [class]="statusBadgeClass(device.status.connected)">
+                {{ device.status.connected ? 'Connected' : 'Disconnected' }}
+              </span>
+            } @else {
+              <span class="status-badge pending">Unknown</span>
+            }
+          </div>
+          <button
+            class="btn btn-ghost recheck-btn"
+            (click)="recheckDevice(device)"
+            [disabled]="device.checking"
           >
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
-          Check log ({{ device.sseLog.length }} steps)
-        </button>
-        <ul class="sse-entries" *ngIf="device.sseExpanded">
-          <li *ngFor="let entry of device.sseLog" class="sse-entry">{{ entry }}</li>
-        </ul>
+            @if (!device.checking) {
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+            } @else {
+              <span class="spinner"></span>
+            }
+            {{ device.checking ? 'Checking...' : 'Re-check' }}
+          </button>
+        </div>
+
+        @if (device.status) {
+          <div class="device-card-meta">
+            <span class="meta-label">Last checked:</span>
+            <span class="meta-value">{{ device.status.lastCheckedAt | date:'short' }}</span>
+          </div>
+        }
+
+        @if (device.status?.details) {
+          <div class="device-card-meta">
+            <span class="meta-value muted">{{ device.status?.details }}</span>
+          </div>
+        }
+
+        @if (device.sseLog.length > 0) {
+          <div class="sse-log">
+            <button
+              class="sse-toggle"
+              (click)="toggleSseExpanded(device.deviceType)"
+            >
+              <svg
+                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                [style.transform]="device.sseExpanded ? 'rotate(90deg)' : 'rotate(0)'"
+                style="transition: transform 0.2s ease"
+              >
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+              Check log ({{ device.sseLog.length }} steps)
+            </button>
+            @if (device.sseExpanded) {
+              <ul class="sse-entries">
+                @for (entry of device.sseLog; track $index) {
+                  <li class="sse-entry">{{ entry }}</li>
+                }
+              </ul>
+            }
+          </div>
+        }
       </div>
-    </div>
+    }
   </div>
 </section>

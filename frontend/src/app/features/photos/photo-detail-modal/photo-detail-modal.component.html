@@ -1,76 +1,82 @@
-<div class="modal-overlay" *ngIf="photo" (click)="closed.emit()">
-  <div class="detail-modal" (click)="$event.stopPropagation()">
-    <button class="modal-close" (click)="closed.emit()">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-    </button>
+@if (photo(); as p) {
+  <div class="modal-overlay" (click)="closed.emit()">
+    <div class="detail-modal" (click)="$event.stopPropagation()">
+      <button class="modal-close" (click)="closed.emit()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
 
-    <div class="detail-image-area">
-      <img
-        *ngIf="imageUrl"
-        [src]="imageUrl"
-        [alt]="photo!.filename"
-        class="detail-image"
-      />
-      <div class="detail-loading" *ngIf="!imageUrl">
-        <span class="spinner"></span>
-      </div>
-    </div>
-
-    <div class="detail-info">
-      <h3 class="detail-filename">{{ photo!.filename }}</h3>
-
-      <div class="detail-meta-grid">
-        <div class="detail-meta-item" *ngIf="photo!.fileSize">
-          <span class="meta-label">Size</span>
-          <span class="meta-value">{{ formatFileSize(photo!.fileSize) }}</span>
-        </div>
-        <div class="detail-meta-item" *ngIf="photo!.width && photo!.height">
-          <span class="meta-label">Dimensions</span>
-          <span class="meta-value">{{ photo!.width }} × {{ photo!.height }}</span>
-        </div>
-        <div class="detail-meta-item" *ngIf="photo!.createdDate">
-          <span class="meta-label">Date</span>
-          <span class="meta-value">{{ photo!.createdDate | date:'mediumDate' }}</span>
-        </div>
+      <div class="detail-image-area">
+        @if (imageUrl()) {
+          <img [src]="imageUrl()!" [alt]="p.filename" class="detail-image" />
+        } @else {
+          <div class="detail-loading">
+            <span class="spinner"></span>
+          </div>
+        }
       </div>
 
-      <div class="detail-status-row">
-        <div class="detail-status-item" [class.active]="photo!.existsOnIcloud">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-          </svg>
-          iCloud
-        </div>
-        <div class="detail-status-item" [class.active]="photo!.existsOnIphone">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-            <line x1="12" y1="18" x2="12.01" y2="18"/>
-          </svg>
-          iPhone
-        </div>
-        <div class="detail-status-item" [class.active]="photo!.syncedToDisk">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-          </svg>
-          On Disk
-        </div>
-      </div>
+      <div class="detail-info">
+        <h3 class="detail-filename">{{ p.filename }}</h3>
 
-      <div class="detail-actions">
-        <button
-          class="btn btn-danger"
-          (click)="deleteFromICloud.emit(photo!)"
-          [disabled]="!photo!.syncedToDisk"
-        >Delete from iCloud</button>
-        <button
-          class="btn btn-danger"
-          (click)="deleteFromIPhone.emit(photo!)"
-          [disabled]="!photo!.syncedToDisk"
-        >Delete from iPhone</button>
+        <div class="detail-meta-grid">
+          @if (p.fileSize) {
+            <div class="detail-meta-item">
+              <span class="meta-label">Size</span>
+              <span class="meta-value">{{ formatFileSize(p.fileSize) }}</span>
+            </div>
+          }
+          @if (p.width && p.height) {
+            <div class="detail-meta-item">
+              <span class="meta-label">Dimensions</span>
+              <span class="meta-value">{{ p.width }} × {{ p.height }}</span>
+            </div>
+          }
+          @if (p.createdDate) {
+            <div class="detail-meta-item">
+              <span class="meta-label">Date</span>
+              <span class="meta-value">{{ p.createdDate | date:'mediumDate' }}</span>
+            </div>
+          }
+        </div>
+
+        <div class="detail-status-row">
+          <div class="detail-status-item" [class.active]="p.existsOnIcloud">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+            </svg>
+            iCloud
+          </div>
+          <div class="detail-status-item" [class.active]="p.existsOnIphone">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+              <line x1="12" y1="18" x2="12.01" y2="18"/>
+            </svg>
+            iPhone
+          </div>
+          <div class="detail-status-item" [class.active]="p.syncedToDisk">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            On Disk
+          </div>
+        </div>
+
+        <div class="detail-actions">
+          <button
+            class="btn btn-danger"
+            (click)="deleteFromICloud.emit(p)"
+            [disabled]="!p.syncedToDisk"
+          >Delete from iCloud</button>
+          <button
+            class="btn btn-danger"
+            (click)="deleteFromIPhone.emit(p)"
+            [disabled]="!p.syncedToDisk"
+          >Delete from iPhone</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
+}

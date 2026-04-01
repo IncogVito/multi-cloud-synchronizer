@@ -100,7 +100,7 @@ public class AccountService {
     public List<AccountResponse> listAccounts() {
         LOG.debug("[LIST] Fetching all accounts from database");
         try {
-            List<AccountResponse> accounts = StreamSupport.stream(accountRepository.findAll().spliterator(), false)
+            List<AccountResponse> accounts = accountRepository.findAll().stream()
                     .map(this::toResponse)
                     .toList();
             LOG.debug("[LIST] Retrieved {} accounts", accounts.size());
