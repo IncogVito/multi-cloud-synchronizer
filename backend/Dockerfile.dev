@@ -1,29 +1,28 @@
-# Dev Dockerfile – JVM build (no GraalVM native compile, much faster)
-FROM gradle:8-jdk21 AS builder
+# Dev Dockerfile – single-stage, source mounted as volume, hot-reload via gradle run -t
+FROM gradle:8-jdk21
 
 WORKDIR /app
 
-# Cache dependencies (gradle binary comes from the base image, no wrapper needed)
+# Pre-cache dependencies into the image layer (speeds up first start significantly)
 COPY settings.gradle.kts build.gradle.kts ./
+COPY gradle ./gradle
 RUN gradle dependencies --no-daemon || true
 
-# Build fat JAR
-COPY src ./src
-RUN gradle shadowJar --no-daemon -x test
-
-# Runtime image – JRE is enough
-FROM eclipse-temurin:21-jre-jammy
-
-WORKDIR /app
-
-# Install tools needed by agent tools and scripts
+# Install OS tools needed by scripts and the healthcheck
+USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
     util-linux \
     mount \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/build/libs/*-all.jar app.jar
+# Ensure volumes mounted at runtime are owned by gradle user
+RUN mkdir -p /home/gradle/.gradle /app/build && chown -R gradle:gradle /home/gradle/.gradle /app/build
+
+USER gradle
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Continuous mode: recompiles and restarts Micronaut whenever a source file changes.
+# The source tree is bind-mounted by compose.dev.yaml – no COPY needed here.
+CMD ["gradle", "run", "-t", "--no-daemon", "--stacktrace"]

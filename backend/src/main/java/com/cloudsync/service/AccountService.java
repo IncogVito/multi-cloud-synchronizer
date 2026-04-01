@@ -85,10 +85,11 @@ public class AccountService {
             var response = iCloudServiceClient.twoFa(body);
             Map<String, Object> responseBody = response.body();
 
+
             boolean success = Boolean.parseBoolean(String.valueOf(responseBody.getOrDefault("success", false)));
             String message = String.valueOf(responseBody.getOrDefault("message", ""));
             
-            LOG.debug("[2FA] Verification result - success: {}", success);
+            LOG.debug("[2FA] Verification result - responseBody: {}", responseBody);
             return new TwoFaResponse(success, message);
             
         } catch (Exception e) {

@@ -25,6 +25,7 @@ export class LoginComponent {
   errorMessage = signal('');
   requires2fa = signal(false);
   sessionId = signal('');
+  currentAccountId = signal('');
   isAddingNewAccount = signal(false);
 
   loginForm: FormGroup = this.fb.group({
@@ -98,6 +99,7 @@ export class LoginComponent {
         if (response.requires2fa) {
           this.requires2fa.set(true);
           this.sessionId.set(response.sessionId || '');
+          this.currentAccountId.set(response.accountId || '');
           this.isLoading.set(false);
         } else {
           this.authService.setCredentials(this.selectedAccount()!.appleId, password);
@@ -123,7 +125,7 @@ export class LoginComponent {
     const code = this.twoFaForm.get('code')?.value;
     const password = this.loginForm.get('password')?.value;
 
-    this.accountService.submitTwoFa({ sessionId: this.sessionId(), code }).subscribe({
+    this.accountService.submitTwoFa({ accountId: this.currentAccountId(), code }).subscribe({
       next: (response) => {
         if (response.authenticated) {
           this.authService.setCredentials(this.selectedAccount()!.appleId, password);

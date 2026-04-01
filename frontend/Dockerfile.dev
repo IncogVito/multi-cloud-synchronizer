@@ -1,0 +1,14 @@
+# Dev Dockerfile – node_modules baked in, source mounted as volume, hot-reload via ng serve
+FROM node:24-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci --legacy-peer-deps
+
+EXPOSE 4200
+
+# Source tree is bind-mounted by compose.dev.yaml.
+# The named volume for node_modules prevents the bind-mount from shadowing installed packages.
+# --poll 500 enables filesystem polling for reliable change detection inside Docker.
+CMD ["npx", "ng", "serve", "--host", "0.0.0.0", "--poll", "500", "--proxy-config", "proxy.conf.docker.json"]

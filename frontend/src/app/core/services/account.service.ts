@@ -2,22 +2,11 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
-import { AccountResponse } from '../api/generated/model';
+import { AccountResponse, LoginResponse, TwoFaRequest } from '../api/generated/model';
 
 export interface LoginRequest {
   appleId: string;
   password: string;
-}
-
-export interface LoginResponse {
-  requires2fa: boolean;
-  sessionId?: string;
-  message?: string;
-}
-
-export interface TwoFaRequest {
-  sessionId: string;
-  code: string;
 }
 
 export interface TwoFaResponse {

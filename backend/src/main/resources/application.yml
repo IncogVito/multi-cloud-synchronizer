@@ -36,6 +36,9 @@ micronaut:
       - pattern: /api/accounts
         access:
           - isAnonymous()
+      - pattern: /api/setup/**
+        access:
+          - isAnonymous()
       - pattern: /**
         access:
           - isAuthenticated()
@@ -46,7 +49,7 @@ micronaut:
 
 datasources:
   default:
-    url: ${DATASOURCE_URL:`jdbc:sqlite:${EXTERNAL_DRIVE_PATH:/mnt/external-drive}/cloud-sync.db?journal_mode=WAL`}
+    url: ${DATASOURCE_URL:jdbc:sqlite:/data/cloud-sync.db?journal_mode=WAL}
     driverClassName: org.sqlite.JDBC
     connectionTestQuery: SELECT 1
     maximumPoolSize: 1

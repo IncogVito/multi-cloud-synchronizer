@@ -32,6 +32,7 @@ public class SyncService {
     private final AccountRepository accountRepository;
     private final ICloudServiceClient iCloudServiceClient;
     private final ThumbnailService thumbnailService;
+    private final DiskSetupService diskSetupService;
 
     @Value("${EXTERNAL_DRIVE_PATH:/mnt/external-drive}")
     private String externalDrivePath;
@@ -39,11 +40,13 @@ public class SyncService {
     public SyncService(PhotoRepository photoRepository,
                        AccountRepository accountRepository,
                        ICloudServiceClient iCloudServiceClient,
-                       ThumbnailService thumbnailService) {
+                       ThumbnailService thumbnailService,
+                       DiskSetupService diskSetupService) {
         this.photoRepository = photoRepository;
         this.accountRepository = accountRepository;
         this.iCloudServiceClient = iCloudServiceClient;
         this.thumbnailService = thumbnailService;
+        this.diskSetupService = diskSetupService;
     }
 
     /**
@@ -157,6 +160,7 @@ public class SyncService {
         photo.setSyncedToDisk(true);
         photo.setExistsOnIcloud(true);
         photo.setMediaType(String.valueOf(meta.getOrDefault("media_type", "PHOTO")));
+        diskSetupService.findMountedDevice().ifPresent(d -> photo.setStorageDeviceId(d.getId()));
 
         if (existing.isPresent()) {
             photoRepository.update(photo);

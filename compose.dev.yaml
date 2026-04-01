@@ -1,13 +1,13 @@
 version: '3.8'
 
-# Dev compose – uses JVM build (fast) and a local SQLite volume
+# Dev compose – hot-reload for all services
 # Usage:
 #   docker compose -f compose.dev.yaml up --build
 #
-# The backend is accessible at http://localhost:8080
+# Backend:  http://localhost:8080  (Micronaut, restarts on Java/resource change)
+# iCloud:   http://localhost:8000  (FastAPI, reloads on Python change)
+# Frontend: http://localhost:4200  (Angular dev server with HMR)
 # Default credentials: admin / changeme  (override via .env or env vars)
-#
-# icloud-service is exposed on port 8000 for direct testing.
 
 services:
   backend:
@@ -26,8 +26,12 @@ services:
       - SCRIPTS_DIR=/scripts
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-001}
+      # Keep Gradle cache in the named volume even when running as root
+      - GRADLE_USER_HOME=/home/gradle/.gradle
     volumes:
-      # Simulated external drive persisted locally
+      - ./backend:/app                       # live source editing
+      - /app/build                           # build artifacts stay in container (anonymous vol)
+      - gradle-cache:/home/gradle/.gradle    # Gradle dependency cache across rebuilds
       - dev-drive:/mnt/external-drive
       - ./scripts:/scripts:ro
     networks:
@@ -40,29 +44,51 @@ services:
       interval: 20s
       timeout: 10s
       retries: 5
-      start_period: 45s
+      start_period: 90s
     restart: on-failure
 
   icloud-service:
     build:
       context: ./icloud-service
+      dockerfile: Dockerfile.dev
     ports:
-      # Exposed for local testing / curl
       - "8000:8000"
     environment:
       - LOG_LEVEL=debug
+    volumes:
+      - ./icloud-service:/app                # live source editing
     networks:
       - cloud-sync-dev
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 15s
     restart: on-failure
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./frontend:/app                      # live source editing
+      - frontend-modules:/app/node_modules   # keep installed packages from the image
+    networks:
+      - cloud-sync-dev
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: on-failure
+
 volumes:
   dev-drive:
+    driver: local
+  gradle-cache:
+    driver: local
+  frontend-modules:
     driver: local
 
 networks:

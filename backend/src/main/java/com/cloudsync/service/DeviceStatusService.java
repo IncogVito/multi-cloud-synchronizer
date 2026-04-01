@@ -17,8 +17,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.StreamSupport;
@@ -60,30 +58,32 @@ public class DeviceStatusService {
             DeviceCheckEvent checkingEvent = new DeviceCheckEvent(
                     DeviceType.EXTERNAL_DRIVE.name(),
                     DeviceCheckStatus.CHECKING.name(),
-                    "Sprawdzam punkt montowania " + externalDrivePath + "...",
+                    "Sprawdzam dysk zewnętrzny pod " + externalDrivePath + "...",
                     null,
                     false
             );
 
-            boolean mounted = Files.isDirectory(Path.of(externalDrivePath));
+            ShellExecutor.ShellResult driveCheck = shellExecutor.execute(
+                    "bash", scriptsDir + "/check-drive.sh", externalDrivePath);
+            boolean available = driveCheck.isSuccess() && driveCheck.stdout().contains("\"available\": true");
 
-            if (mounted) {
+            if (available) {
                 DeviceCheckEvent finalEvent = new DeviceCheckEvent(
                         DeviceType.EXTERNAL_DRIVE.name(),
                         DeviceCheckStatus.CONNECTED.name(),
-                        "Dysk dostępny.",
-                        null,
+                        "Dysk dostępny pod " + externalDrivePath + ".",
+                        driveCheck.stdout(),
                         true
                 );
-                persistStatus(DeviceType.EXTERNAL_DRIVE.name(), DeviceCheckStatus.CONNECTED, null);
+                persistStatus(DeviceType.EXTERNAL_DRIVE.name(), DeviceCheckStatus.CONNECTED, driveCheck.stdout());
                 return Flux.just(checkingEvent, finalEvent);
             }
 
             DeviceCheckEvent agentStartEvent = new DeviceCheckEvent(
                     DeviceType.EXTERNAL_DRIVE.name(),
                     DeviceCheckStatus.CHECKING.name(),
-                    "Dysk nie zamontowany. Uruchamiam agenta wykrywania...",
-                    null,
+                    "Dysk nie wykryty pod " + externalDrivePath + ". Uruchamiam agenta wykrywania...",
+                    driveCheck.stdout(),
                     false
             );
 
@@ -91,10 +91,14 @@ public class DeviceStatusService {
                     .map(this::mapAgentStep)
                     .doOnNext(evt -> {
                         if (evt.terminal()) {
-                            DeviceCheckStatus finalStatus = DeviceCheckStatus.CONNECTED.name().equals(evt.status())
-                                    ? DeviceCheckStatus.CONNECTED
-                                    : DeviceCheckStatus.MOUNT_FAILED;
-                            persistStatus(DeviceType.EXTERNAL_DRIVE.name(), finalStatus, evt.details());
+                            if (DeviceCheckStatus.CONNECTED.name().equals(evt.status())) {
+                                ShellExecutor.ShellResult verify = shellExecutor.execute(
+                                        "bash", scriptsDir + "/check-drive.sh", externalDrivePath);
+                                String details = verify.isSuccess() ? verify.stdout() : evt.details();
+                                persistStatus(DeviceType.EXTERNAL_DRIVE.name(), DeviceCheckStatus.CONNECTED, details);
+                            } else {
+                                persistStatus(DeviceType.EXTERNAL_DRIVE.name(), DeviceCheckStatus.MOUNT_FAILED, evt.details());
+                            }
                         }
                     });
 

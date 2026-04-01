@@ -1,0 +1,13 @@
+# Dev Dockerfile – dependencies baked in, source mounted as volume, hot-reload via uvicorn --reload
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+EXPOSE 8000
+
+# Source tree is bind-mounted by compose.dev.yaml.
+# uvicorn --reload watches /app for .py changes and restarts automatically.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

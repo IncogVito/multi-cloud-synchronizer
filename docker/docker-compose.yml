@@ -5,14 +5,15 @@ services:
     build: ../backend
     ports:
       - "8080:8080"
+    restart: unless-stopped
     environment:
-      - EXTERNAL_DRIVE_PATH=file:/mnt/external-drive/cloud-sync.db
       - APP_USERNAME=${APP_USERNAME:-admin}
       - APP_PASSWORD=${APP_PASSWORD:-changeme}
       - MICRONAUT_ENVIRONMENTS=docker
       - ICLOUD_SERVICE_URL=http://icloud-service:8000
     volumes:
-      - ${EXTERNAL_DRIVE_PATH:-/tmp/cloud-sync-dev}:/mnt/external-drive
+      - db-data:/data
+      - ${EXTERNAL_DRIVE_PATH:-}:/mnt/external-drive
       - ../scripts:/scripts:ro
     networks:
       - cloud-sync-net
@@ -57,3 +58,6 @@ services:
 networks:
   cloud-sync-net:
     driver: bridge
+
+volumes:
+  db-data:

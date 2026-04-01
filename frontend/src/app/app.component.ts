@@ -1,6 +1,8 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { Router } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
+import { DiskSetupService } from './core/services/disk-setup.service';
 
 @Component({
   selector: 'app-root',
@@ -162,8 +164,23 @@ import { AuthService } from './core/services/auth.service';
     }
   `]
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
   authService = inject(AuthService);
+  private router = inject(Router);
+  private diskSetupService = inject(DiskSetupService);
+
+  ngOnInit(): void {
+    this.diskSetupService.getStatus().subscribe({
+      next: (status) => {
+        if (!status.mounted && !this.router.url.startsWith('/setup')) {
+          this.router.navigate(['/setup']);
+        }
+      },
+      error: () => {
+        // Backend niedostępny — nie blokuj nawigacji
+      }
+    });
+  }
 
   logout(): void {
     this.authService.logout();

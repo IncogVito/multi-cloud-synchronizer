@@ -28,6 +28,7 @@ public class Photo {
     private boolean existsOnIcloud;
     private Boolean existsOnIphone;
     private String mediaType;
+    private String storageDeviceId;
 
     public Photo() {
         this.syncedToDisk = false;
@@ -82,4 +83,7 @@ public class Photo {
 
     public String getMediaType() { return mediaType; }
     public void setMediaType(String mediaType) { this.mediaType = mediaType; }
+
+    public String getStorageDeviceId() { return storageDeviceId; }
+    public void setStorageDeviceId(String storageDeviceId) { this.storageDeviceId = storageDeviceId; }
 }

@@ -8,6 +8,11 @@ export const routes: Routes = [
     pathMatch: 'full'
   },
   {
+    path: 'setup',
+    loadComponent: () =>
+      import('./features/disk-setup/disk-setup.component').then(m => m.DiskSetupComponent)
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./features/login/login.component').then(m => m.LoginComponent)
