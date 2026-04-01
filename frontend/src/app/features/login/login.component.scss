@@ -1,0 +1,189 @@
+.login-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  background-color: var(--color-bg-secondary);
+  padding: var(--spacing-6);
+}
+
+h2 {
+  text-align: center;
+  margin-bottom: var(--spacing-1);
+}
+
+.subtitle {
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-4);
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+  width: min(100%, 80rem);
+}
+
+.profile-card {
+  min-width: 15rem;
+  min-height: 15rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--spacing-2);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), transform 180ms ease;
+}
+
+.profile-card:hover {
+  transform: none;
+}
+
+.profile-login-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  justify-content: center;
+  margin-top: var(--spacing-2);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: opacity 200ms ease, transform 200ms ease, visibility 200ms;
+}
+
+.profile-card.selected .profile-login-row {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.profile-password-input {
+  width: 60%;
+  padding: var(--spacing-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.profile-card.add-profile {
+  border-style: dashed;
+}
+
+.profile-card.add-profile.active {
+  background-color: var(--color-bg-secondary);
+}
+
+.add-profile-inline-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+}
+
+.add-profile-inline-form .form-group {
+  width: 100%;
+}
+
+.add-profile-inline-form .form-group input {
+  width: 100%;
+}
+
+.inline-actions {
+  width: 100%;
+  justify-content: center;
+}
+
+
+.profile-card:hover {
+  border-color: var(--color-primary);
+}
+
+.profile-card.selected {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-bg);
+}
+
+.profile-card .profile-name {
+    font-size: 1.5rem;
+    margin-bottom: var(--spacing-1);
+}
+
+.profile-card .profile-password {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.profile-login-btn {
+  margin-top: var(--spacing-2);
+}
+
+.profile-card.add-profile {
+  border-style: dashed;
+}
+
+.add-profile-form {
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-primary);
+}
+
+.form-group {
+  margin-bottom: var(--spacing-4);
+}
+
+.form-group label {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-1);
+}
+
+.form-group input {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-base);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: border-color var(--transition-fast);
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+.error-message {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-3);
+  background-color: var(--color-danger-bg);
+  border-radius: var(--radius-md);
+}
+
+.submit-btn {
+  width: 100%;
+  padding: var(--spacing-3);
+}
+
+.add-actions {
+  display: flex;
+  gap: var(--spacing-2);
+}

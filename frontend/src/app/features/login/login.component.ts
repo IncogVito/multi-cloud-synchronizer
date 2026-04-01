@@ -4,127 +4,27 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 
+type Profile = {
+  id: number;
+  name: string;
+  password: string;
+  showPassword: boolean;
+  enteredPassword?: string;
+};
+
 @Component({
   selector: 'app-login',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
-  template: `
-    <div class="login-wrapper">
-      <div class="card login-card">
-        <h2>Cloud Synchronizer</h2>
-        <p class="subtitle">Sign in to continue</p>
-
-        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
-          <div class="form-group">
-            <label for="username">Username</label>
-            <input
-              id="username"
-              type="text"
-              formControlName="username"
-              placeholder="Enter username"
-              autocomplete="username"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              formControlName="password"
-              placeholder="Enter password"
-              autocomplete="current-password"
-            />
-          </div>
-
-          <div class="error-message" *ngIf="errorMessage">
-            {{ errorMessage }}
-          </div>
-
-          <button
-            type="submit"
-            class="btn btn-primary submit-btn"
-            [disabled]="loginForm.invalid || isLoading"
-          >
-            {{ isLoading ? 'Signing in...' : 'Sign In' }}
-          </button>
-        </form>
-      </div>
-    </div>
-  `,
-  styles: [`
-    .login-wrapper {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background-color: var(--color-bg-secondary);
-      padding: var(--spacing-6);
-    }
-
-    .login-card {
-      width: 100%;
-      max-width: 400px;
-    }
-
-    h2 {
-      text-align: center;
-      margin-bottom: var(--spacing-1);
-    }
-
-    .subtitle {
-      text-align: center;
-      color: var(--color-text-secondary);
-      font-size: var(--font-size-sm);
-      margin-bottom: var(--spacing-6);
-    }
-
-    .form-group {
-      margin-bottom: var(--spacing-4);
-
-      label {
-        display: block;
-        font-size: var(--font-size-sm);
-        font-weight: var(--font-weight-medium);
-        color: var(--color-text-primary);
-        margin-bottom: var(--spacing-1);
-      }
-
-      input {
-        width: 100%;
-        padding: var(--spacing-2) var(--spacing-3);
-        font-size: var(--font-size-base);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
-        background-color: var(--color-bg-primary);
-        color: var(--color-text-primary);
-        transition: border-color var(--transition-fast);
-
-        &:focus {
-          outline: none;
-          border-color: var(--color-primary);
-          box-shadow: 0 0 0 3px var(--color-primary-bg);
-        }
-      }
-    }
-
-    .error-message {
-      color: var(--color-danger);
-      font-size: var(--font-size-sm);
-      margin-bottom: var(--spacing-4);
-      padding: var(--spacing-2) var(--spacing-3);
-      background-color: var(--color-danger-bg);
-      border-radius: var(--radius-md);
-    }
-
-    .submit-btn {
-      width: 100%;
-      padding: var(--spacing-3);
-    }
-  `]
+  templateUrl: './login.component.html',
+  styleUrls: ['./login.component.scss']
 })
 export class LoginComponent {
   loginForm: FormGroup;
+  addProfileForm: FormGroup;
+  profiles: Profile[] = [];
+  selectedProfile: Profile | null = null;
+  addProfileMode = false;
   isLoading = false;
   errorMessage = '';
 
@@ -137,18 +37,77 @@ export class LoginComponent {
       username: ['', [Validators.required]],
       password: ['', [Validators.required]]
     });
+
+    this.addProfileForm = this.fb.group({
+      name: ['', [Validators.required]],
+      password: ['', [Validators.required]]
+    });
+
+    this.loadProfiles();
   }
 
-  onSubmit(): void {
-    if (this.loginForm.invalid) return;
+  private loadProfiles() {
+    const stored = localStorage.getItem('loginProfiles');
+    if (stored) {
+      this.profiles = JSON.parse(stored);
+    } else {
+      this.profiles = [
+        { id: 1, name: 'user1', password: 'password1', showPassword: false },
+        { id: 2, name: 'user2', password: 'password2', showPassword: false }
+      ];
+      this.saveProfiles();
+    }
+  }
+
+  private saveProfiles() {
+    localStorage.setItem('loginProfiles', JSON.stringify(this.profiles));
+  }
+
+  selectProfile(profile: Profile) {
+    this.profiles.forEach(p => (p.showPassword = false));
+    profile.showPassword = true;
+    profile.enteredPassword = profile.password || '';
+    this.selectedProfile = profile;
+    this.errorMessage = '';
+  }
+
+  toggleAddProfile() {
+    this.addProfileMode = !this.addProfileMode;
+    if (!this.addProfileMode) {
+      this.addProfileForm.reset();
+    }
+  }
+
+  onAddProfileSubmit() {
+    if (this.addProfileForm.invalid) {
+      return;
+    }
+
+    const newProfile = {
+      id: Date.now(),
+      name: this.addProfileForm.value.name,
+      password: this.addProfileForm.value.password,
+      showPassword: false,
+      enteredPassword: this.addProfileForm.value.password
+    };
+
+    this.profiles.push(newProfile);
+    this.saveProfiles();
+    this.addProfileForm.reset();
+    this.addProfileMode = false;
+  }
+
+  loginProfile(profile: Profile) {
+    if (!profile.enteredPassword) {
+      this.errorMessage = 'Please enter password';
+      return;
+    }
 
     this.isLoading = true;
     this.errorMessage = '';
 
-    const { username, password } = this.loginForm.value;
-
     try {
-      this.authService.login(username, password);
+      this.authService.login(profile.name, profile.enteredPassword);
       this.router.navigate(['/dashboard']);
     } catch (error) {
       this.errorMessage = 'Login failed. Please check your credentials.';

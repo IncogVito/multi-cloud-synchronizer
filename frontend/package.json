@@ -4,7 +4,10 @@
   "scripts": {
     "start": "ng serve",
     "build": "ng build",
-    "test": "vitest"
+    "test": "vitest",
+    "generate-api": "orval --config orval.config.ts",
+    "prebuild": "npm run generate-api",
+    "prestart": "npm run generate-api"
   },
   "private": true,
   "dependencies": {
@@ -26,7 +29,8 @@
     "@angular/compiler-cli": "^21.2.6",
     "@analogjs/vite-plugin-angular": "^2.4.0",
     "@analogjs/vitest-angular": "^2.4.0",
-    "typescript": "~5.7.0",
-    "vitest": "^3.0.0"
+    "typescript": "~5.9.0",
+    "vitest": "^4.1.2",
+    "orval": "^7.9.0"
   }
 }

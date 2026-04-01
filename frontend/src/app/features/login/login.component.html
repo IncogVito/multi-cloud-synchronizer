@@ -1,0 +1,74 @@
+<div class="login-wrapper">
+  <div class="profile-grid" *ngIf="profiles.length">
+      <button
+        type="button"
+        class="profile-card"
+        *ngFor="let profile of profiles"
+        [class.selected]="selectedProfile === profile"
+        (click)="selectProfile(profile)"
+      >
+        <div class="profile-name">{{ profile.name }}</div>
+
+        <div
+          class="profile-login-row"
+          *ngIf="profile.showPassword"
+          (click)="$event.stopPropagation()"
+        >
+          <input
+            type="password"
+            [value]="profile.enteredPassword || ''"
+            (input)="profile.enteredPassword = $event.target.value"
+            placeholder="Password"
+            class="profile-password-input"
+          />
+          <button
+            type="button"
+            class="btn btn-primary profile-login-btn"
+            (click)="loginProfile(profile)"
+          >
+            Login
+          </button>
+        </div>
+      </button>
+
+      <ng-container *ngIf="!addProfileMode">
+        <button type="button" class="profile-card add-profile" (click)="toggleAddProfile()">
+          <div class="profile-name">+</div>
+          <div class="profile-password">Add profile</div>
+        </button>
+      </ng-container>
+
+      <ng-container *ngIf="addProfileMode">
+        <div class="profile-card add-profile active">
+          <form [formGroup]="addProfileForm" (ngSubmit)="onAddProfileSubmit()" class="add-profile-inline-form">
+            <div class="form-group">
+              <input
+                id="newUsername"
+                type="text"
+                formControlName="name"
+                placeholder="Username"
+                autocomplete="off"
+              />
+            </div>
+            <div class="form-group">
+              <input
+                id="newPassword"
+                type="password"
+                formControlName="password"
+                placeholder="Password"
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="add-actions inline-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="addProfileForm.invalid">Add</button>
+              <button type="button" class="btn btn-secondary" (click)="toggleAddProfile()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </ng-container>
+    </div>
+
+    <div class="error-message" *ngIf="errorMessage">
+      {{ errorMessage }}
+    </div>
+</div>

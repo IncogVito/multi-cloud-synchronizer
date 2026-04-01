@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+coverage
+.vscode
+.idea
+
+# Generated API clients (orval)
+src/app/core/api/generated/

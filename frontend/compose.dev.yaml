@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cloud-synchronizer-frontend:dev
+    ports:
+      - "8080:80"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: ["nginx", "-g", "daemon off;"]
+    # Build is performed by Dockerfile; this command runs the nginx server only.
