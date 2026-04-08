@@ -1,0 +1,75 @@
+@if (isVisible()) {
+  <div class="sync-progress" [class]="'phase-' + event()!.phase.toLowerCase()">
+
+    @switch (event()!.phase) {
+      @case ('FETCHING_METADATA') {
+        <div class="sync-row">
+          <span class="spinner"></span>
+          <span class="sync-label">
+            Pobieranie listy z iCloud:
+            <strong>{{ event()!.metadataFetched }}</strong>
+            @if (event()!.totalOnCloud > 0) { / {{ event()!.totalOnCloud }} }
+          </span>
+          @if (event()!.totalOnCloud > 0) {
+            <div class="progress-bar-wrap">
+              <div class="progress-bar" [style.width.%]="progressPercent()"></div>
+            </div>
+            <span class="percent">{{ progressPercent() }}%</span>
+          }
+        </div>
+      }
+
+      @case ('COMPARING') {
+        <div class="sync-row">
+          <span class="spinner"></span>
+          <span class="sync-label">
+            Znaleziono <strong>{{ event()!.pending }}</strong> nowych zdjęć,
+            <strong>{{ event()!.synced }}</strong> już zsynchronizowanych
+          </span>
+        </div>
+      }
+
+      @case ('DOWNLOADING') {
+        <div class="sync-row">
+          <span class="spinner"></span>
+          <div class="sync-details">
+            <span class="sync-label">
+              Pobieranie: <strong>{{ event()!.synced }}</strong> / {{ event()!.totalOnCloud }}
+              @if (event()!.failed > 0) {
+                <span class="failed-badge">{{ event()!.failed }} błędów</span>
+              }
+            </span>
+            @if (event()!.currentFile) {
+              <span class="current-file">{{ event()!.currentFile }}</span>
+            }
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" [style.width.%]="progressPercent()"></div>
+          </div>
+          <span class="percent">{{ progressPercent() }}%</span>
+        </div>
+      }
+
+      @case ('DONE') {
+        <div class="sync-row done">
+          <span class="done-icon">✓</span>
+          <span class="sync-label">
+            Synchronizacja zakończona:
+            <strong>{{ event()!.synced }}</strong> pobranych
+            @if (event()!.failed > 0) {
+              , <span class="failed-badge">{{ event()!.failed }} błędów</span>
+            }
+          </span>
+        </div>
+      }
+
+      @case ('ERROR') {
+        <div class="sync-row error">
+          <span class="error-icon">✕</span>
+          <span class="sync-label">Synchronizacja nie powiodła się</span>
+        </div>
+      }
+    }
+
+  </div>
+}

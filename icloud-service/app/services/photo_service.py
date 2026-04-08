@@ -113,7 +113,12 @@ class PhotoService:
     # ------------------------------------------------------------------
 
     def _find_photo(self, session_id: str, photo_id: str):
-        """Iterate 'All Photos' to find a photo by ID. Raises PhotoNotFoundException."""
+        """O(1) lookup from cache. Falls back to full iteration if cache not ready."""
+        from app.services.photo_cache import photo_cache  # local import to avoid circular
+        index = photo_cache.get_index(session_id)
+        if index and photo_id in index:
+            return index[photo_id]
+        # fallback: full iteration (cache not populated yet)
         api = session_manager.get_api(session_id)
         for photo in api.photos.all:
             if photo.id == photo_id:

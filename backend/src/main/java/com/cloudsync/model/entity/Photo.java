@@ -29,6 +29,8 @@ public class Photo {
     private Boolean existsOnIphone;
     private String mediaType;
     private String storageDeviceId;
+    private String syncStatus;
+    private String assetToken;
 
     public Photo() {
         this.syncedToDisk = false;
@@ -86,4 +88,10 @@ public class Photo {
 
     public String getStorageDeviceId() { return storageDeviceId; }
     public void setStorageDeviceId(String storageDeviceId) { this.storageDeviceId = storageDeviceId; }
+
+    public String getSyncStatus() { return syncStatus; }
+    public void setSyncStatus(String syncStatus) { this.syncStatus = syncStatus; }
+
+    public String getAssetToken() { return assetToken; }
+    public void setAssetToken(String assetToken) { this.assetToken = assetToken; }
 }

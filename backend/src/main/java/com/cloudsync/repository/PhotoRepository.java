@@ -28,4 +28,8 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
 
     @Query("SELECT * FROM photos WHERE account_id = :accountId AND synced_to_disk = :synced")
     List<Photo> findByAccountIdAndSynced(String accountId, boolean synced);
+
+    List<Photo> findByAccountIdAndSyncStatus(String accountId, String syncStatus);
+
+    long countByAccountIdAndSyncStatus(String accountId, String syncStatus);
 }

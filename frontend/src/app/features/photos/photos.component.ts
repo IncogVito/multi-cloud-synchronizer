@@ -9,6 +9,10 @@ import { PhotoTimelineComponent } from './photo-timeline/photo-timeline.componen
 import { PhotoGroup } from './photo-timeline/photo-timeline.component';
 import { BatchActionsBarComponent } from './batch-actions-bar/batch-actions-bar.component';
 import { PhotoDetailModalComponent } from './photo-detail-modal/photo-detail-modal.component';
+import { SyncProgressComponent } from './sync-progress/sync-progress.component';
+import { SyncService } from '../../core/services/sync.service';
+import { SyncProgressEvent } from '../../core/models/sync-progress.model';
+import { Subscription } from 'rxjs';
 
 type Granularity = 'year' | 'month';
 
@@ -19,7 +23,8 @@ type Granularity = 'year' | 'month';
     PhotosToolbarComponent,
     PhotoTimelineComponent,
     BatchActionsBarComponent,
-    PhotoDetailModalComponent
+    PhotoDetailModalComponent,
+    SyncProgressComponent
   ],
   templateUrl: './photos.component.html',
   styleUrl: './photos.component.scss'
@@ -28,6 +33,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
   private photosService = inject(PhotosService);
   private accountsService = inject(AccountsService);
   private http = inject(HttpClient);
+  private syncService = inject(SyncService);
 
   accounts = signal<AccountResponse[]>([]);
   selectedAccountId = signal('');
@@ -44,6 +50,9 @@ export class PhotosComponent implements OnInit, OnDestroy {
   pageSize = 100;
 
   syncing = signal(false);
+  syncProgress = signal<SyncProgressEvent | null>(null);
+
+  private syncSub: Subscription | null = null;
 
   selectedIds = signal(new Set<string>());
   thumbnailUrls = signal(new Map<string, string>());
@@ -64,6 +73,17 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.accounts.set(accounts);
       }
     });
+    this.syncSub = this.syncService.syncProgress$.subscribe(event => {
+      this.syncProgress.set(event);
+      if (event?.phase === 'DONE') {
+        this.syncing.set(false);
+        this.allPhotos.set([]);
+        this.currentPage.set(0);
+        this.loadPhotos();
+      } else if (event?.phase === 'ERROR') {
+        this.syncing.set(false);
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -73,6 +93,8 @@ export class PhotosComponent implements OnInit, OnDestroy {
     if (this.detailBlobUrl) {
       URL.revokeObjectURL(this.detailBlobUrl);
     }
+    this.syncSub?.unsubscribe();
+    this.syncService.closeEvents();
   }
 
   onAccountChanged(accountId: string): void {
@@ -95,13 +117,8 @@ export class PhotosComponent implements OnInit, OnDestroy {
   onSyncRequested(): void {
     if (!this.selectedAccountId() || this.syncing()) return;
     this.syncing.set(true);
-    this.photosService.syncPhotos({ accountId: this.selectedAccountId() }).subscribe({
-      next: () => {
-        this.syncing.set(false);
-        this.allPhotos.set([]);
-        this.currentPage.set(0);
-        this.loadPhotos();
-      },
+    this.syncService.reset();
+    this.syncService.startSync(this.selectedAccountId()).subscribe({
       error: (err) => {
         this.syncing.set(false);
         alert('Sync failed: ' + (err?.message ?? 'Unknown error'));

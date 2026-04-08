@@ -47,10 +47,10 @@ if [ "$REQUIRES_2FA" = "True" ]; then
   fi
 fi
 
-# --- Photos (50, no download) ---
+# --- Photos (200, no download) ---
 echo
-echo ">>> GET /photos?limit=50&offset=0"
-curl -sf "$BASE_URL/photos?limit=50&offset=0" \
+echo ">>> GET /photos?limit=200&offset=0"
+curl -sf "$BASE_URL/photos?limit=200&offset=0" \
   -H "X-Session-ID: $SESSION_ID" | python3 -m json.tool
 
 echo

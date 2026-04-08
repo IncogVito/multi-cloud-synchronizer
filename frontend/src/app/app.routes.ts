@@ -13,6 +13,12 @@ export const routes: Routes = [
       import('./features/disk-setup/disk-setup.component').then(m => m.DiskSetupComponent)
   },
   {
+    path: 'setup/wizard',
+    loadComponent: () =>
+      import('./features/setup-wizard/setup-wizard.component').then(m => m.SetupWizardComponent),
+    canActivate: [authGuard]
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./features/login/login.component').then(m => m.LoginComponent)

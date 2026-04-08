@@ -1,5 +1,7 @@
 package com.cloudsync.client;
 
+import com.cloudsync.model.dto.ICloudPhotoListResponse;
+import com.cloudsync.model.dto.ICloudPrefetchStatus;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
@@ -32,9 +34,19 @@ public interface ICloudServiceClient {
     @Delete("/auth/sessions/{sessionId}")
     HttpResponse<Void> deleteSession(@PathVariable String sessionId);
 
+    @Post("/photos/prefetch")
+    @Consumes(MediaType.APPLICATION_JSON)
+    HttpResponse<Map<String, Object>> prefetchPhotos(
+            @Header("X-Session-ID") String sessionId);
+
+    @Get("/photos/prefetch/status")
+    @Consumes(MediaType.APPLICATION_JSON)
+    HttpResponse<ICloudPrefetchStatus> getPrefetchStatus(
+            @Header("X-Session-ID") String sessionId);
+
     @Get("/photos")
     @Consumes(MediaType.APPLICATION_JSON)
-    HttpResponse<Map<String, Object>> listPhotos(
+    HttpResponse<ICloudPhotoListResponse> listPhotos(
             @Header("X-Session-ID") String sessionId,
             @QueryValue(defaultValue = "100") int limit,
             @QueryValue(defaultValue = "0") int offset);

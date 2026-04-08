@@ -10,6 +10,8 @@
     (syncRequested)="onSyncRequested()"
   ></app-photos-toolbar>
 
+  <app-sync-progress [event]="syncProgress()"></app-sync-progress>
+
   <app-photo-timeline
     [groups]="groups()"
     [selectedIds]="selectedIds()"

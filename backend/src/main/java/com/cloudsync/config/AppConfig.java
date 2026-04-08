@@ -30,4 +30,12 @@ public class AppConfig {
     public String scriptsDir(@Value("${app.scripts-dir:/scripts}") String dir) {
         return dir;
     }
+
+    @Bean
+    @jakarta.inject.Named("syncVirtualThreadExecutor")
+    public java.util.concurrent.ExecutorService syncVirtualThreadExecutor() {
+        return java.util.concurrent.Executors.newThreadPerTaskExecutor(
+            Thread.ofVirtual().name("sync-vt-", 0).factory()
+        );
+    }
 }

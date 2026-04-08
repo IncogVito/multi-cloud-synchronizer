@@ -17,7 +17,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.io.IOException;
-import java.util.Map;
 
 @Tag(name = "Photos")
 @Controller("/api/photos")
@@ -79,16 +78,6 @@ public class PhotoController {
         return photoService.getFullPhotoBytes(id)
                 .map(HttpResponse::ok)
                 .orElse(HttpResponse.notFound());
-    }
-
-    @Operation(summary = "Trigger iCloud sync", description = "Downloads new photos from iCloud to disk")
-    @ApiResponse(responseCode = "200", description = "Sync completed")
-    @Post("/sync")
-    @Produces(MediaType.APPLICATION_JSON)
-    @Consumes(MediaType.APPLICATION_JSON)
-    public HttpResponse<Map<String, Object>> syncPhotos(@QueryValue String accountId) {
-        int synced = syncService.syncFromICloud(accountId);
-        return HttpResponse.ok(Map.of("synced", synced, "accountId", accountId));
     }
 
     @Operation(summary = "Delete photos from iCloud", description = "Batch delete; photos must already be synced to disk")

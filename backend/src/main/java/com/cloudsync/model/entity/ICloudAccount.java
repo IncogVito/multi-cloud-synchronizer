@@ -17,6 +17,9 @@ public class ICloudAccount {
     private String sessionId;
     private Instant lastSyncAt;
     private Instant createdAt;
+    private String syncFolderPath;
+    private String storageDeviceId;
+    private String organizeBy;
 
     public ICloudAccount() {}
 
@@ -47,4 +50,13 @@ public class ICloudAccount {
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
+    public String getSyncFolderPath() { return syncFolderPath; }
+    public void setSyncFolderPath(String syncFolderPath) { this.syncFolderPath = syncFolderPath; }
+
+    public String getStorageDeviceId() { return storageDeviceId; }
+    public void setStorageDeviceId(String storageDeviceId) { this.storageDeviceId = storageDeviceId; }
+
+    public String getOrganizeBy() { return organizeBy; }
+    public void setOrganizeBy(String organizeBy) { this.organizeBy = organizeBy; }
 }
