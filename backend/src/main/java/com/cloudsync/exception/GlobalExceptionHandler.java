@@ -18,6 +18,10 @@ public class GlobalExceptionHandler implements ExceptionHandler<RuntimeException
 
     @Override
     public HttpResponse<?> handle(HttpRequest request, RuntimeException exception) {
+        if (exception instanceof NoActiveContextException) {
+            return HttpResponse.status(io.micronaut.http.HttpStatus.CONFLICT)
+                    .body(new ErrorResponse("NO_ACTIVE_CONTEXT", exception.getMessage()));
+        }
         if (exception instanceof DriveNotAvailableException) {
             return HttpResponse.serverError(new ErrorResponse("DRIVE_NOT_AVAILABLE", exception.getMessage()));
         }

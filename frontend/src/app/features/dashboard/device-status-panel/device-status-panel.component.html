@@ -54,6 +54,12 @@
           </div>
         }
 
+        @if (device.deviceType === 'EXTERNAL_DRIVE' && device.status && !device.status.connected) {
+          <div class="device-card-actions">
+            <a class="btn btn-primary btn-sm" routerLink="/setup">Skonfiguruj dysk</a>
+          </div>
+        }
+
         @if (device.sseLog.length > 0) {
           <div class="sse-log">
             <button

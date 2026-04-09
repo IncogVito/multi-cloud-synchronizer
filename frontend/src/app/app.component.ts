@@ -3,11 +3,12 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { Router } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
 import { DiskSetupService } from './core/services/disk-setup.service';
+import { ToastHostComponent } from './core/components/toast-host.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent],
   template: `
     <div class="app-shell">
       @if (authService.isAuthenticated()) {
@@ -61,6 +62,8 @@ import { DiskSetupService } from './core/services/disk-setup.service';
       <main class="main-content" [class.with-sidebar]="authService.isAuthenticated()">
         <router-outlet></router-outlet>
       </main>
+
+      <app-toast-host />
     </div>
   `,
   styles: [`
@@ -170,9 +173,13 @@ export class AppComponent implements OnInit {
   private diskSetupService = inject(DiskSetupService);
 
   ngOnInit(): void {
+    if (!this.authService.isAuthenticated()) {
+      return;
+    }
+
     this.diskSetupService.getStatus().subscribe({
       next: (status) => {
-        if (!status.mounted && !this.router.url.startsWith('/setup')) {
+        if (!status.mounted && !this.router.url.startsWith('/setup') && !this.router.url.startsWith('/login')) {
           this.router.navigate(['/setup']);
         }
       },

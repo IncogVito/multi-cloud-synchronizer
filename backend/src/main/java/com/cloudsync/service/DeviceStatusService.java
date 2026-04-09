@@ -19,6 +19,8 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 @Singleton
@@ -222,9 +224,10 @@ public class DeviceStatusService {
             String sessionsDetails = null;
             try {
                 var sessionsResponse = iCloudServiceClient.listSessions();
-                Object body = sessionsResponse.body();
-                sessionsDetails = body != null ? body.toString() : null;
-                hasSessions = body != null && !body.toString().equals("[]") && !body.toString().equals("{}");
+                List<Map<String, Object>> body = sessionsResponse.body();
+                sessionsDetails = summarizeSessions(body);
+                hasSessions = body != null && body.stream()
+                        .anyMatch(s -> Boolean.TRUE.equals(s.get("active")));
             } catch (Exception ex) {
                 LOG.warn("Failed to list icloud sessions", ex);
             }
@@ -288,6 +291,23 @@ public class DeviceStatusService {
         } catch (Exception ex) {
             LOG.error("Failed to persist device status for {}", deviceType, ex);
         }
+    }
+
+    private String summarizeSessions(List<Map<String, Object>> sessions) {
+        if (sessions == null || sessions.isEmpty()) {
+            return "Brak aktywnych sesji.";
+        }
+        List<Map<String, Object>> active = sessions.stream()
+                .filter(s -> Boolean.TRUE.equals(s.get("active")))
+                .toList();
+        if (active.isEmpty()) {
+            return "Brak aktywnych sesji (łącznie " + sessions.size() + ").";
+        }
+        String appleIds = active.stream()
+                .map(s -> String.valueOf(s.getOrDefault("apple_id", "unknown")))
+                .distinct()
+                .collect(Collectors.joining(", "));
+        return "Aktywne sesje: " + active.size() + " (" + appleIds + ")";
     }
 
     private String extractJsonField(String json, String field) {

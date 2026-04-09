@@ -44,6 +44,7 @@ public class SyncService {
     private final ThumbnailService thumbnailService;
     private final DiskSetupService diskSetupService;
     private final SyncStateHolder syncStateHolder;
+    private final AppContextService appContextService;
     private final ExecutorService syncVirtualThreadExecutor;
     private final Semaphore downloadSemaphore = new Semaphore(10);
 
@@ -56,6 +57,7 @@ public class SyncService {
                        ThumbnailService thumbnailService,
                        DiskSetupService diskSetupService,
                        SyncStateHolder syncStateHolder,
+                       AppContextService appContextService,
                        @Named("syncVirtualThreadExecutor") ExecutorService syncVirtualThreadExecutor) {
         this.photoRepository = photoRepository;
         this.accountRepository = accountRepository;
@@ -63,6 +65,7 @@ public class SyncService {
         this.thumbnailService = thumbnailService;
         this.diskSetupService = diskSetupService;
         this.syncStateHolder = syncStateHolder;
+        this.appContextService = appContextService;
         this.syncVirtualThreadExecutor = syncVirtualThreadExecutor;
     }
 
@@ -71,6 +74,7 @@ public class SyncService {
      * Progress is broadcast via SSE through SyncStateHolder.
      */
     public SyncStartResponse startSync(String accountId) {
+        appContextService.requireActive();
         ICloudAccount account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountId));
 

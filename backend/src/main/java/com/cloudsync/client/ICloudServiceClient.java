@@ -7,6 +7,7 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
 import io.micronaut.http.client.annotation.Client;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -29,7 +30,7 @@ public interface ICloudServiceClient {
     HttpResponse<Map<String, Object>> twoFa(@Body Map<String, String> request);
 
     @Get("/auth/sessions")
-    HttpResponse<Object> listSessions();
+    HttpResponse<List<Map<String, Object>>> listSessions();
 
     @Delete("/auth/sessions/{sessionId}")
     HttpResponse<Void> deleteSession(@PathVariable String sessionId);

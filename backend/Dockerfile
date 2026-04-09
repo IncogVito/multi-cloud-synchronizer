@@ -1,4 +1,4 @@
-# Stage 1: Build native image with GraalVM
+# Stage 1: Build shadow (fat) jar
 FROM gradle:8-jdk21 AS builder
 
 WORKDIR /app
@@ -13,17 +13,24 @@ RUN gradle dependencies --no-daemon || true
 # Copy source code
 COPY src ./src
 
-# Build native image (this takes a while)
-RUN gradle nativeCompile --no-daemon -Pmicronaut.environments=docker
+# Build the shadow jar (skip tests — run them in CI before the image build)
+RUN gradle shadowJar --no-daemon -x test
 
-# Stage 2: Minimal runtime image
-FROM gcr.io/distroless/base-debian12
+# Stage 2: Minimal JRE runtime
+FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 
-# Copy the native binary
-COPY --from=builder /app/build/native/nativeCompile/cloud-synchronizer-backend .
+# Tools needed by disk/mount scripts and the healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    util-linux \
+    mount \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the fat jar from the builder stage
+COPY --from=builder /app/build/libs/*-all.jar /app/app.jar
 
 EXPOSE 8080
 
-ENTRYPOINT ["./cloud-synchronizer-backend"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

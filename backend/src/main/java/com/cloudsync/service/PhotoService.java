@@ -18,12 +18,15 @@ import java.util.Optional;
 public class PhotoService {
 
     private final PhotoRepository photoRepository;
+    private final AppContextService appContextService;
 
-    public PhotoService(PhotoRepository photoRepository) {
+    public PhotoService(PhotoRepository photoRepository, AppContextService appContextService) {
         this.photoRepository = photoRepository;
+        this.appContextService = appContextService;
     }
 
     public PhotoListResponse listPhotos(String accountId, Boolean synced, int page, int size) {
+        appContextService.requireActive();
         Pageable pageable = Pageable.from(page, size);
         Page<Photo> result;
 
@@ -47,6 +50,7 @@ public class PhotoService {
     }
 
     public Optional<PhotoResponse> getPhoto(String id) {
+        appContextService.requireActive();
         return photoRepository.findById(id).map(this::toResponse);
     }
 

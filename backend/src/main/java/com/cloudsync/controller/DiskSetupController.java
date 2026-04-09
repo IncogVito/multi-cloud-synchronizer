@@ -49,7 +49,16 @@ public class DiskSetupController {
             return HttpResponse.ok(status);
         } catch (IllegalStateException e) {
             LOG.warn("Mount failed: {}", e.getMessage());
-            return HttpResponse.serverError(Map.of("error", e.getMessage()));
+            return HttpResponse.serverError(Map.of(
+                    "error", "MOUNT_FAILED",
+                    "message", e.getMessage() == null ? "Unknown error" : e.getMessage()
+            ));
+        } catch (Exception e) {
+            LOG.error("Mount unexpected error", e);
+            return HttpResponse.serverError(Map.of(
+                    "error", "MOUNT_FAILED",
+                    "message", e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "no message" : e.getMessage())
+            ));
         }
     }
 

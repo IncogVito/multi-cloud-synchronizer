@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { StatusService } from '../../../core/api/generated/status/status.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { DeviceStatusResponse } from '../../../core/api/generated/model/deviceStatusResponse';
@@ -17,7 +18,7 @@ export interface DeviceCard {
 @Component({
   selector: 'app-device-status-panel',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, RouterLink],
   templateUrl: './device-status-panel.component.html',
   styleUrl: './device-status-panel.component.scss'
 })
@@ -26,7 +27,7 @@ export class DeviceStatusPanelComponent implements OnInit {
   private authService = inject(AuthService);
 
   devices = signal<DeviceCard[]>([
-    { deviceType: 'DRIVE', label: 'External Drive', endpoint: '/api/status/check-drive', status: null, sseLog: [], sseExpanded: false, checking: false },
+    { deviceType: 'EXTERNAL_DRIVE', label: 'External Drive', endpoint: '/api/status/check-drive', status: null, sseLog: [], sseExpanded: false, checking: false },
     { deviceType: 'IPHONE', label: 'iPhone', endpoint: '/api/status/check-iphone', status: null, sseLog: [], sseExpanded: false, checking: false },
     { deviceType: 'ICLOUD', label: 'iCloud', endpoint: '/api/status/check-icloud', status: null, sseLog: [], sseExpanded: false, checking: false },
   ]);

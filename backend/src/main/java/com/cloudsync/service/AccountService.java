@@ -86,9 +86,9 @@ public class AccountService {
             Map<String, Object> responseBody = response.body();
 
 
-            boolean success = Boolean.parseBoolean(String.valueOf(responseBody.getOrDefault("success", false)));
-            String message = String.valueOf(responseBody.getOrDefault("message", ""));
-            
+            boolean success = Boolean.parseBoolean(String.valueOf(responseBody.getOrDefault("authenticated", false)));
+            String message = success ? "2FA verified" : "2FA verification failed";
+
             LOG.debug("[2FA] Verification result - responseBody: {}", responseBody);
             return new TwoFaResponse(success, message);
             

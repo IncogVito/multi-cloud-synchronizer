@@ -3,6 +3,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { AccountService } from '../../core/services/account.service';
+import { AppContextService } from '../../core/services/app-context.service';
 import { AccountResponse } from '../../core/api/generated/model';
 
 @Component({
@@ -16,6 +17,7 @@ export class LoginComponent {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
   private accountService = inject(AccountService);
+  private appContextService = inject(AppContextService);
   private router = inject(Router);
 
   accounts = signal<AccountResponse[]>([]);
@@ -104,7 +106,7 @@ export class LoginComponent {
         } else {
           this.authService.setCredentials(this.selectedAccount()!.appleId, password);
           this.isLoading.set(false);
-          this.router.navigate(['/dashboard']);
+          this.navigateAfterLogin();
         }
       },
       error: (err) => {
@@ -130,7 +132,7 @@ export class LoginComponent {
         if (response.authenticated) {
           this.authService.setCredentials(this.selectedAccount()!.appleId, password);
           this.isLoading.set(false);
-          this.router.navigate(['/dashboard']);
+          this.navigateAfterLogin();
         } else {
           this.isLoading.set(false);
           this.errorMessage.set(response.message || 'Weryfikacja 2FA nieudana');
@@ -166,12 +168,27 @@ export class LoginComponent {
         } else {
           this.authService.setCredentials(username, password);
           this.isLoading.set(false);
-          this.router.navigate(['/dashboard']);
+          this.navigateAfterLogin();
         }
       },
       error: (err) => {
         this.isLoading.set(false);
         this.errorMessage.set(err.error?.message || 'Dodawanie konta nieudane. Sprawdź dane.');
+      }
+    });
+  }
+
+  private navigateAfterLogin(): void {
+    this.appContextService.load().subscribe({
+      next: () => {
+        if (this.appContextService.hasContext()) {
+          this.router.navigate(['/dashboard']);
+        } else {
+          this.router.navigate(['/setup']);
+        }
+      },
+      error: () => {
+        this.router.navigate(['/setup']);
       }
     });
   }

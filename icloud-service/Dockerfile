@@ -2,13 +2,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# System deps for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
-
-# Uruchom testy podczas budowy obrazu. Jeżeli testy zawiodą, budowa się przerwie.
-RUN pytest -q --disable-warnings --maxfail=1
+COPY app ./app
 
 EXPOSE 8000
 

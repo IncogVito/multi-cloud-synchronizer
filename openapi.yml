@@ -880,10 +880,10 @@ components:
     TwoFaResponse:
       required:
       - message
-      - success
+      - authenticated
       type: object
       properties:
-        success:
+        authenticated:
           type: boolean
         message:
           type: string

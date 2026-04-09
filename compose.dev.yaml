@@ -32,7 +32,15 @@ services:
       - ./backend:/app                       # live source editing
       - /app/build                           # build artifacts stay in container (anonymous vol)
       - gradle-cache:/home/gradle/.gradle    # Gradle dependency cache across rebuilds
-      - dev-drive:/mnt/external-drive
+      # Bind-mount host /mnt/external-drive with rshared propagation so that
+      # when the user mounts a physical drive on the host via /api/setup/mount
+      # the new filesystem is visible inside the backend container too.
+      - type: bind
+        source: /mnt/external-drive
+        target: /mnt/external-drive
+        bind:
+          create_host_path: true
+          propagation: rshared
       - ./scripts:/scripts:ro
     networks:
       - cloud-sync-dev
@@ -84,8 +92,6 @@ services:
     restart: on-failure
 
 volumes:
-  dev-drive:
-    driver: local
   gradle-cache:
     driver: local
   frontend-modules:

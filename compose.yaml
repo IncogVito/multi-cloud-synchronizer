@@ -1,0 +1,77 @@
+version: '3.8'
+
+# Production compose – uses pre-built images from the registry.
+# Rendered on the server by the GitHub Actions deploy workflow,
+# which writes a .env file with the image tags and secrets.
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE}
+    restart: unless-stopped
+    environment:
+      - MICRONAUT_ENVIRONMENTS=docker
+      - APP_USERNAME=${APP_USERNAME:-admin}
+      - APP_PASSWORD=${APP_PASSWORD}
+      - ICLOUD_SERVICE_URL=http://icloud-service:8000
+      - EXTERNAL_DRIVE_PATH=/mnt/external-drive
+      - THUMBNAIL_DIR=/mnt/external-drive/thumbnails
+      - SCRIPTS_DIR=/scripts
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-001}
+    volumes:
+      - db-data:/data
+      - type: bind
+        source: ${EXTERNAL_DRIVE_PATH}
+        target: /mnt/external-drive
+        bind:
+          create_host_path: true
+          propagation: rshared
+      - ./scripts:/scripts:ro
+    networks:
+      - cloud-sync-net
+    depends_on:
+      icloud-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  icloud-service:
+    image: ${ICLOUD_SERVICE_IMAGE}
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    networks:
+      - cloud-sync-net
+    # Not exposed externally – backend-only consumer
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  frontend:
+    image: ${FRONTEND_IMAGE}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    networks:
+      - cloud-sync-net
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  cloud-sync-net:
+    driver: bridge
+
+volumes:
+  db-data:

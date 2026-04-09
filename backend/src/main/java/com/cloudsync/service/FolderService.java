@@ -27,16 +27,20 @@ public class FolderService {
     private final FolderRepository folderRepository;
     private final PhotoFolderAssignmentRepository assignmentRepository;
     private final PhotoRepository photoRepository;
+    private final AppContextService appContextService;
 
     public FolderService(FolderRepository folderRepository,
                          PhotoFolderAssignmentRepository assignmentRepository,
-                         PhotoRepository photoRepository) {
+                         PhotoRepository photoRepository,
+                         AppContextService appContextService) {
         this.folderRepository = folderRepository;
         this.assignmentRepository = assignmentRepository;
         this.photoRepository = photoRepository;
+        this.appContextService = appContextService;
     }
 
     public List<FolderResponse> getFolderTree() {
+        appContextService.requireActive();
         List<VirtualFolder> allFolders = StreamSupport
                 .stream(folderRepository.findAll().spliterator(), false)
                 .toList();
@@ -52,6 +56,7 @@ public class FolderService {
     }
 
     public FolderResponse createFolder(CreateFolderRequest request) {
+        appContextService.requireActive();
         VirtualFolder folder = new VirtualFolder();
         folder.setId(UUID.randomUUID().toString());
         folder.setName(request.name());
