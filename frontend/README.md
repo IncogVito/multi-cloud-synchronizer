@@ -65,3 +65,4 @@ Configured via `src/environments/environment*.ts` files:
 |-------------|----------------------|---------------------|
 | `apiUrl`    | `http://localhost:8080` | `/api` (nginx proxy) |
 | `production`| `false`               | `true`              |
+

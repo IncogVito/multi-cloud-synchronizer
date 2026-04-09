@@ -55,3 +55,4 @@ curl http://localhost:8080/api/health
 | `APP_PASSWORD`         | Basic auth password                | `changeme`                               |
 | `MICRONAUT_ENVIRONMENTS` | Active Micronaut profiles        | (none)                                   |
 | `ICLOUD_SERVICE_URL`   | URL of the iCloud microservice     | `http://icloud-service:8000`             |
+
