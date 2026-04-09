@@ -77,7 +77,7 @@ jobs:
         if: ${{ steps.changes.outputs.frontend == 'true' }}
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
+          context: .
           file: ./frontend/Dockerfile
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.tag_version.outputs.new_tag }}, ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:latest
@@ -148,7 +148,7 @@ jobs:
             BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:${{ needs.build.outputs.backend == 'true' && needs.build.outputs.version || 'latest' }}
             FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ needs.build.outputs.frontend == 'true' && needs.build.outputs.version || 'latest' }}
             ICLOUD_SERVICE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ICLOUD }}:${{ needs.build.outputs.icloud_service == 'true' && needs.build.outputs.version || 'latest' }}
-            FRONTEND_PORT=${{ 80 }}
+            FRONTEND_PORT=${{ 3003 }}
             EXTERNAL_DRIVE_PATH=${{ secrets.EXTERNAL_DRIVE_PATH }}
             APP_USERNAME=${{ secrets.APP_USERNAME }}
             APP_PASSWORD=${{ secrets.APP_PASSWORD }}

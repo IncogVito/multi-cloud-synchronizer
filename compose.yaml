@@ -58,7 +58,7 @@ services:
     image: ${FRONTEND_IMAGE}
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_PORT:-4200}:80"
     networks:
       - cloud-sync-net
     depends_on:
