@@ -131,10 +131,18 @@ public class SyncService {
 
     private void compareAndPersist(String accountId, ICloudAccount account) {
         try {
-            HttpResponse<com.cloudsync.model.dto.ICloudPhotoListResponse> resp =
-                    iCloudServiceClient.listPhotos(account.getSessionId(), 10000, 0);
-            com.cloudsync.model.dto.ICloudPhotoListResponse listResp = resp.body();
-            List<ICloudPhotoAsset> iCloudPhotos = listResp != null ? listResp.photos() : List.of();
+            final int PAGE_SIZE = 200;
+            List<ICloudPhotoAsset> iCloudPhotos = new java.util.ArrayList<>();
+            int offset = 0;
+            while (true) {
+                HttpResponse<com.cloudsync.model.dto.ICloudPhotoListResponse> resp =
+                        iCloudServiceClient.listPhotos(account.getSessionId(), PAGE_SIZE, offset);
+                com.cloudsync.model.dto.ICloudPhotoListResponse page = resp.body();
+                List<ICloudPhotoAsset> batch = (page != null && page.photos() != null) ? page.photos() : List.of();
+                iCloudPhotos.addAll(batch);
+                if (batch.size() < PAGE_SIZE) break;
+                offset += PAGE_SIZE;
+            }
 
             Path destDir = Path.of(externalDrivePath, "photos", accountId);
             Set<String> diskFiles = Set.of();
@@ -179,13 +187,11 @@ public class SyncService {
             long pending = photoRepository.countByAccountIdAndSyncStatus(accountId, SyncStatus.PENDING.name());
             long synced = photoRepository.countByAccountIdAndSyncStatus(accountId, SyncStatus.SYNCED.name());
 
-            SyncProgressEvent event = new SyncProgressEvent(accountId, SyncPhase.COMPARING);
+            SyncProgressEvent event = new SyncProgressEvent(accountId, SyncPhase.AWAITING_CONFIRMATION);
             event.setTotalOnCloud((int) total);
             event.setPending((int) pending);
             event.setSynced((int) synced);
             syncStateHolder.updateAndEmit(accountId, event);
-
-            downloadPendingPhotosAsync(accountId, account);
         } catch (Exception e) {
             LOG.error("compareAndPersist failed for {}: {}", accountId, e.getMessage());
             SyncProgressEvent errEvent = new SyncProgressEvent(accountId, SyncPhase.ERROR);
@@ -280,6 +286,15 @@ public class SyncService {
         event.setTotalOnCloud((int) total);
         event.setPercentComplete(total > 0 ? (double) (synced + failed) / total * 100 : 0);
         syncStateHolder.updateAndEmit(accountId, event);
+    }
+
+    /**
+     * Confirm download after AWAITING_CONFIRMATION. Starts the actual download of pending photos.
+     */
+    public void confirmSync(String accountId) {
+        ICloudAccount account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountId));
+        CompletableFuture.runAsync(() -> downloadPendingPhotosAsync(accountId, account), syncVirtualThreadExecutor);
     }
 
     /**

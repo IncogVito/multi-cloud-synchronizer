@@ -25,4 +25,8 @@ EXPOSE 8080
 
 # Continuous mode: recompiles and restarts Micronaut whenever a source file changes.
 # The source tree is bind-mounted by compose.dev.yaml – no COPY needed here.
-CMD ["gradle", "run", "-t", "--no-daemon", "--stacktrace"]
+#
+# The shell wrapper removes any stale Gradle lock files left behind when the
+# container was previously killed (SIGKILL) or when a host-side Gradle process
+# ran against the same bind-mounted .gradle directory and didn't clean up.
+CMD ["sh", "-c", "find /app/.gradle -name '*.lock' -delete 2>/dev/null; exec gradle run -t --no-daemon --stacktrace"]

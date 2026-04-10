@@ -1,8 +1,10 @@
 package com.cloudsync.model.dto;
 
 import com.cloudsync.model.enums.SyncPhase;
+import io.micronaut.serde.annotation.Serdeable;
 import java.time.Instant;
 
+@Serdeable
 public class SyncProgressEvent {
     private String accountId;
     private SyncPhase phase;

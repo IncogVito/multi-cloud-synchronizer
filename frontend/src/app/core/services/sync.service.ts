@@ -50,6 +50,8 @@ export class SyncService {
               this._progress.next(event);
               if (event.phase === 'DONE' || event.phase === 'ERROR') {
                 this.closeEvents();
+              } else if (event.phase === 'AWAITING_CONFIRMATION') {
+                // Keep SSE open — user must confirm before download starts
               }
             } catch { /* ignore parse errors */ }
           }
@@ -65,6 +67,12 @@ export class SyncService {
   closeEvents(): void {
     this.abortController?.abort();
     this.abortController = null;
+  }
+
+  confirmSync(accountId: string): Observable<void> {
+    return this.http.post<void>(`/api/sync/${accountId}/confirm`, {}).pipe(
+      tap(() => this.subscribeToEvents(accountId))
+    );
   }
 
   reset(): void {

@@ -81,8 +81,22 @@ interface DeviceReadiness {
             @if (readiness().icloud && !primaryAccount()) {
               <p class="sync-sub muted">iCloud online, ale brak dodanego konta — dodaj je poniżej.</p>
             }
+          } @else if (activeProgress()!.phase === 'AWAITING_CONFIRMATION') {
+            <p class="sync-title">Gotowe do pobrania</p>
+            <p class="sync-sub">Znaleziono zdjęcia w iCloud. Czy chcesz je skopiować na dysk zewnętrzny?</p>
+            <ul class="stats">
+              <li>Zdjęcia w iCloud: <strong>{{ activeProgress()!.totalOnCloud }}</strong></li>
+              <li>Już zsynchronizowane: <strong>{{ activeProgress()!.synced }}</strong></li>
+              <li>Do pobrania: <strong>{{ activeProgress()!.pending }}</strong></li>
+            </ul>
+            <div class="actions">
+              <button class="btn btn-primary" [disabled]="confirming()" (click)="confirmSync()">
+                {{ confirming() ? 'Uruchamianie...' : 'Pobierz ' + activeProgress()!.pending + ' zdjęć' }}
+              </button>
+              <button class="btn btn-ghost" (click)="cancelSync()">Anuluj</button>
+            </div>
           } @else {
-            <p class="sync-title">
+            <p class="sync-title" [class.sync-title--error]="activeProgress()!.phase === 'ERROR'">
               Status: {{ phaseLabel(activeProgress()!.phase) }}
             </p>
             <div class="progress-wrap">
@@ -92,7 +106,11 @@ interface DeviceReadiness {
               <span class="progress-pct">{{ activeProgress()!.percentComplete | number:'1.0-0' }}%</span>
             </div>
             <ul class="stats">
-              <li>Zsynchronizowane: <strong>{{ activeProgress()!.synced }}</strong> / {{ activeProgress()!.totalOnCloud || '—' }}</li>
+              @if (activeProgress()!.phase === 'FETCHING_METADATA') {
+                <li>Pobrano metadane: <strong>{{ activeProgress()!.metadataFetched }}</strong>{{ activeProgress()!.totalOnCloud > 0 ? ' / ' + activeProgress()!.totalOnCloud : '' }}</li>
+              } @else {
+                <li>Zsynchronizowane: <strong>{{ activeProgress()!.synced }}</strong> / {{ activeProgress()!.totalOnCloud || '—' }}</li>
+              }
               <li>Oczekujące: <strong>{{ activeProgress()!.pending }}</strong></li>
               @if (activeProgress()!.failed > 0) {
                 <li class="err">Błędy: <strong>{{ activeProgress()!.failed }}</strong></li>
@@ -140,6 +158,8 @@ interface DeviceReadiness {
     .progress-pct { font-size: 0.8rem; color: #374151; min-width: 3em; text-align: right; }
     .stats { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; color: #374151; }
     .stats .err { color: #dc2626; }
+    .sync-title--error { color: #dc2626; }
+    .sync-card:has(.sync-title--error) { border-color: #fca5a5; background: #fff5f5; }
   `]
 })
 export class SyncSectionComponent implements OnInit, OnDestroy {
@@ -150,6 +170,7 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
 
   loading = signal(false);
   starting = signal(false);
+  confirming = signal(false);
   statuses = signal<DeviceStatusResponse[]>([]);
   accounts = signal<AccountResponse[]>([]);
   driveStatus = signal<DriveStatus | null>(null);
@@ -265,10 +286,27 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     });
   }
 
+  confirmSync(): void {
+    const acc = this.primaryAccount();
+    if (!acc) return;
+    this.confirming.set(true);
+    this.syncService.confirmSync(acc.id).subscribe({
+      next: () => this.confirming.set(false),
+      error: () => this.confirming.set(false)
+    });
+  }
+
+  cancelSync(): void {
+    this.syncService.reset();
+    this.activeProgress.set(null);
+    this.syncStartTime = null;
+  }
+
   phaseLabel(phase: string): string {
     switch (phase) {
       case 'FETCHING_METADATA': return 'Pobieranie metadanych';
       case 'COMPARING': return 'Porównywanie';
+      case 'AWAITING_CONFIRMATION': return 'Oczekiwanie na potwierdzenie';
       case 'DOWNLOADING': return 'Pobieranie zdjęć';
       case 'DONE': return 'Zakończone';
       case 'ERROR': return 'Błąd';

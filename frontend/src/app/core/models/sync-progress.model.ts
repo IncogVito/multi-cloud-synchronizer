@@ -1,6 +1,7 @@
 export type SyncPhase =
   | 'FETCHING_METADATA'
   | 'COMPARING'
+  | 'AWAITING_CONFIRMATION'
   | 'DOWNLOADING'
   | 'DONE'
   | 'ERROR';

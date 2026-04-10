@@ -41,6 +41,13 @@ public class SyncController {
                 .map(Event::of);
     }
 
+    @Post("/{accountId}/confirm")
+    @ExecuteOn(TaskExecutors.BLOCKING)
+    @Produces(MediaType.APPLICATION_JSON)
+    public void confirmSync(@PathVariable String accountId) {
+        syncService.confirmSync(accountId);
+    }
+
     @Get("/{accountId}/status")
     @Produces(MediaType.APPLICATION_JSON)
     public Optional<SyncProgressEvent> getSyncStatus(@PathVariable String accountId) {
