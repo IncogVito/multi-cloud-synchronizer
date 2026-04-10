@@ -24,10 +24,13 @@ services:
       - EXTERNAL_DRIVE_PATH=/mnt/external-drive
       - THUMBNAIL_DIR=/mnt/external-drive/thumbnails
       - SCRIPTS_DIR=/scripts
+      - IPHONE_MOUNT_PATH=/mnt/iphone
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-001}
       # Keep Gradle cache in the named volume even when running as root
       - GRADLE_USER_HOME=/home/gradle/.gradle
+      - SSH_USER=${SSH_USER:-wdrozdzowski}
+      - HOST_SCRIPTS_PATH=${HOST_SCRIPTS_PATH:-/home/wdrozdzowski/projects/multi-cloud-synchronizer/scripts/host}
     volumes:
       - ./backend:/app                       # live source editing
       - /app/build                           # build artifacts stay in container (anonymous vol)
@@ -41,7 +44,14 @@ services:
         bind:
           create_host_path: true
           propagation: rshared
+      - type: bind
+        source: /mnt/iphone
+        target: /mnt/iphone
+        bind:
+          create_host_path: true
+          propagation: rshared
       - ./scripts/bridge/dev:/scripts:ro
+      - ./scripts/bridge/ssh/id_ed25519:/ssh/id_ed25519:ro
     networks:
       - cloud-sync-dev
     depends_on:
@@ -54,6 +64,8 @@ services:
       retries: 5
       start_period: 90s
     restart: on-failure
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   icloud-service:
     build:

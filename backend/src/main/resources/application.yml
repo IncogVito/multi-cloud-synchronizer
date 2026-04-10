@@ -76,6 +76,7 @@ app:
   password: ${APP_PASSWORD:changeme}
   thumbnail-dir: ${THUMBNAIL_DIR:/mnt/external-drive/thumbnails}
   scripts-dir: ${SCRIPTS_DIR:/scripts}
+  iphone-mount-path: ${IPHONE_MOUNT_PATH:/mnt/iphone}
 
 ---
 micronaut:

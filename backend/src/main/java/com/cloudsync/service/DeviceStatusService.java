@@ -144,12 +144,34 @@ public class DeviceStatusService {
                         false
                 );
 
-                ShellExecutor.ShellResult trustResult = shellExecutor.executeScript(scriptsDir, "iphone-check-trust.sh");
+                shellExecutor.executeScript(scriptsDir, "iphone-check-trust.sh");
+
+                DeviceCheckEvent mountingEvent = new DeviceCheckEvent(
+                        DeviceType.IPHONE.name(),
+                        DeviceCheckStatus.MOUNTING.name(),
+                        "Montuję iPhone...",
+                        null,
+                        false
+                );
+
+                ShellExecutor.ShellResult mountResult = shellExecutor.executeScript(scriptsDir, "iphone-mount.sh");
                 String details = result.stdout();
-
                 String deviceName = extractJsonField(result.stdout(), "device_name");
-                String stepDesc = "iPhone podłączony" + (deviceName != null ? ": " + deviceName : "");
 
+                if (!mountResult.isSuccess() || !mountResult.stdout().contains("\"mounted\": true")) {
+                    LOG.warn("iPhone detected but mount failed: {}", mountResult.stdout());
+                    DeviceCheckEvent failedEvent = new DeviceCheckEvent(
+                            DeviceType.IPHONE.name(),
+                            DeviceCheckStatus.MOUNT_FAILED.name(),
+                            "iPhone wykryty, ale montowanie nie powiodło się.",
+                            mountResult.stdout(),
+                            true
+                    );
+                    persistStatus(DeviceType.IPHONE.name(), DeviceCheckStatus.MOUNT_FAILED, mountResult.stdout());
+                    return Flux.just(checkingEvent, trustCheckEvent, mountingEvent, failedEvent);
+                }
+
+                String stepDesc = "iPhone podłączony i zamontowany" + (deviceName != null ? ": " + deviceName : "");
                 DeviceCheckEvent finalEvent = new DeviceCheckEvent(
                         DeviceType.IPHONE.name(),
                         DeviceCheckStatus.CONNECTED.name(),
@@ -158,7 +180,7 @@ public class DeviceStatusService {
                         true
                 );
                 persistStatus(DeviceType.IPHONE.name(), DeviceCheckStatus.CONNECTED, details);
-                return Flux.just(checkingEvent, trustCheckEvent, finalEvent);
+                return Flux.just(checkingEvent, trustCheckEvent, mountingEvent, finalEvent);
             }
 
             DeviceCheckEvent finalEvent = new DeviceCheckEvent(

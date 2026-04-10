@@ -1,20 +1,18 @@
 package com.cloudsync.service;
 
-import com.cloudsync.client.ICloudServiceClient;
 import com.cloudsync.exception.PhotoNotSyncedException;
 import com.cloudsync.model.dto.AppContext;
-import com.cloudsync.model.dto.ICloudPhotoAsset;
-import com.cloudsync.model.dto.ICloudPhotoListResponse;
-import com.cloudsync.model.dto.ICloudPrefetchStatus;
+import com.cloudsync.model.dto.PhotoAsset;
+import com.cloudsync.model.dto.PrefetchStatus;
 import com.cloudsync.model.dto.SyncProgressEvent;
 import com.cloudsync.model.dto.SyncStartResponse;
 import com.cloudsync.model.entity.ICloudAccount;
 import com.cloudsync.model.entity.Photo;
 import com.cloudsync.model.enums.SyncPhase;
 import com.cloudsync.model.enums.SyncStatus;
+import com.cloudsync.provider.PhotoSyncProvider;
 import com.cloudsync.repository.AccountRepository;
 import com.cloudsync.repository.PhotoRepository;
-import io.micronaut.http.HttpResponse;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -31,7 +29,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,65 +44,79 @@ public class SyncService {
 
     private static final Logger LOG = LoggerFactory.getLogger(SyncService.class);
     private static final int BATCH_SIZE = 100;
-    private static final int PAGE_SIZE = 200;
     private static final int EMIT_EVERY_N = 5;
     private static final Duration EMIT_MAX_INTERVAL = Duration.ofSeconds(3);
 
     private final PhotoRepository photoRepository;
     private final AccountRepository accountRepository;
-    private final ICloudServiceClient iCloudServiceClient;
     private final ThumbnailService thumbnailService;
     private final SyncStateHolder syncStateHolder;
     private final AppContextService appContextService;
     private final ExecutorService syncVirtualThreadExecutor;
+    private final Map<String, PhotoSyncProvider> providers;
+
     private final Semaphore downloadSemaphore = new Semaphore(50);
     private final ConcurrentHashMap<String, AtomicBoolean> cancellationFlags = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> lastEmitTime = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicInteger> downloadedSinceEmit = new ConcurrentHashMap<>();
+    /** Tracks which provider is active for the current metadata-fetch phase per accountId. */
+    private final ConcurrentHashMap<String, String> activeProviderType = new ConcurrentHashMap<>();
 
     public SyncService(PhotoRepository photoRepository,
                        AccountRepository accountRepository,
-                       ICloudServiceClient iCloudServiceClient,
                        ThumbnailService thumbnailService,
                        SyncStateHolder syncStateHolder,
                        AppContextService appContextService,
-                       @Named("syncVirtualThreadExecutor") ExecutorService syncVirtualThreadExecutor) {
+                       @Named("syncVirtualThreadExecutor") ExecutorService syncVirtualThreadExecutor,
+                       @Named("ICLOUD") PhotoSyncProvider iCloudProvider,
+                       @Named("IPHONE") PhotoSyncProvider iPhoneProvider) {
         this.photoRepository = photoRepository;
         this.accountRepository = accountRepository;
-        this.iCloudServiceClient = iCloudServiceClient;
         this.thumbnailService = thumbnailService;
         this.syncStateHolder = syncStateHolder;
         this.appContextService = appContextService;
         this.syncVirtualThreadExecutor = syncVirtualThreadExecutor;
+        this.providers = Map.of(
+                iCloudProvider.providerType(), iCloudProvider,
+                iPhoneProvider.providerType(), iPhoneProvider
+        );
     }
 
     // ── public API ────────────────────────────────────────────────────────────
 
     /**
-     * Start async sync. Returns immediately after triggering prefetch.
+     * Start async sync for the given provider (default: "ICLOUD").
+     * Returns immediately after triggering prefetch.
      * Progress is broadcast via SSE through SyncStateHolder.
      */
-    public SyncStartResponse startSync(String accountId) {
+    public SyncStartResponse startSync(String accountId, String providerType) {
         AppContext ctx = appContextService.requireActive();
         ICloudAccount account = requireAccount(accountId);
         requireValidSession(account);
 
+        PhotoSyncProvider provider = resolveProvider(providerType);
+        activeProviderType.put(accountId, provider.providerType());
+
         resetCancellation(accountId);
         emitEvent(accountId, SyncPhase.FETCHING_METADATA, e -> e.setMetadataFetched(0));
-        iCloudServiceClient.prefetchPhotos(account.getSessionId());
-        CompletableFuture.runAsync(() -> pollMetadataAndContinue(accountId, account, ctx), syncVirtualThreadExecutor);
+        provider.prefetch(account.getSessionId());
+        CompletableFuture.runAsync(
+                () -> pollMetadataAndContinue(accountId, account, ctx, provider),
+                syncVirtualThreadExecutor);
 
-        return new SyncStartResponse(accountId, SyncPhase.FETCHING_METADATA, "Pobieranie listy z iCloud...", Instant.now());
+        return new SyncStartResponse(accountId, SyncPhase.FETCHING_METADATA, "Pobieranie listy...", Instant.now());
     }
 
     /**
      * Confirm download after AWAITING_CONFIRMATION. Starts the actual download of pending photos.
+     * Each photo carries its own sourceProvider so the correct client is used per download.
      */
     public void confirmSync(String accountId) {
         ICloudAccount account = requireAccount(accountId);
         AppContext ctx = appContextService.requireActive();
+        String providerType = activeProviderType.getOrDefault(accountId, "ICLOUD");
         resetCancellation(accountId);
-        CompletableFuture.runAsync(() -> downloadPendingPhotosAsync(accountId, account, ctx), syncVirtualThreadExecutor);
+        CompletableFuture.runAsync(() -> downloadPendingPhotosAsync(accountId, account, ctx, providerType), syncVirtualThreadExecutor);
     }
 
     /**
@@ -186,7 +197,6 @@ public class SyncService {
                 .filter(p -> {
                     Path filePath = Path.of(p.getFilePath());
                     if (!Files.exists(filePath)) return false;
-                    // File is unorganized if its parent is not a yyyy/MM directory under basePath
                     Path parent = filePath.getParent();
                     if (parent == null) return true;
                     try {
@@ -204,11 +214,12 @@ public class SyncService {
      */
     public void deleteFromICloud(String accountId, List<String> photoIds) {
         ICloudAccount account = requireAccount(accountId);
+        PhotoSyncProvider iCloudProvider = resolveProvider("ICLOUD");
         for (String photoId : photoIds) {
             Photo photo = requirePhoto(photoId);
             requireSyncedToDisk(photo);
             if (photo.getIcloudPhotoId() != null) {
-                iCloudServiceClient.deletePhoto(photo.getIcloudPhotoId(), account.getSessionId());
+                iCloudProvider.deletePhoto(photo.getIcloudPhotoId(), account.getSessionId());
             }
             photo.setExistsOnIcloud(false);
             photoRepository.update(photo);
@@ -216,7 +227,7 @@ public class SyncService {
     }
 
     /**
-     * Delete photos from iPhone (via icloud-service devices endpoint).
+     * Delete photos from iPhone (marks existsOnIphone=false; physical deletion via USB not yet implemented).
      */
     public void deleteFromIPhone(String accountId, List<String> photoIds) {
         for (String photoId : photoIds) {
@@ -248,19 +259,19 @@ public class SyncService {
 
     // ── metadata polling ──────────────────────────────────────────────────────
 
-    private void pollMetadataAndContinue(String accountId, ICloudAccount account, AppContext ctx) {
+    private void pollMetadataAndContinue(String accountId, ICloudAccount account, AppContext ctx, PhotoSyncProvider provider) {
         try {
             while (true) {
                 Thread.sleep(1000);
                 if (isCancelled(accountId)) return;
 
-                ICloudPrefetchStatus status = fetchPrefetchStatus(account.getSessionId());
+                PrefetchStatus status = provider.getPrefetchStatus(account.getSessionId());
                 if (status == null) continue;
 
                 emitMetadataProgress(accountId, status);
 
                 if ("ready".equals(status.status())) {
-                    if (!isCancelled(accountId)) compareAndPersist(accountId, account, ctx);
+                    if (!isCancelled(accountId)) compareAndPersist(accountId, account, ctx, provider);
                     return;
                 }
                 if ("error".equals(status.status())) {
@@ -277,12 +288,7 @@ public class SyncService {
         }
     }
 
-    private ICloudPrefetchStatus fetchPrefetchStatus(String sessionId) {
-        HttpResponse<ICloudPrefetchStatus> resp = iCloudServiceClient.getPrefetchStatus(sessionId);
-        return resp.body();
-    }
-
-    private void emitMetadataProgress(String accountId, ICloudPrefetchStatus status) {
+    private void emitMetadataProgress(String accountId, PrefetchStatus status) {
         emitEvent(accountId, SyncPhase.FETCHING_METADATA, e -> {
             e.setMetadataFetched(status.fetched());
             e.setTotalOnCloud(status.total() != null ? status.total() : 0);
@@ -291,23 +297,22 @@ public class SyncService {
 
     // ── compare & persist ─────────────────────────────────────────────────────
 
-    private void compareAndPersist(String accountId, ICloudAccount account, AppContext ctx) {
+    private void compareAndPersist(String accountId, ICloudAccount account, AppContext ctx, PhotoSyncProvider provider) {
         try {
-            List<ICloudPhotoAsset> iCloudPhotos = fetchAllICloudPhotos(account.getSessionId());
+            List<PhotoAsset> remotePhotos = provider.listAllPhotos(account.getSessionId());
             if (isCancelled(accountId)) return;
 
             Path destDir = Path.of(ctx.basePath());
             Map<String, Long> diskFiles = scanDiskFiles(destDir);
-            Map<String, Photo> existingByIcloudId = loadExistingPhotosAsMap(accountId);
+            Map<String, Photo> existingByExternalId = loadExistingPhotosAsMap(accountId, provider.providerType());
 
             List<Photo> toSave = new ArrayList<>();
             List<Photo> toUpdate = new ArrayList<>();
 
-            for (ICloudPhotoAsset asset : iCloudPhotos) {
-                System.out.println(asset.createdDateMs());
-                if (isAlreadySynced(existingByIcloudId, asset)) continue;
+            for (PhotoAsset asset : remotePhotos) {
+                if (isAlreadySynced(existingByExternalId, asset)) continue;
                 if (isAlreadyOnDisk(diskFiles, asset)) continue;
-                classifyAsset(asset, accountId, ctx.storageDeviceId(), existingByIcloudId, toSave, toUpdate);
+                classifyAsset(asset, accountId, ctx.storageDeviceId(), provider.providerType(), existingByExternalId, toSave, toUpdate);
             }
 
             if (isCancelled(accountId)) return;
@@ -317,26 +322,12 @@ public class SyncService {
             updateInBatches(toUpdate);
 
             if (!isCancelled(accountId)) {
-                emitAwaitingConfirmation(accountId, iCloudPhotos.size());
+                emitAwaitingConfirmation(accountId, remotePhotos.size());
             }
         } catch (Exception e) {
             LOG.error("compareAndPersist failed for {}: {}", accountId, e.getMessage());
             emitError(accountId);
         }
-    }
-
-    private List<ICloudPhotoAsset> fetchAllICloudPhotos(String sessionId) {
-        List<ICloudPhotoAsset> all = new ArrayList<>();
-        int offset = 0;
-        while (true) {
-            HttpResponse<ICloudPhotoListResponse> resp = iCloudServiceClient.listPhotos(sessionId, PAGE_SIZE, offset);
-            ICloudPhotoListResponse page = resp.body();
-            List<ICloudPhotoAsset> batch = (page != null && page.photos() != null) ? page.photos() : List.of();
-            all.addAll(batch);
-            if (batch.size() < PAGE_SIZE) break;
-            offset += PAGE_SIZE;
-        }
-        return all;
     }
 
     private Map<String, Long> scanDiskFiles(Path dir) throws IOException {
@@ -364,32 +355,33 @@ public class SyncService {
                 String.format("%02d", date.getMonthValue()));
     }
 
-    private Map<String, Photo> loadExistingPhotosAsMap(String accountId) {
+    private Map<String, Photo> loadExistingPhotosAsMap(String accountId, String providerType) {
         return photoRepository.findByAccountId(accountId).stream()
                 .filter(p -> p.getIcloudPhotoId() != null)
+                .filter(p -> providerType.equals(p.getSourceProvider()) || p.getSourceProvider() == null)
                 .collect(Collectors.toMap(Photo::getIcloudPhotoId, p -> p));
     }
 
-    private boolean isAlreadySynced(Map<String, Photo> existingByIcloudId, ICloudPhotoAsset asset) {
-        Photo existing = existingByIcloudId.get(asset.id());
+    private boolean isAlreadySynced(Map<String, Photo> existingByExternalId, PhotoAsset asset) {
+        Photo existing = existingByExternalId.get(asset.id());
         return existing != null && SyncStatus.SYNCED.name().equals(existing.getSyncStatus());
     }
 
-    private boolean isAlreadyOnDisk(Map<String, Long> diskFiles, ICloudPhotoAsset asset) {
+    private boolean isAlreadyOnDisk(Map<String, Long> diskFiles, PhotoAsset asset) {
         String sanitized = sanitizeFilename(asset.filename());
         Long diskSize = diskFiles.get(sanitized);
         return diskSize != null && asset.size() != null && diskSize.equals(asset.size());
     }
 
-    private void classifyAsset(ICloudPhotoAsset asset, String accountId, String storageDeviceId,
-                               Map<String, Photo> existingByIcloudId,
+    private void classifyAsset(PhotoAsset asset, String accountId, String storageDeviceId,
+                               String providerType, Map<String, Photo> existingByExternalId,
                                List<Photo> toSave, List<Photo> toUpdate) {
-        Photo existing = existingByIcloudId.get(asset.id());
+        Photo existing = existingByExternalId.get(asset.id());
         if (existing != null) {
             existing.setSyncStatus(SyncStatus.PENDING.name());
             toUpdate.add(existing);
         } else {
-            toSave.add(buildPhoto(asset, accountId, storageDeviceId));
+            toSave.add(buildPhoto(asset, accountId, storageDeviceId, providerType));
         }
     }
 
@@ -421,10 +413,13 @@ public class SyncService {
 
     // ── download ──────────────────────────────────────────────────────────────
 
-    private void downloadPendingPhotosAsync(String accountId, ICloudAccount account, AppContext ctx) {
+    private void downloadPendingPhotosAsync(String accountId, ICloudAccount account, AppContext ctx, String providerType) {
         lastEmitTime.remove(accountId);
         downloadedSinceEmit.remove(accountId);
-        List<Photo> pending = photoRepository.findByAccountIdAndSyncStatus(accountId, SyncStatus.PENDING.name());
+        List<Photo> pending = photoRepository.findByAccountIdAndSyncStatus(accountId, SyncStatus.PENDING.name())
+                .stream()
+                .filter(p -> providerType.equals(p.getSourceProvider()))
+                .toList();
 
         List<CompletableFuture<Void>> futures = pending.stream()
                 .map(photo -> CompletableFuture.runAsync(
@@ -461,7 +456,8 @@ public class SyncService {
             markDownloading(photo);
 
             String photoId = photo.getIcloudPhotoId() != null ? photo.getIcloudPhotoId() : photo.getId();
-            byte[] data = downloadPhotoData(photoId, account.getSessionId());
+            PhotoSyncProvider provider = resolveProvider(photo.getSourceProvider());
+            byte[] data = provider.downloadPhoto(photoId, account.getSessionId());
 
             if (isCancelled(accountId)) {
                 photo.setSyncStatus(SyncStatus.PENDING.name());
@@ -489,13 +485,6 @@ public class SyncService {
     private void markDownloading(Photo photo) {
         photo.setSyncStatus(SyncStatus.DOWNLOADING.name());
         photoRepository.update(photo);
-    }
-
-    private byte[] downloadPhotoData(String photoId, String sessionId) throws IOException {
-        HttpResponse<byte[]> response = iCloudServiceClient.downloadPhoto(photoId, sessionId);
-        byte[] data = response.body();
-        if (data == null) throw new IOException("Empty response for photo " + photoId);
-        return data;
     }
 
     private String resolveFilename(Photo photo, String photoId) {
@@ -593,6 +582,13 @@ public class SyncService {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    private PhotoSyncProvider resolveProvider(String providerType) {
+        if (providerType == null) providerType = "ICLOUD";
+        PhotoSyncProvider provider = providers.get(providerType.toUpperCase());
+        if (provider == null) throw new IllegalArgumentException("Unknown sync provider: " + providerType);
+        return provider;
+    }
+
     private ICloudAccount requireAccount(String accountId) {
         return accountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountId));
@@ -631,7 +627,7 @@ public class SyncService {
         syncStateHolder.updateAndEmit(accountId, event);
     }
 
-    private Photo buildPhoto(ICloudPhotoAsset asset, String accountId, String storageDeviceId) {
+    private Photo buildPhoto(PhotoAsset asset, String accountId, String storageDeviceId, String providerType) {
         Photo p = new Photo();
         p.setId(UUID.randomUUID().toString());
         p.setIcloudPhotoId(asset.id());
@@ -642,7 +638,9 @@ public class SyncService {
         p.setCreatedDate(asset.createdDate());
         p.setImportedDate(Instant.now());
         p.setSyncStatus(SyncStatus.PENDING.name());
-        p.setExistsOnIcloud(true);
+        p.setExistsOnIcloud("ICLOUD".equals(providerType));
+        p.setExistsOnIphone("IPHONE".equals(providerType) ? Boolean.TRUE : null);
+        p.setSourceProvider(providerType);
         if (storageDeviceId != null) p.setStorageDeviceId(storageDeviceId);
         return p;
     }

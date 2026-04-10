@@ -16,8 +16,11 @@ services:
       - EXTERNAL_DRIVE_PATH=/mnt/external-drive
       - THUMBNAIL_DIR=/mnt/external-drive/thumbnails
       - SCRIPTS_DIR=/scripts
+      - IPHONE_MOUNT_PATH=/mnt/iphone
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-001}
+      - SSH_USER=${SSH_USER:-wdrozdzowski}
+      - HOST_SCRIPTS_PATH=${HOST_SCRIPTS_PATH:-/home/wdrozdzowski/projects/multi-cloud-synchronizer/scripts/host}
     volumes:
       - db-data:/data
       - type: bind
@@ -26,7 +29,14 @@ services:
         bind:
           create_host_path: true
           propagation: rshared
+      - type: bind
+        source: /mnt/iphone
+        target: /mnt/iphone
+        bind:
+          create_host_path: true
+          propagation: rshared
       - ./scripts/bridge:/scripts:ro
+      - ./scripts/bridge/ssh/id_ed25519:/ssh/id_ed25519:ro
     networks:
       - cloud-sync-net
     depends_on:
@@ -38,6 +48,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   icloud-service:
     image: ${ICLOUD_SERVICE_IMAGE}

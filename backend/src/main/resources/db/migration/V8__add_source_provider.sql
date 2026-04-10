@@ -1,0 +1,1 @@
+ALTER TABLE photos ADD COLUMN source_provider TEXT DEFAULT 'ICLOUD';

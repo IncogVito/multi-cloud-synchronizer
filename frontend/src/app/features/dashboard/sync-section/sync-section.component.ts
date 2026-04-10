@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, effect } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -68,22 +68,38 @@ interface DeviceReadiness {
               Dysk docelowy: <strong>{{ driveLabel() }}</strong>
               <a class="link" routerLink="/setup">zmień</a>
             </p>
-            <p class="sync-sub muted">
-              Źródło: <strong>{{ sourceLabel() }}</strong>
-            </p>
+
+            @if (readiness().icloud && readiness().iphone) {
+              <div class="provider-tabs">
+                <button class="provider-tab" [class.active]="selectedProvider() === 'ICLOUD'" (click)="selectedProvider.set('ICLOUD')">
+                  iCloud
+                </button>
+                <button class="provider-tab" [class.active]="selectedProvider() === 'IPHONE'" (click)="selectedProvider.set('IPHONE')">
+                  iPhone
+                </button>
+              </div>
+            } @else {
+              <p class="sync-sub muted">
+                Źródło: <strong>{{ sourceLabel() }}</strong>
+              </p>
+            }
+
             <button
               class="btn btn-primary"
               [disabled]="starting() || !canStart()"
               (click)="startSync()"
             >
-              {{ starting() ? 'Uruchamianie...' : 'Rozpocznij synchronizację' }}
+              {{ starting() ? 'Uruchamianie...' : startButtonLabel() }}
             </button>
-            @if (readiness().icloud && !primaryAccount()) {
+            @if (selectedProvider() === 'ICLOUD' && readiness().icloud && !primaryAccount()) {
               <p class="sync-sub muted">iCloud online, ale brak dodanego konta — dodaj je poniżej.</p>
+            }
+            @if (selectedProvider() === 'IPHONE' && readiness().iphone) {
+              <p class="sync-sub muted">Synchronizacja bezpośrednia z iPhone (USB) — funkcja w przygotowaniu.</p>
             }
           } @else if (activeProgress()!.phase === 'AWAITING_CONFIRMATION') {
             <p class="sync-title">Gotowe do pobrania</p>
-            <p class="sync-sub">Znaleziono zdjęcia w iCloud. Czy chcesz je skopiować na dysk zewnętrzny?</p>
+            <p class="sync-sub">Znaleziono zdjęcia ({{ selectedProvider() === 'IPHONE' ? 'iPhone' : 'iCloud' }}). Czy chcesz je skopiować na dysk zewnętrzny?</p>
             <ul class="stats">
               <li>Zdjęcia w iCloud: <strong>{{ activeProgress()!.totalOnCloud }}</strong></li>
               <li>Już zsynchronizowane: <strong>{{ activeProgress()!.synced }}</strong></li>
@@ -171,6 +187,10 @@ interface DeviceReadiness {
     .sync-card:has(.sync-title--error) { border-color: #fca5a5; background: #fff5f5; }
     .btn-danger { border-color: #fca5a5; color: #dc2626; }
     .btn-danger:hover { background: #fff5f5; }
+    .provider-tabs { display: flex; gap: 0; margin: 0.5rem 0 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; width: fit-content; }
+    .provider-tab { padding: 0.375rem 1rem; font-size: 0.8rem; font-weight: 500; border: none; background: transparent; color: #6b7280; cursor: pointer; }
+    .provider-tab.active { background: #3b82f6; color: #fff; }
+    .provider-tab:not(.active):hover { background: #f3f4f6; }
   `]
 })
 export class SyncSectionComponent implements OnInit, OnDestroy {
@@ -186,9 +206,19 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
   accounts = signal<AccountResponse[]>([]);
   driveStatus = signal<DriveStatus | null>(null);
   activeProgress = signal<SyncProgressEvent | null>(null);
+  selectedProvider = signal<'ICLOUD' | 'IPHONE'>('ICLOUD');
 
   private syncStartTime: number | null = null;
   private progressSub?: Subscription;
+
+  constructor() {
+    // When only one source is available, auto-select it
+    effect(() => {
+      const r = this.readiness();
+      if (r.icloud && !r.iphone) this.selectedProvider.set('ICLOUD');
+      if (r.iphone && !r.icloud) this.selectedProvider.set('IPHONE');
+    });
+  }
 
   readiness = computed<DeviceReadiness>(() => {
     const s = this.statuses();
@@ -204,13 +234,20 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     return list.find(a => a.hasActiveSession) ?? list[0] ?? null;
   });
 
-  /** Can we actually start a sync right now? iPhone-only is OK; iCloud requires an account. */
+  /** Can we actually start a sync right now for the selected provider? */
   canStart = computed<boolean>(() => {
     const r = this.readiness();
     if (!r.ready) return false;
-    if (r.icloud && this.primaryAccount()) return true;
-    return r.iphone;
+    const p = this.selectedProvider();
+    if (p === 'ICLOUD') return r.icloud && !!this.primaryAccount();
+    if (p === 'IPHONE') return r.iphone; // stub — will show error from backend
+    return false;
   });
+
+  /** Label shown on the start button based on selected provider. */
+  startButtonLabel = computed<string>(() =>
+    this.selectedProvider() === 'IPHONE' ? 'Synchronizuj z iPhone' : 'Rozpocznij synchronizację'
+  );
 
   isActivelySyncing = computed<boolean>(() => {
     const phase = this.activeProgress()?.phase;
@@ -291,15 +328,14 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
 
   startSync(): void {
     const acc = this.primaryAccount();
-    if (!acc) {
-      // iPhone-only sync has no backend endpoint yet; placeholder until implemented.
-      return;
-    }
+    const provider = this.selectedProvider();
+    if (provider === 'ICLOUD' && !acc) return;
     this.starting.set(true);
     this.syncStartTime = Date.now();
-    this.syncService.startSync(acc.id).subscribe({
-      next: () => {
-      },
+    // For iPhone, use any account's session (Apple ID link) or a placeholder empty string
+    const accountId = acc?.id ?? '';
+    this.syncService.startSync(accountId, provider).subscribe({
+      next: () => this.starting.set(false),
       error: () => {
         this.starting.set(false);
         this.syncStartTime = null;

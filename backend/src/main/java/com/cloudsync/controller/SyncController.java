@@ -6,6 +6,7 @@ import com.cloudsync.service.SyncService;
 import com.cloudsync.service.SyncStateHolder;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
+import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.http.sse.Event;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
@@ -32,8 +33,9 @@ public class SyncController {
     @Post("/{accountId}")
     @ExecuteOn(TaskExecutors.BLOCKING)
     @Produces(MediaType.APPLICATION_JSON)
-    public SyncStartResponse startSync(@PathVariable String accountId) {
-        return syncService.startSync(accountId);
+    public SyncStartResponse startSync(@PathVariable String accountId,
+                                       @QueryValue(defaultValue = "ICLOUD") String provider) {
+        return syncService.startSync(accountId, provider);
     }
 
     @Get(value = "/{accountId}/events", produces = MediaType.TEXT_EVENT_STREAM)

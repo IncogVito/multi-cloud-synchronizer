@@ -15,8 +15,8 @@ export class SyncService {
 
   private abortController: AbortController | null = null;
 
-  startSync(accountId: string): Observable<SyncStartResponse> {
-    return this.http.post<SyncStartResponse>(`/api/sync/${accountId}`, {}).pipe(
+  startSync(accountId: string, provider: 'ICLOUD' | 'IPHONE' = 'ICLOUD'): Observable<SyncStartResponse> {
+    return this.http.post<SyncStartResponse>(`/api/sync/${accountId}?provider=${provider}`, {}).pipe(
       tap(() => this.subscribeToEvents(accountId))
     );
   }

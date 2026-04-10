@@ -31,11 +31,14 @@ public class Photo {
     private String storageDeviceId;
     private String syncStatus;
     private String assetToken;
+    /** Which provider this photo was synced from: "ICLOUD" or "IPHONE". */
+    private String sourceProvider;
 
     public Photo() {
         this.syncedToDisk = false;
         this.existsOnIcloud = true;
         this.mediaType = MediaType.PHOTO.name();
+        this.sourceProvider = "ICLOUD";
     }
 
     public String getId() { return id; }
@@ -94,4 +97,7 @@ public class Photo {
 
     public String getAssetToken() { return assetToken; }
     public void setAssetToken(String assetToken) { this.assetToken = assetToken; }
+
+    public String getSourceProvider() { return sourceProvider; }
+    public void setSourceProvider(String sourceProvider) { this.sourceProvider = sourceProvider; }
 }

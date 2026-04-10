@@ -32,6 +32,12 @@ public class AppConfig {
     }
 
     @Bean
+    @jakarta.inject.Named("iphoneMountPath")
+    public String iphoneMountPath(@Value("${app.iphone-mount-path:/mnt/iphone}") String path) {
+        return path;
+    }
+
+    @Bean
     @jakarta.inject.Named("syncVirtualThreadExecutor")
     public java.util.concurrent.ExecutorService syncVirtualThreadExecutor() {
         return java.util.concurrent.Executors.newThreadPerTaskExecutor(
