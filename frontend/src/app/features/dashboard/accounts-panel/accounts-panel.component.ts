@@ -42,16 +42,4 @@ export class AccountsPanelComponent implements OnInit {
   reconnectAccount(account: AccountResponse): void {
     this.reconnectRequested.emit(account);
   }
-
-  deleteAccount(account: AccountResponse): void {
-    if (!confirm(`Delete account "${account.appleId}"? This cannot be undone.`)) return;
-    this.accountsService.deleteAccount(account.id).subscribe({
-      next: () => {
-        this.accounts.update(accs => accs.filter(a => a.id !== account.id));
-      },
-      error: (err) => {
-        alert('Failed to delete account: ' + (err?.message ?? 'Unknown error'));
-      }
-    });
-  }
 }

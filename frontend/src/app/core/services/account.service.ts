@@ -44,8 +44,4 @@ export class AccountService {
   getAccountStatus(id: string): Observable<AccountResponse> {
     return this.apiService.get<AccountResponse>(`/accounts/${id}/status`);
   }
-
-  deleteAccount(id: string): Observable<void> {
-    return this.apiService.delete<void>(`/accounts/${id}`);
-  }
 }

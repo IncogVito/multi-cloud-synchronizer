@@ -26,7 +26,7 @@ services:
         bind:
           create_host_path: true
           propagation: rshared
-      - ./scripts:/scripts:ro
+      - ./scripts/bridge:/scripts:ro
     networks:
       - cloud-sync-net
     depends_on:
