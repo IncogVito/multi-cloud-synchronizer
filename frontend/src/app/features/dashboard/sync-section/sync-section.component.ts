@@ -107,7 +107,7 @@ interface DeviceReadiness {
             </div>
             <ul class="stats">
               @if (activeProgress()!.phase === 'FETCHING_METADATA') {
-                <li>Pobrano metadane: <strong>{{ activeProgress()!.metadataFetched }}</strong>{{ activeProgress()!.totalOnCloud > 0 ? ' / ' + activeProgress()!.totalOnCloud : '' }}</li>
+                <li>Pobrano metadane: <strong>{{ smoothMetadataFetched() }}</strong>{{ activeProgress()!.totalOnCloud > 0 ? ' / ' + activeProgress()!.totalOnCloud : '' }}</li>
               } @else {
                 <li>Zsynchronizowane: <strong>{{ activeProgress()!.synced }}</strong> / {{ activeProgress()!.totalOnCloud || '—' }}</li>
               }
@@ -175,7 +175,12 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
   accounts = signal<AccountResponse[]>([]);
   driveStatus = signal<DriveStatus | null>(null);
   activeProgress = signal<SyncProgressEvent | null>(null);
+  smoothMetadataFetched = signal(0);
+
   private syncStartTime: number | null = null;
+  private metadataStartTime: number | null = null;
+  private metadataAnimTarget = 0;
+  private metadataAnimInterval: ReturnType<typeof setInterval> | null = null;
   private progressSub?: Subscription;
 
   readiness = computed<DeviceReadiness>(() => {
@@ -226,8 +231,14 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
 
   etaText = computed(() => {
     const p = this.activeProgress();
-    if (!p || !this.syncStartTime || p.percentComplete <= 0 || p.percentComplete >= 100) return null;
-    const elapsedMs = Date.now() - this.syncStartTime;
+    if (!p || p.percentComplete <= 0 || p.percentComplete >= 100) return null;
+
+    const startTime = p.phase === 'FETCHING_METADATA'
+      ? this.metadataStartTime
+      : this.syncStartTime;
+    if (!startTime) return null;
+
+    const elapsedMs = Date.now() - startTime;
     const totalEstMs = elapsedMs / (p.percentComplete / 100);
     const remainingMs = totalEstMs - elapsedMs;
     return this.formatDuration(remainingMs);
@@ -237,12 +248,12 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     this.refresh();
     this.progressSub = this.syncService.syncProgress$.subscribe(evt => {
       if (evt) {
-        if (!this.syncStartTime) {
-          this.syncStartTime = Date.now();
-        }
+        if (!this.syncStartTime) this.syncStartTime = Date.now();
         this.activeProgress.set(evt);
+        this.handleMetadataAnimation(evt);
         if (evt.phase === 'DONE' || evt.phase === 'ERROR') {
           this.syncStartTime = null;
+          this.clearMetadataAnimation();
         }
       }
     });
@@ -250,6 +261,7 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.progressSub?.unsubscribe();
+    this.clearMetadataAnimation();
   }
 
   refresh(): void {
@@ -300,6 +312,41 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     this.syncService.reset();
     this.activeProgress.set(null);
     this.syncStartTime = null;
+    this.clearMetadataAnimation();
+    this.smoothMetadataFetched.set(0);
+    this.metadataStartTime = null;
+  }
+
+  private handleMetadataAnimation(evt: SyncProgressEvent): void {
+    if (evt.phase === 'FETCHING_METADATA') {
+      if (!this.metadataStartTime) this.metadataStartTime = Date.now();
+      this.animateMetadataTo(evt.metadataFetched);
+    } else {
+      this.clearMetadataAnimation();
+      this.metadataStartTime = null;
+    }
+  }
+
+  private animateMetadataTo(target: number): void {
+    this.metadataAnimTarget = target;
+    if (this.metadataAnimInterval) return;
+
+    this.metadataAnimInterval = setInterval(() => {
+      const current = this.smoothMetadataFetched();
+      if (current >= this.metadataAnimTarget) {
+        this.clearMetadataAnimation();
+        return;
+      }
+      const step = Math.max(1, Math.ceil((this.metadataAnimTarget - current) * 0.12));
+      this.smoothMetadataFetched.set(Math.min(current + step, this.metadataAnimTarget));
+    }, 40);
+  }
+
+  private clearMetadataAnimation(): void {
+    if (this.metadataAnimInterval) {
+      clearInterval(this.metadataAnimInterval);
+      this.metadataAnimInterval = null;
+    }
   }
 
   phaseLabel(phase: string): string {

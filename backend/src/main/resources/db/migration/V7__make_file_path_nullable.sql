@@ -1,7 +1,5 @@
 -- SQLite does not support dropping NOT NULL via ALTER COLUMN,
 -- so we recreate the photos table with file_path and filename nullable.
-PRAGMA foreign_keys = OFF;
-
 CREATE TABLE photos_new (
     id TEXT PRIMARY KEY,
     icloud_photo_id TEXT,
@@ -34,4 +32,3 @@ FROM photos;
 DROP TABLE photos;
 ALTER TABLE photos_new RENAME TO photos;
 
-PRAGMA foreign_keys = ON;

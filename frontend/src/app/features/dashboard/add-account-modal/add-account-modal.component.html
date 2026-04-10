@@ -2,7 +2,7 @@
   <div class="modal-overlay" (click)="close()">
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h3>{{ pendingAccountId() ? 'Two-Factor Authentication' : 'Add iCloud Account' }}</h3>
+        <h3>{{ modalTitle }}</h3>
         <button class="modal-close" (click)="close()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
@@ -17,16 +17,20 @@
         }
 
         @if (!pendingAccountId()) {
-          <div class="form-group">
-            <label class="form-label">Apple ID</label>
-            <input
-              type="email"
-              class="form-input"
-              [(ngModel)]="addForm.appleId"
-              placeholder="your@icloud.com"
-              autocomplete="username"
-            />
-          </div>
+          @if (reconnectFor()) {
+            <p class="form-hint">Ponowne logowanie dla <strong>{{ reconnectFor()!.appleId }}</strong></p>
+          } @else {
+            <div class="form-group">
+              <label class="form-label">Apple ID</label>
+              <input
+                type="email"
+                class="form-input"
+                [(ngModel)]="addForm.appleId"
+                placeholder="your@icloud.com"
+                autocomplete="username"
+              />
+            </div>
+          }
           <div class="form-group">
             <label class="form-label">Password</label>
             <input

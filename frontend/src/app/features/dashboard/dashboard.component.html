@@ -11,10 +11,12 @@
 
   <app-accounts-panel
     (addAccountRequested)="onAddAccountRequested()"
+    (reconnectRequested)="onReconnectRequested($event)"
   ></app-accounts-panel>
 
   <app-add-account-modal
     [visible]="showModal()"
+    [reconnectFor]="reconnectAccount()"
     (closed)="onModalClosed()"
     (accountAdded)="onAccountAdded()"
   ></app-add-account-modal>

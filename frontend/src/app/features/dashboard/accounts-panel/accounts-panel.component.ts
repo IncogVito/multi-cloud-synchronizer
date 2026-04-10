@@ -14,6 +14,7 @@ export class AccountsPanelComponent implements OnInit {
   private accountsService = inject(AccountsService);
 
   addAccountRequested = output<void>();
+  reconnectRequested = output<AccountResponse>();
 
   accounts = signal<AccountResponse[]>([]);
   loadingAccounts = signal(false);
@@ -36,6 +37,10 @@ export class AccountsPanelComponent implements OnInit {
         this.loadingAccounts.set(false);
       }
     });
+  }
+
+  reconnectAccount(account: AccountResponse): void {
+    this.reconnectRequested.emit(account);
   }
 
   deleteAccount(account: AccountResponse): void {

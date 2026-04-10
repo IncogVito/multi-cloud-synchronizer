@@ -9,6 +9,7 @@ import com.cloudsync.model.dto.SyncProgressEvent;
 import com.cloudsync.model.dto.SyncStartResponse;
 import com.cloudsync.model.entity.ICloudAccount;
 import com.cloudsync.model.entity.Photo;
+import com.cloudsync.model.entity.StorageDevice;
 import com.cloudsync.model.enums.SyncPhase;
 import com.cloudsync.model.enums.SyncStatus;
 import com.cloudsync.repository.AccountRepository;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -155,7 +157,11 @@ public class SyncService {
             Set<String> syncedIds = photoRepository.findByAccountIdAndSyncStatus(accountId, SyncStatus.SYNCED.name())
                     .stream().map(Photo::getIcloudPhotoId).collect(Collectors.toSet());
 
+            Optional<StorageDevice> mountedDevice = diskSetupService.findMountedDevice();
+
             final Set<String> diskFilesF = diskFiles;
+            List<Photo> toSave = new ArrayList<>();
+            List<Photo> toUpdate = new ArrayList<>();
             int newCount = 0;
             for (ICloudPhotoAsset asset : iCloudPhotos) {
                 if (syncedIds.contains(asset.id()) || diskFilesF.contains(asset.filename())) {
@@ -165,22 +171,26 @@ public class SyncService {
                 if (existing.isPresent()) {
                     Photo p = existing.get();
                     p.setSyncStatus(SyncStatus.PENDING.name());
-                    photoRepository.update(p);
+                    toUpdate.add(p);
                 } else {
-                    Photo p = new Photo();
-                    p.setId(UUID.randomUUID().toString());
-                    p.setIcloudPhotoId(asset.id());
-                    p.setAccountId(accountId);
-                    p.setFilename(asset.filename());
-                    p.setFileSize(asset.size());
-                    p.setAssetToken(asset.assetToken());
-                    p.setImportedDate(Instant.now());
-                    p.setSyncStatus(SyncStatus.PENDING.name());
-                    p.setExistsOnIcloud(true);
-                    diskSetupService.findMountedDevice().ifPresent(d -> p.setStorageDeviceId(d.getId()));
-                    photoRepository.save(p);
+                    Photo p = mapAssetToPhoto(asset, accountId, mountedDevice);
+                    toSave.add(p);
                     newCount++;
                 }
+            }
+
+            // Batch save new photos
+            for (int i = 0; i < toSave.size(); i += 100) {
+                List<Photo> batch = toSave.subList(i, Math.min(i + 100, toSave.size()));
+                photoRepository.saveAll(batch);
+                LOG.debug("Saved batch of {} photos", batch.size());
+            }
+
+            // Batch update existing photos
+            for (int i = 0; i < toUpdate.size(); i += 100) {
+                List<Photo> batch = toUpdate.subList(i, Math.min(i + 100, toUpdate.size()));
+                photoRepository.updateAll(batch);
+                LOG.debug("Updated batch of {} photos", batch.size());
             }
 
             long total = iCloudPhotos.size();
@@ -340,5 +350,20 @@ public class SyncService {
         if (!Files.exists(drive) || !Files.isDirectory(drive)) {
             throw new DriveNotAvailableException("External drive not available at: " + externalDrivePath);
         }
+    }
+
+    private Photo mapAssetToPhoto(ICloudPhotoAsset asset, String accountId, Optional<StorageDevice> mountedDevice) {
+        Photo p = new Photo();
+        p.setId(UUID.randomUUID().toString());
+        p.setIcloudPhotoId(asset.id());
+        p.setAccountId(accountId);
+        p.setFilename(asset.filename());
+        p.setFileSize(asset.size());
+        p.setAssetToken(asset.assetToken());
+        p.setImportedDate(Instant.now());
+        p.setSyncStatus(SyncStatus.PENDING.name());
+        p.setExistsOnIcloud(true);
+        mountedDevice.ifPresent(d -> p.setStorageDeviceId(d.getId()));
+        return p;
     }
 }

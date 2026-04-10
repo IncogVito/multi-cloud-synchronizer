@@ -1,6 +1,7 @@
 import { Component, inject, signal, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AccountsService } from '../../../core/api/generated/accounts/accounts.service';
+import { AccountResponse } from '../../../core/api/generated/model/accountResponse';
 import { LoginResponse } from '../../../core/api/generated/model/loginResponse';
 
 interface AddAccountForm {
@@ -20,6 +21,7 @@ export class AddAccountModalComponent {
   private accountsService = inject(AccountsService);
 
   visible = input(false);
+  reconnectFor = input<AccountResponse | null>(null);
   closed = output<void>();
   accountAdded = output<void>();
 
@@ -28,6 +30,11 @@ export class AddAccountModalComponent {
   pendingAccountId = signal<string | null>(null);
 
   addForm: AddAccountForm = { appleId: '', password: '', twoFaCode: '' };
+
+  get modalTitle(): string {
+    if (this.pendingAccountId()) return 'Two-Factor Authentication';
+    return this.reconnectFor() ? 'Połącz ponownie' : 'Add iCloud Account';
+  }
 
   close(): void {
     this.pendingAccountId.set(null);
@@ -45,14 +52,15 @@ export class AddAccountModalComponent {
   }
 
   private submitLogin(): void {
-    if (!this.addForm.appleId || !this.addForm.password) {
+    const appleId = this.reconnectFor()?.appleId ?? this.addForm.appleId;
+    if (!appleId || !this.addForm.password) {
       this.modalError.set('Please fill in all fields.');
       return;
     }
     this.modalLoading.set(true);
     this.modalError.set('');
 
-    this.accountsService.login({ appleId: this.addForm.appleId, password: this.addForm.password }).subscribe({
+    this.accountsService.login({ appleId, password: this.addForm.password }).subscribe({
       next: (resp: LoginResponse) => {
         this.modalLoading.set(false);
         if (resp.requires2fa) {

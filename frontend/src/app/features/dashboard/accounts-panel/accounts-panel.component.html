@@ -39,6 +39,15 @@
               <span class="status-badge" [class]="account.hasActiveSession ? 'connected' : 'disconnected'">
                 {{ account.hasActiveSession ? 'Active' : 'Inactive' }}
               </span>
+              @if (!account.hasActiveSession) {
+                <button
+                  class="btn btn-primary btn-sm"
+                  (click)="reconnectAccount(account)"
+                  title="Reconnect account"
+                >
+                  Połącz
+                </button>
+              }
               <button
                 class="btn btn-danger btn-sm"
                 (click)="deleteAccount(account)"
