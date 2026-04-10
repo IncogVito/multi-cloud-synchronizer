@@ -541,6 +541,26 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/DeviceStatusResponse"
+  /api/status/iphone/unmount:
+    post:
+      tags:
+      - Status
+      summary: Unmount iPhone
+      description: Unmounts the iPhone from the FUSE mount point
+      operationId: unmountIPhone
+      responses:
+        "200":
+          description: Unmount result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unmounted:
+                    type: boolean
+                  error:
+                    type: string
+                    nullable: true
 components:
   schemas:
     AccountResponse:
@@ -653,6 +673,9 @@ components:
           format: date-time
         details:
           type: string
+        mounted:
+          type: boolean
+          nullable: true
     DiskSetupService.DiskInfo:
       required:
       - label

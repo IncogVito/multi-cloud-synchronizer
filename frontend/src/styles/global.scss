@@ -312,6 +312,16 @@ img {
     background-color: var(--color-warning-bg);
     color: var(--color-warning-dark);
   }
+
+  &.mounted {
+    background-color: var(--color-success-bg);
+    color: var(--color-success-dark);
+  }
+
+  &.unmounted {
+    background-color: var(--color-warning-bg);
+    color: var(--color-warning-dark);
+  }
 }
 
 /* Photo Grid */

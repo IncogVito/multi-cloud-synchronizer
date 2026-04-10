@@ -17,7 +17,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -38,6 +41,9 @@ public class DeviceStatusService {
 
     @Value("${app.scripts-dir:/scripts}")
     private String scriptsDir;
+
+    @Value("${app.iphone-mount-path:/mnt/iphone}")
+    private String iphoneMountPath;
 
     public DeviceStatusService(DeviceStatusRepository deviceStatusRepository,
                                ShellExecutor shellExecutor,
@@ -343,14 +349,31 @@ public class DeviceStatusService {
         return json.substring(start, end);
     }
 
+    public Map<String, Object> unmountIPhone() {
+        ShellExecutor.ShellResult result = shellExecutor.executeScript(scriptsDir, "iphone-unmount.sh");
+        boolean unmounted = result.isSuccess() && result.stdout().contains("\"unmounted\": true");
+        if (unmounted) {
+            persistStatus(DeviceType.IPHONE.name(), DeviceCheckStatus.DISCONNECTED, "Manually unmounted");
+        }
+        Map<String, Object> response = new HashMap<>();
+        response.put("unmounted", unmounted);
+        response.put("error", unmounted ? null : (result.stderr().isBlank() ? result.stdout() : result.stderr()));
+        return response;
+    }
+
     private DeviceStatusResponse toResponse(DeviceStatus status) {
+        Boolean mounted = null;
+        if ("IPHONE".equals(status.getDeviceType()) && status.isConnected()) {
+            mounted = Files.isDirectory(Path.of(iphoneMountPath, "DCIM"));
+        }
         return new DeviceStatusResponse(
                 status.getId(),
                 status.getDeviceType(),
                 status.getStatus(),
                 status.isConnected(),
                 status.getLastCheckedAt(),
-                status.getDetails()
+                status.getDetails(),
+                mounted
         );
     }
 }

@@ -11,5 +11,6 @@ public record DeviceStatusResponse(
         String status,
         boolean connected,
         Instant lastCheckedAt,
-        String details
+        String details,
+        Boolean mounted
 ) {}

@@ -56,6 +56,7 @@ public class SyncService {
     private final Map<String, PhotoSyncProvider> providers;
 
     private final Semaphore downloadSemaphore = new Semaphore(50);
+    private final Semaphore iphoneDownloadSemaphore = new Semaphore(6);
     private final ConcurrentHashMap<String, AtomicBoolean> cancellationFlags = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> lastEmitTime = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicInteger> downloadedSinceEmit = new ConcurrentHashMap<>();
@@ -438,13 +439,14 @@ public class SyncService {
 
     private void downloadWithSemaphore(Photo photo, ICloudAccount account, String accountId, AppContext ctx) {
         if (isCancelled(accountId)) return;
+        Semaphore semaphore = "IPHONE".equals(photo.getSourceProvider()) ? iphoneDownloadSemaphore : downloadSemaphore;
         try {
-            downloadSemaphore.acquire();
+            semaphore.acquire();
             try {
                 if (isCancelled(accountId)) return;
                 downloadOne(photo, account, accountId, ctx);
             } finally {
-                downloadSemaphore.release();
+                semaphore.release();
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

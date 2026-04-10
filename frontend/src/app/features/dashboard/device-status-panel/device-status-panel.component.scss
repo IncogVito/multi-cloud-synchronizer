@@ -111,6 +111,15 @@
   border-left: 2px solid var(--color-primary-light);
 }
 
+.device-card-actions {
+  margin-top: var(--spacing-3);
+}
+
+.btn-sm {
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-1) var(--spacing-2);
+}
+
 .spinner {
   display: inline-block;
   width: 14px;

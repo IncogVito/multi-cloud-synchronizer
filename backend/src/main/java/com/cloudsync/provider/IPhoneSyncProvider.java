@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 @Singleton
@@ -55,7 +56,7 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
      */
     @Override
     public void prefetch(String sessionId) {
-        sessions.put(sessionId, SessionState.scanning());
+        sessions.put(sessionId, SessionState.scanning(0));
         Thread.ofVirtual()
               .name("iphone-prefetch-" + sessionId)
               .start(() -> doScan(sessionId));
@@ -66,7 +67,7 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
         SessionState state = sessions.get(sessionId);
         if (state == null) return null;
         return switch (state) {
-            case SessionState.Scanning ignored  -> new PrefetchStatus("scanning", 0, null);
+            case SessionState.Scanning s        -> new PrefetchStatus("scanning", s.fetched(), null);
             case SessionState.Ready r           -> new PrefetchStatus("ready", r.photos().size(), r.photos().size());
             case SessionState.Failed ignored    -> new PrefetchStatus("error", 0, null);
         };
@@ -118,7 +119,7 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
             }
 
             LOG.info("Scanning DCIM [session={}]…", sessionId);
-            List<PhotoAsset> photos = scanDcim();
+            List<PhotoAsset> photos = scanDcim(sessionId);
             LOG.info("DCIM scan complete [session={}]: {} photos", sessionId, photos.size());
             sessions.put(sessionId, SessionState.ready(photos));
         } catch (Exception e) {
@@ -127,7 +128,9 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
         }
     }
 
-    private List<PhotoAsset> scanDcim() throws IOException {
+    private static final int SCAN_PROGRESS_INTERVAL = 50;
+
+    private List<PhotoAsset> scanDcim(String sessionId) throws IOException {
         Path dcimPath = Path.of(iphoneMountPath, DCIM_SUBDIR);
         if (!Files.isDirectory(dcimPath)) {
             LOG.warn("DCIM directory not found at {}", dcimPath);
@@ -136,6 +139,7 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
 
         List<PhotoAsset> photos = new ArrayList<>();
         Path mountRoot = Path.of(iphoneMountPath);
+        AtomicInteger counter = new AtomicInteger(0);
 
         try (Stream<Path> stream = Files.walk(dcimPath)) {
             stream.filter(Files::isRegularFile)
@@ -153,6 +157,10 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
                                   null,
                                   relPath
                           ));
+                          int count = counter.incrementAndGet();
+                          if (count % SCAN_PROGRESS_INTERVAL == 0) {
+                              sessions.put(sessionId, SessionState.scanning(count));
+                          }
                       } catch (IOException e) {
                           LOG.warn("Failed to read attributes for {}: {}", p, e.getMessage());
                       }
@@ -185,11 +193,11 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
     private sealed interface SessionState
             permits SessionState.Scanning, SessionState.Ready, SessionState.Failed {
 
-        record Scanning() implements SessionState {}
+        record Scanning(int fetched) implements SessionState {}
         record Ready(List<PhotoAsset> photos) implements SessionState {}
         record Failed(String error) implements SessionState {}
 
-        static SessionState scanning() { return new Scanning(); }
+        static SessionState scanning(int fetched) { return new Scanning(fetched); }
         static SessionState ready(List<PhotoAsset> photos) { return new Ready(photos); }
         static SessionState failed(String error) { return new Failed(error); }
     }

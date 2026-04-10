@@ -20,6 +20,11 @@
               <span class="status-badge" [class]="statusBadgeClass(device.status.connected)">
                 {{ device.status.connected ? 'Connected' : 'Disconnected' }}
               </span>
+              @if (device.deviceType === 'IPHONE' && device.status.connected && device.status.mounted != null) {
+                <span class="status-badge" [class]="device.status.mounted ? 'mounted' : 'unmounted'">
+                  {{ device.status.mounted ? 'Zamontowany' : 'Niezamontowany' }}
+                </span>
+              }
             } @else {
               <span class="status-badge pending">Unknown</span>
             }
@@ -57,6 +62,21 @@
         @if (device.deviceType === 'EXTERNAL_DRIVE' && device.status && !device.status.connected) {
           <div class="device-card-actions">
             <a class="btn btn-primary btn-sm" routerLink="/setup">Skonfiguruj dysk</a>
+          </div>
+        }
+
+        @if (device.deviceType === 'IPHONE' && device.status?.mounted) {
+          <div class="device-card-actions">
+            <button
+              class="btn btn-ghost btn-sm"
+              (click)="unmountIPhone()"
+              [disabled]="device.unmounting"
+            >
+              @if (device.unmounting) {
+                <span class="spinner"></span>
+              }
+              {{ device.unmounting ? 'Odmontowywanie...' : 'Odmontuj' }}
+            </button>
           </div>
         }
 

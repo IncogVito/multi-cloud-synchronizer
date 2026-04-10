@@ -13,6 +13,7 @@ export interface DeviceCard {
   sseLog: string[];
   sseExpanded: boolean;
   checking: boolean;
+  unmounting: boolean;
 }
 
 @Component({
@@ -27,9 +28,9 @@ export class DeviceStatusPanelComponent implements OnInit {
   private authService = inject(AuthService);
 
   devices = signal<DeviceCard[]>([
-    { deviceType: 'EXTERNAL_DRIVE', label: 'External Drive', endpoint: '/api/status/check-drive', status: null, sseLog: [], sseExpanded: false, checking: false },
-    { deviceType: 'IPHONE', label: 'iPhone', endpoint: '/api/status/check-iphone', status: null, sseLog: [], sseExpanded: false, checking: false },
-    { deviceType: 'ICLOUD', label: 'iCloud', endpoint: '/api/status/check-icloud', status: null, sseLog: [], sseExpanded: false, checking: false },
+    { deviceType: 'EXTERNAL_DRIVE', label: 'External Drive', endpoint: '/api/status/check-drive', status: null, sseLog: [], sseExpanded: false, checking: false, unmounting: false },
+    { deviceType: 'IPHONE', label: 'iPhone', endpoint: '/api/status/check-iphone', status: null, sseLog: [], sseExpanded: false, checking: false, unmounting: false },
+    { deviceType: 'ICLOUD', label: 'iCloud', endpoint: '/api/status/check-icloud', status: null, sseLog: [], sseExpanded: false, checking: false, unmounting: false },
   ]);
 
   loadingStatuses = signal(false);
@@ -62,6 +63,31 @@ export class DeviceStatusPanelComponent implements OnInit {
     this.devices.update(devs => devs.map(d =>
       d.deviceType === deviceType ? { ...d, sseExpanded: !d.sseExpanded } : d
     ));
+  }
+
+  unmountIPhone(): void {
+    this.devices.update(devs => devs.map(d =>
+      d.deviceType === 'IPHONE' ? { ...d, unmounting: true } : d
+    ));
+    this.statusService.unmountIPhone().subscribe({
+      next: (result) => {
+        if (result.unmounted) {
+          this.devices.update(devs => devs.map(d => {
+            if (d.deviceType !== 'IPHONE') return d;
+            return { ...d, unmounting: false, status: d.status ? { ...d.status, mounted: false } : d.status };
+          }));
+        } else {
+          this.devices.update(devs => devs.map(d =>
+            d.deviceType === 'IPHONE' ? { ...d, unmounting: false } : d
+          ));
+        }
+      },
+      error: () => {
+        this.devices.update(devs => devs.map(d =>
+          d.deviceType === 'IPHONE' ? { ...d, unmounting: false } : d
+        ));
+      }
+    });
   }
 
   async recheckDevice(device: DeviceCard): Promise<void> {
@@ -105,7 +131,8 @@ export class DeviceStatusPanelComponent implements OnInit {
                     status: event.status ?? '',
                     connected: event.status === 'CONNECTED',
                     lastCheckedAt: new Date().toISOString(),
-                    details: event.details ?? ''
+                    details: event.details ?? '',
+                    mounted: deviceType === 'IPHONE' && event.status === 'CONNECTED' ? true : undefined
                   };
                 }
                 return updated;
