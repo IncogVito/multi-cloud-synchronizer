@@ -3,13 +3,14 @@ import { DeviceStatusPanelComponent } from './device-status-panel/device-status-
 import { AccountsPanelComponent } from './accounts-panel/accounts-panel.component';
 import { AddAccountModalComponent } from './add-account-modal/add-account-modal.component';
 import { SyncSectionComponent } from './sync-section/sync-section.component';
+import { ReorganizeSectionComponent } from './reorganize-section/reorganize-section.component';
 import { ActiveContextCardComponent } from './active-context-card/active-context-card.component';
 import { AccountResponse } from '../../core/api/generated/model/accountResponse';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [DeviceStatusPanelComponent, AccountsPanelComponent, AddAccountModalComponent, SyncSectionComponent, ActiveContextCardComponent],
+  imports: [DeviceStatusPanelComponent, AccountsPanelComponent, AddAccountModalComponent, SyncSectionComponent, ReorganizeSectionComponent, ActiveContextCardComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })

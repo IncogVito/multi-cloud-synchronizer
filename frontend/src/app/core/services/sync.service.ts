@@ -48,7 +48,7 @@ export class SyncService {
             try {
               const event: SyncProgressEvent = JSON.parse(line.slice(5).trim());
               this._progress.next(event);
-              if (event.phase === 'DONE' || event.phase === 'ERROR') {
+              if (event.phase === 'DONE' || event.phase === 'ERROR' || event.phase === 'CANCELLED') {
                 this.closeEvents();
               } else if (event.phase === 'AWAITING_CONFIRMATION') {
                 // Keep SSE open — user must confirm before download starts
@@ -75,8 +75,31 @@ export class SyncService {
     );
   }
 
+  cancelSync(accountId: string): Observable<void> {
+    return this.http.delete<void>(`/api/sync/${accountId}`);
+  }
+
+  reorganizePreview(accountId: string): Observable<ReorganizePreview> {
+    return this.http.get<ReorganizePreview>(`/api/sync/${accountId}/reorganize-preview`);
+  }
+
+  reorganize(accountId: string): Observable<ReorganizeResult> {
+    return this.http.post<ReorganizeResult>(`/api/sync/${accountId}/reorganize`, {});
+  }
+
   reset(): void {
     this.closeEvents();
     this._progress.next(null);
   }
+}
+
+export interface ReorganizePreview {
+  unorganizedCount: number;
+  samples: string[];
+  estimatedFolders: string[];
+}
+
+export interface ReorganizeResult {
+  moved: number;
+  errors: number;
 }

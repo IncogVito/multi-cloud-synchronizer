@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     util-linux \
     mount \
+    imagemagick \
+    libheif1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the fat jar from the builder stage

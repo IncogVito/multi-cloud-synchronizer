@@ -3,6 +3,11 @@ micronaut:
     name: cloud-synchronizer-backend
   server:
     port: 8080
+  http:
+    client:
+      max-content-length: 524288000  # 500 MB
+      read-timeout: 30s
+      connect-timeout: 10s
   router:
     static-resources:
       swagger:

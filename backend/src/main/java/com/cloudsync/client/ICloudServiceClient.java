@@ -52,19 +52,19 @@ public interface ICloudServiceClient {
             @QueryValue(defaultValue = "100") int limit,
             @QueryValue(defaultValue = "0") int offset);
 
-    @Get("/photos/{photoId}")
+    @Get("/photos/download")
     HttpResponse<byte[]> downloadPhoto(
-            @PathVariable String photoId,
+            @QueryValue("photo_id") String photoId,
             @Header("X-Session-ID") String sessionId);
 
-    @Get("/photos/{photoId}/thumbnail")
+    @Get("/photos/thumbnail")
     HttpResponse<byte[]> downloadThumbnail(
-            @PathVariable String photoId,
+            @QueryValue("photo_id") String photoId,
             @Header("X-Session-ID") String sessionId,
             @QueryValue(defaultValue = "256") int size);
 
-    @Delete("/photos/{photoId}")
+    @Delete("/photos/delete")
     HttpResponse<Map<String, Object>> deletePhoto(
-            @PathVariable String photoId,
+            @QueryValue("photo_id") String photoId,
             @Header("X-Session-ID") String sessionId);
 }

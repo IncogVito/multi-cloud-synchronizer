@@ -11,8 +11,13 @@ public record ICloudPhotoAsset(
     String id,
     String filename,
     Long size,
-    @JsonProperty("created_date") Instant createdDate,
+    @JsonProperty("created_date") Long createdDateMs,
     Integer width,
     Integer height,
     @JsonProperty("asset_token") String assetToken
-) {}
+) {
+    /** Convert epoch-milliseconds from icloud-service to Instant. */
+    public Instant createdDate() {
+        return createdDateMs != null ? Instant.ofEpochMilli(createdDateMs) : null;
+    }
+}

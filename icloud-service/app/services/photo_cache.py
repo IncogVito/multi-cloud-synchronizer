@@ -17,8 +17,10 @@ logger = logging.getLogger(__name__)
 # Do NOT increase page_size: iCloud silently caps resultsLimit at 200, so a larger
 # page_size still returns 100 photos but our offset would jump by 200, skipping half.
 _PAGE_SIZE = 100
+# Cap the number of photos fetched per session (for faster testing; set to None for unlimited).
+_MAX_PHOTOS = 500
 # Initial parallel HTTP connections to iCloud. Reduced automatically on 429.
-_MAX_WORKERS = 5
+_MAX_WORKERS = 15
 _MAX_RETRIES = 4
 # Seconds to wait after 429 when iCloud doesn't send a Retry-After header.
 _RETRY_AFTER_DEFAULT = 10.0
@@ -197,6 +199,8 @@ class PhotoCache:
 
         # One HTTP call to get the authoritative count before spawning workers.
         total = len(album)
+        if _MAX_PHOTOS is not None:
+            total = min(total, _MAX_PHOTOS)
         state["total"] = total
         offsets = list(range(0, total, _PAGE_SIZE))
         logger.info(
@@ -279,11 +283,14 @@ class PhotoCache:
     @staticmethod
     def _photo_to_dict(photo: PhotoAsset) -> dict:
         original = photo.versions.get("original", {})
+        dt = getattr(photo, "asset_date", None)
+        ts = dt.timestamp() if dt else 0
+        created_ms = int(ts * 1000) if ts > 0 else None
         return {
             "id": photo.id,
             "filename": photo.filename,
             "size": original.get("size", 0),
-            "created_date": getattr(photo, "asset_date", None),
+            "created_date": created_ms,
             "dimensions": {
                 "width": original.get("width", 0),
                 "height": original.get("height", 0),

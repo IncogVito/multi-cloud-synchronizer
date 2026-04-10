@@ -96,22 +96,28 @@ interface DeviceReadiness {
               <button class="btn btn-ghost" (click)="cancelSync()">Anuluj</button>
             </div>
           } @else {
-            <p class="sync-title" [class.sync-title--error]="activeProgress()!.phase === 'ERROR'">
+            <p class="sync-title"
+               [class.sync-title--error]="activeProgress()!.phase === 'ERROR'"
+               [class.sync-title--cancelled]="activeProgress()!.phase === 'CANCELLED'">
               Status: {{ phaseLabel(activeProgress()!.phase) }}
             </p>
-            <div class="progress-wrap">
-              <div class="progress-bar">
-                <div class="progress-fill" [style.width.%]="activeProgress()!.percentComplete"></div>
+            @if (activeProgress()!.phase !== 'ERROR' && activeProgress()!.phase !== 'CANCELLED') {
+              <div class="progress-wrap">
+                <div class="progress-bar">
+                  <div class="progress-fill" [style.width.%]="activeProgress()!.percentComplete"></div>
+                </div>
+                <span class="progress-pct">{{ activeProgress()!.percentComplete | number:'1.0-0' }}%</span>
               </div>
-              <span class="progress-pct">{{ activeProgress()!.percentComplete | number:'1.0-0' }}%</span>
-            </div>
+            }
             <ul class="stats">
               @if (activeProgress()!.phase === 'FETCHING_METADATA') {
-                <li>Pobrano metadane: <strong>{{ smoothMetadataFetched() }}</strong>{{ activeProgress()!.totalOnCloud > 0 ? ' / ' + activeProgress()!.totalOnCloud : '' }}</li>
-              } @else {
+                <li>Pobrano metadane: <strong>{{ activeProgress()!.metadataFetched }}</strong>{{ activeProgress()!.totalOnCloud > 0 ? ' / ' + activeProgress()!.totalOnCloud : '' }}</li>
+              } @else if (activeProgress()!.phase !== 'ERROR' && activeProgress()!.phase !== 'CANCELLED' && activeProgress()!.phase !== 'PERSISTING_METADATA') {
                 <li>Zsynchronizowane: <strong>{{ activeProgress()!.synced }}</strong> / {{ activeProgress()!.totalOnCloud || '—' }}</li>
               }
-              <li>Oczekujące: <strong>{{ activeProgress()!.pending }}</strong></li>
+              @if (activeProgress()!.pending > 0) {
+                <li>Oczekujące: <strong>{{ activeProgress()!.pending }}</strong></li>
+              }
               @if (activeProgress()!.failed > 0) {
                 <li class="err">Błędy: <strong>{{ activeProgress()!.failed }}</strong></li>
               }
@@ -119,8 +125,10 @@ interface DeviceReadiness {
                 <li>Pozostały czas: <strong>{{ etaText() }}</strong></li>
               }
             </ul>
-            @if (activeProgress()!.currentFile) {
-              <p class="sync-sub muted">Aktualny plik: {{ activeProgress()!.currentFile }}</p>
+            @if (isActivelySyncing()) {
+              <div class="actions">
+                <button class="btn btn-ghost btn-danger" (click)="cancelSync()">Przerwij synchronizację</button>
+              </div>
             }
           }
         </div>
@@ -159,7 +167,10 @@ interface DeviceReadiness {
     .stats { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; color: #374151; }
     .stats .err { color: #dc2626; }
     .sync-title--error { color: #dc2626; }
+    .sync-title--cancelled { color: #6b7280; }
     .sync-card:has(.sync-title--error) { border-color: #fca5a5; background: #fff5f5; }
+    .btn-danger { border-color: #fca5a5; color: #dc2626; }
+    .btn-danger:hover { background: #fff5f5; }
   `]
 })
 export class SyncSectionComponent implements OnInit, OnDestroy {
@@ -175,12 +186,8 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
   accounts = signal<AccountResponse[]>([]);
   driveStatus = signal<DriveStatus | null>(null);
   activeProgress = signal<SyncProgressEvent | null>(null);
-  smoothMetadataFetched = signal(0);
 
   private syncStartTime: number | null = null;
-  private metadataStartTime: number | null = null;
-  private metadataAnimTarget = 0;
-  private metadataAnimInterval: ReturnType<typeof setInterval> | null = null;
   private progressSub?: Subscription;
 
   readiness = computed<DeviceReadiness>(() => {
@@ -203,6 +210,14 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     if (!r.ready) return false;
     if (r.icloud && this.primaryAccount()) return true;
     return r.iphone;
+  });
+
+  isActivelySyncing = computed<boolean>(() => {
+    const phase = this.activeProgress()?.phase;
+    return phase === 'FETCHING_METADATA'
+      || phase === 'PERSISTING_METADATA'
+      || phase === 'COMPARING'
+      || phase === 'DOWNLOADING';
   });
 
   driveLabel = computed<string>(() => {
@@ -232,13 +247,9 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
   etaText = computed(() => {
     const p = this.activeProgress();
     if (!p || p.percentComplete <= 0 || p.percentComplete >= 100) return null;
+    if (!this.syncStartTime) return null;
 
-    const startTime = p.phase === 'FETCHING_METADATA'
-      ? this.metadataStartTime
-      : this.syncStartTime;
-    if (!startTime) return null;
-
-    const elapsedMs = Date.now() - startTime;
+    const elapsedMs = Date.now() - this.syncStartTime;
     const totalEstMs = elapsedMs / (p.percentComplete / 100);
     const remainingMs = totalEstMs - elapsedMs;
     return this.formatDuration(remainingMs);
@@ -250,10 +261,8 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
       if (evt) {
         if (!this.syncStartTime) this.syncStartTime = Date.now();
         this.activeProgress.set(evt);
-        this.handleMetadataAnimation(evt);
-        if (evt.phase === 'DONE' || evt.phase === 'ERROR') {
+        if (evt.phase === 'DONE' || evt.phase === 'ERROR' || evt.phase === 'CANCELLED') {
           this.syncStartTime = null;
-          this.clearMetadataAnimation();
         }
       }
     });
@@ -261,7 +270,6 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.progressSub?.unsubscribe();
-    this.clearMetadataAnimation();
   }
 
   refresh(): void {
@@ -309,54 +317,25 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
   }
 
   cancelSync(): void {
+    const acc = this.primaryAccount();
+    if (acc) {
+      this.syncService.cancelSync(acc.id).subscribe();
+    }
     this.syncService.reset();
     this.activeProgress.set(null);
     this.syncStartTime = null;
-    this.clearMetadataAnimation();
-    this.smoothMetadataFetched.set(0);
-    this.metadataStartTime = null;
-  }
-
-  private handleMetadataAnimation(evt: SyncProgressEvent): void {
-    if (evt.phase === 'FETCHING_METADATA') {
-      if (!this.metadataStartTime) this.metadataStartTime = Date.now();
-      this.animateMetadataTo(evt.metadataFetched);
-    } else {
-      this.clearMetadataAnimation();
-      this.metadataStartTime = null;
-    }
-  }
-
-  private animateMetadataTo(target: number): void {
-    this.metadataAnimTarget = target;
-    if (this.metadataAnimInterval) return;
-
-    this.metadataAnimInterval = setInterval(() => {
-      const current = this.smoothMetadataFetched();
-      if (current >= this.metadataAnimTarget) {
-        this.clearMetadataAnimation();
-        return;
-      }
-      const step = Math.max(1, Math.ceil((this.metadataAnimTarget - current) * 0.12));
-      this.smoothMetadataFetched.set(Math.min(current + step, this.metadataAnimTarget));
-    }, 40);
-  }
-
-  private clearMetadataAnimation(): void {
-    if (this.metadataAnimInterval) {
-      clearInterval(this.metadataAnimInterval);
-      this.metadataAnimInterval = null;
-    }
   }
 
   phaseLabel(phase: string): string {
     switch (phase) {
       case 'FETCHING_METADATA': return 'Pobieranie metadanych';
+      case 'PERSISTING_METADATA': return 'Zapisywanie do bazy';
       case 'COMPARING': return 'Porównywanie';
       case 'AWAITING_CONFIRMATION': return 'Oczekiwanie na potwierdzenie';
       case 'DOWNLOADING': return 'Pobieranie zdjęć';
       case 'DONE': return 'Zakończone';
       case 'ERROR': return 'Błąd';
+      case 'CANCELLED': return 'Anulowano';
       default: return phase;
     }
   }

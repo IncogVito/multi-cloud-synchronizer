@@ -38,9 +38,9 @@ async def get_photos(
     return await asyncio.to_thread(photo_service.get_photos, x_session_id, limit, offset)
 
 
-@router.get("/{photo_id}/thumbnail")
+@router.get("/thumbnail")
 async def get_thumbnail(
-    photo_id: str,
+    photo_id: str = Query(...),
     size: int = Query(256, ge=64, le=2048),
     x_session_id: str = Header(..., alias="X-Session-ID"),
 ):
@@ -49,9 +49,9 @@ async def get_thumbnail(
     return StreamingResponse(stream, media_type="image/jpeg")
 
 
-@router.get("/{photo_id}")
+@router.get("/download")
 async def get_photo(
-    photo_id: str,
+    photo_id: str = Query(...),
     x_session_id: str = Header(..., alias="X-Session-ID"),
 ):
     """Stream the original photo binary."""
@@ -59,9 +59,9 @@ async def get_photo(
     return StreamingResponse(stream, media_type="application/octet-stream")
 
 
-@router.delete("/{photo_id}")
+@router.delete("/delete")
 async def delete_photo(
-    photo_id: str,
+    photo_id: str = Query(...),
     x_session_id: str = Header(..., alias="X-Session-ID"),
 ):
     """Delete a photo from iCloud."""

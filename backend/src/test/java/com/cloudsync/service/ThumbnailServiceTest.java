@@ -25,7 +25,12 @@ public class ThumbnailServiceTest {
     }
 
     @Test
-    void generateThumbnailAsync_shouldNotPropagateExceptions() {
+    void generateMissing_shouldSkipPhotosWithExistingThumbnails() {
+        // TODO: Implement test – to be completed by secondary model
+    }
+
+    @Test
+    void generateMissing_shouldCallOnGeneratedForEachPhotoEvenOnFailure() {
         // TODO: Implement test – to be completed by secondary model
     }
 }

@@ -41,12 +41,14 @@ class PhotoService:
 
     def _photo_to_dict(self, photo) -> dict:
         original = photo.versions.get("original", {})
-        # OPEN: Verify exact attribute names for dimensions on PhotoAsset.
+        dt = getattr(photo, "asset_date", None)
+        ts = dt.timestamp() if dt else 0
+        created_ms = int(ts * 1000) if ts > 0 else None
         return {
             "id": photo.id,
             "filename": photo.filename,
             "size": original.get("size", 0),
-            "created_date": getattr(photo, "asset_date", None),
+            "created_date": created_ms,
             "dimensions": {
                 "width": original.get("width", 0),
                 "height": original.get("height", 0),

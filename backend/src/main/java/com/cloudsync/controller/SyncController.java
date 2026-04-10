@@ -14,6 +14,7 @@ import io.micronaut.security.rules.SecurityRule;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 
+import java.util.Map;
 import java.util.Optional;
 
 @Controller("/api/sync")
@@ -48,9 +49,30 @@ public class SyncController {
         syncService.confirmSync(accountId);
     }
 
+    @Delete("/{accountId}")
+    @ExecuteOn(TaskExecutors.BLOCKING)
+    @Produces(MediaType.APPLICATION_JSON)
+    public void cancelSync(@PathVariable String accountId) {
+        syncService.cancelSync(accountId);
+    }
+
     @Get("/{accountId}/status")
     @Produces(MediaType.APPLICATION_JSON)
     public Optional<SyncProgressEvent> getSyncStatus(@PathVariable String accountId) {
         return syncStateHolder.getSnapshot(accountId);
+    }
+
+    @Get("/{accountId}/reorganize-preview")
+    @ExecuteOn(TaskExecutors.BLOCKING)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> reorganizePreview(@PathVariable String accountId) {
+        return syncService.reorganizePreview(accountId);
+    }
+
+    @Post("/{accountId}/reorganize")
+    @ExecuteOn(TaskExecutors.BLOCKING)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> reorganize(@PathVariable String accountId) {
+        return syncService.reorganize(accountId);
     }
 }

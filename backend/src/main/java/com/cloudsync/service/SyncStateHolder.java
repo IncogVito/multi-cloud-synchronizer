@@ -19,8 +19,17 @@ public class SyncStateHolder {
 
     public void updateAndEmit(String accountId, SyncProgressEvent event) {
         states.put(accountId, event);
-        List<FluxSink<SyncProgressEvent>> accountSinks = sinks.getOrDefault(accountId, List.of());
-        accountSinks.forEach(sink -> sink.next(event));
+        List<FluxSink<SyncProgressEvent>> accountSinks = sinks.get(accountId);
+        if (accountSinks != null) {
+            accountSinks.removeIf(sink -> {
+                try {
+                    sink.next(event);
+                    return false;
+                } catch (Exception e) {
+                    return true;
+                }
+            });
+        }
     }
 
     public Publisher<SyncProgressEvent> subscribe(String accountId) {

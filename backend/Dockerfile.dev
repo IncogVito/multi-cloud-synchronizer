@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     util-linux \
     mount \
+    imagemagick \
+    libheif1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Ensure volumes mounted at runtime are owned by gradle user

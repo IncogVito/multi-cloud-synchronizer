@@ -94,6 +94,7 @@ services:
 volumes:
   gradle-cache:
     driver: local
+    name: cloud-sync-gradle-cache
   frontend-modules:
     driver: local
 

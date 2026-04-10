@@ -12,6 +12,10 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.function.Consumer;
 
 @Singleton
 public class ThumbnailService {
@@ -19,6 +23,9 @@ public class ThumbnailService {
     private static final Logger LOG = LoggerFactory.getLogger(ThumbnailService.class);
     private static final int THUMBNAIL_SIZE = 300;
     private static final float THUMBNAIL_QUALITY = 0.8f;
+
+    private static final Set<String> VIDEO_EXTENSIONS = Set.of("mov", "mp4", "m4v", "avi", "mkv");
+    private static final Set<String> HEIC_EXTENSIONS = Set.of("heic", "heif");
 
     private final PhotoRepository photoRepository;
 
@@ -29,12 +36,20 @@ public class ThumbnailService {
         this.photoRepository = photoRepository;
     }
 
-    @Async
-    public void generateThumbnailAsync(Photo photo) {
-        try {
-            generateThumbnail(photo);
-        } catch (Exception e) {
-            LOG.error("Failed to generate thumbnail for photo {}: {}", photo.getId(), e.getMessage());
+    /**
+     * Check which photos in the list are missing thumbnails and generate them.
+     * Runs synchronously — call from a background thread.
+     * {@code onGenerated} is called after each photo (success or failure) for progress tracking.
+     */
+    public void generateMissing(List<Photo> candidates, Consumer<Photo> onGenerated) {
+        for (Photo photo : candidates) {
+            try {
+                generateThumbnail(photo);
+            } catch (Exception e) {
+                LOG.warn("Could not generate thumbnail for photo {}: {}", photo.getId(), e.getMessage());
+            } finally {
+                onGenerated.accept(photo);
+            }
         }
     }
 
@@ -50,19 +65,65 @@ public class ThumbnailService {
             return;
         }
 
+        String ext = extension(sourceFile);
+
+        if (VIDEO_EXTENSIONS.contains(ext)) {
+            LOG.debug("Skipping thumbnail for video file: {}", sourceFile.getFileName());
+            return;
+        }
+
         Path thumbDir = Path.of(thumbnailDir);
         Files.createDirectories(thumbDir);
-
         Path thumbFile = thumbDir.resolve(photo.getId() + ".jpg");
 
-        Thumbnails.of(sourceFile.toFile())
-                .size(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
-                .outputFormat("jpg")
-                .outputQuality(THUMBNAIL_QUALITY)
-                .toFile(thumbFile.toFile());
+        if (HEIC_EXTENSIONS.contains(ext)) {
+            generateHeicThumbnail(sourceFile, thumbFile);
+        } else {
+            Thumbnails.of(sourceFile.toFile())
+                    .size(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
+                    .outputFormat("jpg")
+                    .outputQuality(THUMBNAIL_QUALITY)
+                    .toFile(thumbFile.toFile());
+        }
 
         photo.setThumbnailPath(thumbFile.toString());
         photoRepository.update(photo);
         LOG.debug("Thumbnail generated for photo {}: {}", photo.getId(), thumbFile);
+    }
+
+    private void generateHeicThumbnail(Path source, Path thumbFile) throws IOException {
+        Path tempJpg = Files.createTempFile("heic-convert-", ".jpg");
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                    "convert", source.toAbsolutePath().toString(), tempJpg.toAbsolutePath().toString()
+            );
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            int exitCode;
+            try {
+                exitCode = process.waitFor();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("HEIC conversion interrupted", e);
+            }
+            if (exitCode != 0) {
+                String output = new String(process.getInputStream().readAllBytes());
+                throw new IOException("ImageMagick convert failed (exit " + exitCode + "): " + output);
+            }
+
+            Thumbnails.of(tempJpg.toFile())
+                    .size(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
+                    .outputFormat("jpg")
+                    .outputQuality(THUMBNAIL_QUALITY)
+                    .toFile(thumbFile.toFile());
+        } finally {
+            Files.deleteIfExists(tempJpg);
+        }
+    }
+
+    private static String extension(Path file) {
+        String name = file.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        return dot >= 0 ? name.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
     }
 }

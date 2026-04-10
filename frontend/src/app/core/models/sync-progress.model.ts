@@ -1,10 +1,13 @@
 export type SyncPhase =
   | 'FETCHING_METADATA'
+  | 'PERSISTING_METADATA'
   | 'COMPARING'
   | 'AWAITING_CONFIRMATION'
   | 'DOWNLOADING'
   | 'DONE'
-  | 'ERROR';
+  | 'ERROR'
+  | 'CANCELLED'
+  | 'REORGANIZING';
 
 export interface SyncProgressEvent {
   accountId: string;
