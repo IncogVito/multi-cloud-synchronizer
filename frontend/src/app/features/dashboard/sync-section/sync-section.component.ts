@@ -298,7 +298,8 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     this.starting.set(true);
     this.syncStartTime = Date.now();
     this.syncService.startSync(acc.id).subscribe({
-      next: () => this.starting.set(false),
+      next: () => {
+      },
       error: () => {
         this.starting.set(false);
         this.syncStartTime = null;
@@ -321,6 +322,7 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     if (acc) {
       this.syncService.cancelSync(acc.id).subscribe();
     }
+    this.starting.set(false);
     this.syncService.reset();
     this.activeProgress.set(null);
     this.syncStartTime = null;
