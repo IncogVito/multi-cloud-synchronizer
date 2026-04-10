@@ -20,6 +20,6 @@ public record PhotoResponse(
         String checksum,
         boolean syncedToDisk,
         boolean existsOnIcloud,
-        Boolean existsOnIphone,
+        boolean existsOnIphone,
         String mediaType
 ) {}

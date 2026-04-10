@@ -73,6 +73,28 @@ paths:
       responses:
         "204":
           description: Account deleted
+  /api/accounts/{id}/reorganize:
+    post:
+      operationId: reorganize
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: dryRun
+        in: query
+        required: true
+        schema:
+          type: boolean
+          default: true
+      responses:
+        "200":
+          description: reorganize 200 response
+          content:
+            application/json:
+              schema:
+                type: object
   /api/accounts/{id}/status:
     get:
       tags:
@@ -94,6 +116,28 @@ paths:
                 $ref: "#/components/schemas/AccountResponse"
         "404":
           description: Account not found
+  /api/accounts/{id}/sync-config:
+    put:
+      operationId: saveSyncConfig
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncConfigRequest"
+        required: true
+      responses:
+        "200":
+          description: saveSyncConfig 200 response
+          content:
+            application/json:
+              schema:
+                type: object
   /api/agent/detect-drive:
     post:
       tags:
@@ -108,6 +152,75 @@ paths:
             text/event-stream:
               schema:
                 $ref: "#/components/schemas/Event_AgentStepEvent_"
+  /api/context:
+    get:
+      operationId: getActive
+      responses:
+        "200":
+          description: getActive 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      operationId: setContext
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+        required: true
+      responses:
+        "200":
+          description: setContext 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+    delete:
+      operationId: clear
+      responses:
+        "200":
+          description: clear 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/context/browse:
+    get:
+      operationId: browse
+      parameters:
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: browse 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/context/mkdir:
+    post:
+      operationId: mkdir
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: string
+        required: true
+      responses:
+        "200":
+          description: mkdir 200 response
+          content:
+            application/json:
+              schema:
+                type: object
   /api/folders:
     get:
       tags:
@@ -279,6 +392,11 @@ paths:
         required: true
         schema:
           type: string
+      - name: storageDeviceId
+        in: query
+        required: true
+        schema:
+          type: string
       - name: page
         in: query
         required: true
@@ -300,6 +418,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PhotoListResponse"
+  /api/photos/generate-thumbnails:
+    post:
+      tags:
+      - Photos
+      summary: Generate missing thumbnails
+      description: Async SSE stream with progress events
+      operationId: generateThumbnails
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateThumbnailsRequest"
+        required: true
+      responses:
+        "200":
+          description: SSE progress stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_ThumbnailProgress_"
   /api/photos/icloud:
     delete:
       tags:
@@ -344,27 +482,25 @@ paths:
       responses:
         "204":
           description: Deleted
-  /api/photos/sync:
-    post:
+  /api/photos/missing-thumbnails-count:
+    get:
       tags:
       - Photos
-      summary: Trigger iCloud sync
-      description: Downloads new photos from iCloud to disk
-      operationId: syncPhotos
+      summary: Count photos missing thumbnails
+      operationId: countMissingThumbnails
       parameters:
-      - name: accountId
+      - name: storageDeviceId
         in: query
         required: true
         schema:
           type: string
       responses:
         "200":
-          description: Sync completed
+          description: Count of synced photos without thumbnail
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: "#/components/schemas/MissingThumbnailsCount"
   /api/photos/{id}:
     get:
       tags:
@@ -434,6 +570,22 @@ paths:
                   format: byte
         "404":
           description: Photo not found
+  /api/setup/browse:
+    get:
+      operationId: browse_1
+      parameters:
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: browse_1 200 response
+          content:
+            application/json:
+              schema:
+                type: object
   /api/setup/disks:
     get:
       operationId: listDisks
@@ -460,6 +612,22 @@ paths:
       responses:
         "200":
           description: mount 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/setup/scan:
+    get:
+      operationId: scan
+      parameters:
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: scan 200 response
           content:
             application/json:
               schema:
@@ -555,12 +723,118 @@ paths:
             application/json:
               schema:
                 type: object
-                properties:
-                  unmounted:
-                    type: boolean
-                  error:
-                    type: string
-                    nullable: true
+                additionalProperties: true
+  /api/sync/{accountId}:
+    post:
+      operationId: startSync
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: provider
+        in: query
+        required: true
+        schema:
+          type: string
+          default: ICLOUD
+      responses:
+        "200":
+          description: startSync 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncStartResponse"
+    delete:
+      operationId: cancelSync
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: cancelSync 200 response
+  /api/sync/{accountId}/confirm:
+    post:
+      operationId: confirmSync
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: confirmSync 200 response
+  /api/sync/{accountId}/events:
+    get:
+      operationId: syncEvents
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: syncEvents 200 response
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_SyncProgressEvent_"
+  /api/sync/{accountId}/reorganize:
+    post:
+      operationId: reorganize_1
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: reorganize_1 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/sync/{accountId}/reorganize-preview:
+    get:
+      operationId: reorganizePreview
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: reorganizePreview 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/sync/{accountId}/status:
+    get:
+      operationId: getSyncStatus
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: getSyncStatus 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncProgressEvent"
 components:
   schemas:
     AccountResponse:
@@ -657,6 +931,7 @@ components:
       - deviceType
       - id
       - lastCheckedAt
+      - mounted
       - status
       type: object
       properties:
@@ -675,7 +950,6 @@ components:
           type: string
         mounted:
           type: boolean
-          nullable: true
     DiskSetupService.DiskInfo:
       required:
       - label
@@ -750,6 +1024,32 @@ components:
           type: string
         retry:
           type: string
+    Event_SyncProgressEvent_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SyncProgressEvent"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
+    Event_ThumbnailProgress_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/ThumbnailProgress"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
     FolderResponse:
       required:
       - children
@@ -779,6 +1079,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FolderResponse"
+    GenerateThumbnailsRequest:
+      required:
+      - storageDeviceId
+      type: object
+      properties:
+        storageDeviceId:
+          type: string
     HealthController.HealthResponse:
       required:
       - status
@@ -812,6 +1119,14 @@ components:
           type: boolean
         accountId:
           type: string
+    MissingThumbnailsCount:
+      required:
+      - count
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int64
     PhotoListResponse:
       required:
       - page
@@ -890,6 +1205,98 @@ components:
           type: boolean
         mediaType:
           type: string
+    SyncConfigRequest:
+      required:
+      - organizeBy
+      - storageDeviceId
+      - syncFolderPath
+      type: object
+      properties:
+        syncFolderPath:
+          type: string
+        storageDeviceId:
+          type: string
+        organizeBy:
+          type: string
+    SyncPhase:
+      type: string
+      enum:
+      - FETCHING_METADATA
+      - PERSISTING_METADATA
+      - COMPARING
+      - AWAITING_CONFIRMATION
+      - DOWNLOADING
+      - GENERATING_THUMBNAILS
+      - DONE
+      - ERROR
+      - CANCELLED
+      - REORGANIZING
+    SyncProgressEvent:
+      type: object
+      properties:
+        accountId:
+          type: string
+        phase:
+          $ref: "#/components/schemas/SyncPhase"
+        totalOnCloud:
+          type: integer
+          format: int32
+        synced:
+          type: integer
+          format: int32
+        failed:
+          type: integer
+          format: int32
+        pending:
+          type: integer
+          format: int32
+        metadataFetched:
+          type: integer
+          format: int32
+        percentComplete:
+          type: number
+          format: double
+        currentFile:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    SyncStartResponse:
+      required:
+      - accountId
+      - message
+      - phase
+      - startedAt
+      type: object
+      properties:
+        accountId:
+          type: string
+        phase:
+          $ref: "#/components/schemas/SyncPhase"
+        message:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+    ThumbnailProgress:
+      required:
+      - done
+      - errors
+      - processed
+      - total
+      type: object
+      properties:
+        processed:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        done:
+          type: boolean
+        errors:
+          type: integer
+          format: int32
     TwoFaRequest:
       required:
       - accountId
@@ -902,8 +1309,8 @@ components:
           type: string
     TwoFaResponse:
       required:
-      - message
       - authenticated
+      - message
       type: object
       properties:
         authenticated:

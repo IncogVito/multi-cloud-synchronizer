@@ -1,0 +1,17 @@
+@if (missingCount() > 0) {
+  <div class="missing-thumbnails-banner">
+    @if (generating()) {
+      <span class="banner-text">
+        Generating previews... {{ progress()?.processed ?? 0 }}/{{ progress()?.total ?? missingCount() }}
+      </span>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" [style.width.%]="progressPercent()"></div>
+      </div>
+    } @else {
+      <span class="banner-text">{{ missingCount() }} photos have no preview</span>
+      <button class="btn btn-accent" (click)="generateThumbnails()">
+        Generate missing previews
+      </button>
+    }
+  </div>
+}

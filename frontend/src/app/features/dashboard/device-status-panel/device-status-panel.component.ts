@@ -71,7 +71,7 @@ export class DeviceStatusPanelComponent implements OnInit {
     ));
     this.statusService.unmountIPhone().subscribe({
       next: (result) => {
-        if (result.unmounted) {
+        if (result['unmounted']) {
           this.devices.update(devs => devs.map(d => {
             if (d.deviceType !== 'IPHONE') return d;
             return { ...d, unmounting: false, status: d.status ? { ...d.status, mounted: false } : d.status };
@@ -132,7 +132,7 @@ export class DeviceStatusPanelComponent implements OnInit {
                     connected: event.status === 'CONNECTED',
                     lastCheckedAt: new Date().toISOString(),
                     details: event.details ?? '',
-                    mounted: deviceType === 'IPHONE' && event.status === 'CONNECTED' ? true : undefined
+                    mounted: deviceType === 'IPHONE' && event.status === 'CONNECTED'
                   };
                 }
                 return updated;

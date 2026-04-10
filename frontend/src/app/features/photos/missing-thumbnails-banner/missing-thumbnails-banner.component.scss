@@ -1,0 +1,45 @@
+.missing-thumbnails-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--color-primary-bg);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  margin: 8px;
+
+  .banner-text {
+    flex: 1;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .progress-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--color-gray-200);
+    border-radius: 3px;
+    overflow: hidden;
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--color-primary);
+      transition: width 0.2s ease;
+    }
+  }
+
+  .btn-accent {
+    font-size: var(--font-size-xs);
+    padding: 5px 12px;
+    background: var(--color-primary);
+    color: var(--color-text-inverse);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      background: var(--color-primary-dark);
+    }
+  }
+}

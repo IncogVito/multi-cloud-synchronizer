@@ -1,16 +1,16 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { PhotosService } from '../../core/api/generated/photos/photos.service';
-import { AccountsService } from '../../core/api/generated/accounts/accounts.service';
 import { PhotoResponse } from '../../core/api/generated/model/photoResponse';
-import { AccountResponse } from '../../core/api/generated/model/accountResponse';
 import { PhotosToolbarComponent } from './photos-toolbar/photos-toolbar.component';
 import { PhotoTimelineComponent } from './photo-timeline/photo-timeline.component';
 import { PhotoGroup } from './photo-timeline/photo-timeline.component';
 import { BatchActionsBarComponent } from './batch-actions-bar/batch-actions-bar.component';
 import { PhotoDetailModalComponent } from './photo-detail-modal/photo-detail-modal.component';
 import { SyncProgressComponent } from './sync-progress/sync-progress.component';
+import { MissingThumbnailsBannerComponent } from './missing-thumbnails-banner/missing-thumbnails-banner.component';
 import { SyncService } from '../../core/services/sync.service';
+import { AppContextService } from '../../core/services/app-context.service';
 import { SyncProgressEvent } from '../../core/models/sync-progress.model';
 import { Subscription } from 'rxjs';
 
@@ -24,19 +24,19 @@ type Granularity = 'year' | 'month';
     PhotoTimelineComponent,
     BatchActionsBarComponent,
     PhotoDetailModalComponent,
-    SyncProgressComponent
+    SyncProgressComponent,
+    MissingThumbnailsBannerComponent
   ],
   templateUrl: './photos.component.html',
   styleUrl: './photos.component.scss'
 })
 export class PhotosComponent implements OnInit, OnDestroy {
   private photosService = inject(PhotosService);
-  private accountsService = inject(AccountsService);
   private http = inject(HttpClient);
   private syncService = inject(SyncService);
+  private appContextService = inject(AppContextService);
 
-  accounts = signal<AccountResponse[]>([]);
-  selectedAccountId = signal('');
+  storageDeviceId = computed(() => this.appContextService.context()?.storageDeviceId ?? '');
   granularity = signal<Granularity>('year');
 
   allPhotos = signal<PhotoResponse[]>([]);
@@ -47,7 +47,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
   loadError = signal('');
   hasMore = signal(false);
   currentPage = signal(0);
-  pageSize = 100;
+  pageSize = 50;
 
   syncing = signal(false);
   syncProgress = signal<SyncProgressEvent | null>(null);
@@ -66,24 +66,37 @@ export class PhotosComponent implements OnInit, OnDestroy {
     const selectedPhotos = this.allPhotos().filter(p => this.selectedIds().has(p.id));
     return selectedPhotos.length > 0 && selectedPhotos.every(p => p.syncedToDisk);
   });
+  private previousDeviceId: string | null = null;
 
-  ngOnInit(): void {
-    this.accountsService.listAccounts().subscribe({
-      next: (accounts) => {
-        this.accounts.set(accounts);
+  constructor() {
+    effect(() => {
+      const deviceId = this.storageDeviceId();
+      if (this.previousDeviceId !== deviceId) {
+        this.resetAndLoad();
+        this.previousDeviceId = deviceId;
       }
     });
+    
+    effect(() => {
+      const photos = this.allPhotos();
+      console.log('All photos changed, total count:', photos.length);
+    });
+  }
+
+  ngOnInit(): void {
     this.syncSub = this.syncService.syncProgress$.subscribe(event => {
       this.syncProgress.set(event);
       if (event?.phase === 'DONE') {
         this.syncing.set(false);
-        this.allPhotos.set([]);
-        this.currentPage.set(0);
-        this.loadPhotos();
+        this.resetAndLoad();
       } else if (event?.phase === 'ERROR') {
         this.syncing.set(false);
       }
     });
+
+
+    // log every change on all photos
+
   }
 
   ngOnDestroy(): void {
@@ -97,28 +110,15 @@ export class PhotosComponent implements OnInit, OnDestroy {
     this.syncService.closeEvents();
   }
 
-  onAccountChanged(accountId: string): void {
-    this.selectedAccountId.set(accountId);
-    this.allPhotos.set([]);
-    this.selectedIds.set(new Set());
-    this.currentPage.set(0);
-    this.hasMore.set(false);
-    this.loadError.set('');
-
-    if (accountId) {
-      this.loadPhotos();
-    }
-  }
-
   onGranularityChanged(g: Granularity): void {
     this.granularity.set(g);
   }
 
   onSyncRequested(): void {
-    if (!this.selectedAccountId() || this.syncing()) return;
+    if (this.syncing()) return;
     this.syncing.set(true);
     this.syncService.reset();
-    this.syncService.startSync(this.selectedAccountId()).subscribe({
+    this.syncService.startSync(this.storageDeviceId()).subscribe({
       error: (err) => {
         this.syncing.set(false);
         alert('Sync failed: ' + (err?.message ?? 'Unknown error'));
@@ -133,25 +133,10 @@ export class PhotosComponent implements OnInit, OnDestroy {
   onLoadMoreRequested(): void {
     if (this.loadingMore() || !this.hasMore()) return;
     this.loadingMore.set(true);
-    this.currentPage.update(p => p + 1);
 
-    this.photosService.listPhotos({
-      accountId: this.selectedAccountId(),
-      synced: 'all',
-      page: this.currentPage(),
-      size: this.pageSize
-    }).subscribe({
-      next: (resp) => {
-        const photos = resp.photos ?? [];
-        this.allPhotos.update(existing => [...existing, ...photos]);
-        this.hasMore.set(this.allPhotos().length < (resp.total ?? 0));
-        this.loadingMore.set(false);
-        this.loadThumbnails(photos);
-      },
-      error: () => {
-        this.loadingMore.set(false);
-      }
-    });
+    console.log(this.currentPage());
+    this.currentPage.update(p => p + 1);
+    this.loadNextPage();
   }
 
   onPhotoClicked(photo: PhotoResponse): void {
@@ -191,7 +176,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
     const photoIds = Array.from(this.selectedIds());
     this.photosService.deleteFromICloud(
       { photoIds },
-      { accountId: this.selectedAccountId() }
+      { accountId: '' }
     ).subscribe({
       next: () => {
         this.allPhotos.update(photos => photos.map(p =>
@@ -210,7 +195,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
     const photoIds = Array.from(this.selectedIds());
     this.photosService.deleteFromIPhone(
       { photoIds },
-      { accountId: this.selectedAccountId() }
+      { accountId: '' }
     ).subscribe({
       next: () => {
         this.allPhotos.update(photos => photos.map(p =>
@@ -260,16 +245,31 @@ export class PhotosComponent implements OnInit, OnDestroy {
     });
   }
 
+  onThumbnailsGenerated(): void {
+    this.reloadThumbnailsForPhotosWithoutPreview();
+  }
+
   clearSelection(): void {
     this.selectedIds.set(new Set());
+  }
+
+  private resetAndLoad(): void {
+    console.log('Resetting photo list and loading from scratch');
+    this.allPhotos.set([]);
+    this.selectedIds.set(new Set());
+    this.currentPage.set(0);
+    this.hasMore.set(false);
+    this.loadError.set('');
+    this.loadPhotos();
   }
 
   private loadPhotos(): void {
     this.loading.set(true);
     this.loadError.set('');
     this.photosService.listPhotos({
-      accountId: this.selectedAccountId(),
-      synced: 'all',
+      storageDeviceId: this.storageDeviceId(),
+      synced: 'true',
+      accountId: '',
       page: this.currentPage(),
       size: this.pageSize
     }).subscribe({
@@ -287,26 +287,44 @@ export class PhotosComponent implements OnInit, OnDestroy {
     });
   }
 
+  private loadNextPage(): void {
+    this.photosService.listPhotos({
+      storageDeviceId: this.storageDeviceId(),
+      synced: 'true',
+      accountId: '',
+      page: this.currentPage(),
+      size: this.pageSize
+    }).subscribe({
+      next: (resp) => {
+        const photos = resp.photos ?? [];
+        console.log('Loaded photos:', photos);
+        this.allPhotos.update(existing => [...existing, ...photos]);
+        this.hasMore.set(this.allPhotos().length < (resp.total ?? 0));
+        this.loadingMore.set(false);
+        this.loadThumbnails(photos);
+      },
+      error: () => {
+        this.loadingMore.set(false);
+      }
+    });
+  }
+
   private buildGroups(photos: PhotoResponse[], granularity: Granularity): PhotoGroup[] {
     const groupMap = new Map<string, PhotoResponse[]>();
 
     for (const photo of photos) {
       const date = new Date(photo.createdDate);
-      let key: string;
-
-      if (granularity === 'year') {
-        key = String(date.getFullYear());
-      } else {
-        const year = date.getFullYear();
-        const month = date.getMonth();
-        key = `${year}-${String(month + 1).padStart(2, '0')}`;
-      }
+      const key = granularity === 'year'
+        ? String(date.getFullYear())
+        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
       if (!groupMap.has(key)) {
         groupMap.set(key, []);
       }
       groupMap.get(key)!.push(photo);
     }
+
+    console.log('Grouping photos into groups:', photos);
 
     return Array.from(groupMap.entries())
       .sort((a, b) => b[0].localeCompare(a[0]))
@@ -332,5 +350,10 @@ export class PhotosComponent implements OnInit, OnDestroy {
         error: () => { /* thumbnail failed, leave placeholder */ }
       });
     }
+  }
+
+  private reloadThumbnailsForPhotosWithoutPreview(): void {
+    const photosWithoutPreview = this.allPhotos().filter(p => !this.thumbnailUrls().has(p.id));
+    this.loadThumbnails(photosWithoutPreview);
   }
 }

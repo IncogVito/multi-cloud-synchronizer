@@ -1,16 +1,18 @@
 <div class="photos-page">
   <app-photos-toolbar
-    [accounts]="accounts()"
-    [selectedAccountId]="selectedAccountId()"
     [granularity]="granularity()"
     [syncing]="syncing()"
-    [canSync]="!!selectedAccountId()"
-    (accountChanged)="onAccountChanged($event)"
+    [canSync]="!!storageDeviceId()"
     (granularityChanged)="onGranularityChanged($event)"
     (syncRequested)="onSyncRequested()"
   ></app-photos-toolbar>
 
   <app-sync-progress [event]="syncProgress()"></app-sync-progress>
+
+  <app-missing-thumbnails-banner
+    [storageDeviceId]="storageDeviceId()"
+    (thumbnailsGenerated)="onThumbnailsGenerated()"
+  ></app-missing-thumbnails-banner>
 
   <app-photo-timeline
     [groups]="groups()"
@@ -19,7 +21,6 @@
     [loading]="loading()"
     [loadingMore]="loadingMore()"
     [hasMore]="hasMore()"
-    [selectedAccountId]="selectedAccountId()"
     [loadError]="loadError()"
     (photoClicked)="onPhotoClicked($event)"
     (selectionChanged)="onSelectionChanged($event)"

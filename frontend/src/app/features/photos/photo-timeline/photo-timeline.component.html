@@ -1,9 +1,5 @@
-<div class="content-area">
-  @if (!selectedAccountId()) {
-    <div class="empty-state">Select an account to view photos.</div>
-  }
-
-  @if (selectedAccountId() && loading()) {
+<div class="content-area" #contentArea>
+  @if (loading()) {
     <div class="loading-state">
       <span class="spinner"></span> Loading photos...
     </div>
@@ -13,9 +9,9 @@
     <div class="error-state">{{ loadError() }}</div>
   }
 
-  @if (selectedAccountId() && !loading() && !loadError()) {
+  @if (!loading() && !loadError()) {
     @if (groups().length === 0) {
-      <div class="empty-state">No photos found for this account.</div>
+      <div class="empty-state">No photos found on disk.</div>
     }
 
     @for (group of groups(); track group.key) {
@@ -65,28 +61,47 @@
                   (change)="togglePhotoSelection(photo.id)"
                 />
               </div>
-              @if (photo.mediaType && photo.mediaType !== 'IMAGE') {
+              @if (photo.mediaType && photo.mediaType !== 'PHOTO') {
                 <div class="thumb-media-type">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                     <polygon points="5 3 19 12 5 21 5 3"/>
                   </svg>
                 </div>
               }
+              <div class="thumb-locations">
+                @if (photo.syncedToDisk) {
+                  <span class="loc-badge loc-disk" title="On disk">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
+                    </svg>
+                  </span>
+                }
+                @if (photo.existsOnIphone) {
+                  <span class="loc-badge loc-iphone" title="On iPhone">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="18" r="1" fill="currentColor"/>
+                    </svg>
+                  </span>
+                }
+                @if (photo.existsOnIcloud) {
+                  <span class="loc-badge loc-cloud" title="On iCloud">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                    </svg>
+                  </span>
+                }
+              </div>
             </div>
           }
         </div>
       </div>
     }
 
-    @if (hasMore() && !loading()) {
-      <div class="load-more">
-        <button class="btn btn-ghost" (click)="loadMoreRequested.emit()" [disabled]="loadingMore()">
-          @if (loadingMore()) {
-            <span class="spinner"></span>
-          }
-          {{ loadingMore() ? 'Loading...' : 'Load more' }}
-        </button>
+    @if (loadingMore()) {
+      <div class="load-more-spinner">
+        <span class="spinner"></span>
       </div>
     }
   }
+
 </div>

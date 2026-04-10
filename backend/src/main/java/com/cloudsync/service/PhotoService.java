@@ -25,7 +25,7 @@ public class PhotoService {
         this.appContextService = appContextService;
     }
 
-    public PhotoListResponse listPhotos(String accountId, Boolean synced, int page, int size) {
+    public PhotoListResponse listPhotos(String accountId, Boolean synced, String storageDeviceId, int page, int size) {
         appContextService.requireActive();
         Pageable pageable = Pageable.from(page, size);
         Page<Photo> result;
@@ -33,6 +33,8 @@ public class PhotoService {
         if (accountId != null && synced != null) {
             List<Photo> photos = photoRepository.findByAccountIdAndSyncedToDisk(accountId, synced);
             return new PhotoListResponse(photos.stream().map(this::toResponse).toList(), photos.size(), page, size);
+        } else if (storageDeviceId != null && synced != null) {
+            result = photoRepository.findBySyncedToDiskAndStorageDeviceId(synced, storageDeviceId, pageable);
         } else if (accountId != null) {
             result = photoRepository.findByAccountId(accountId, pageable);
         } else if (synced != null) {
@@ -90,7 +92,7 @@ public class PhotoService {
                 photo.getChecksum(),
                 photo.isSyncedToDisk(),
                 photo.isExistsOnIcloud(),
-                photo.getExistsOnIphone(),
+                Boolean.TRUE.equals(photo.getExistsOnIphone()),
                 photo.getMediaType()
         );
     }

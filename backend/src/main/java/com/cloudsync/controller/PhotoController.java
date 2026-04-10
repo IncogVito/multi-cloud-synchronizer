@@ -1,13 +1,18 @@
 package com.cloudsync.controller;
 
 import com.cloudsync.model.dto.BatchPhotoRequest;
+import com.cloudsync.model.dto.GenerateThumbnailsRequest;
+import com.cloudsync.model.dto.MissingThumbnailsCount;
 import com.cloudsync.model.dto.PhotoListResponse;
 import com.cloudsync.model.dto.PhotoResponse;
+import com.cloudsync.model.dto.ThumbnailProgress;
 import com.cloudsync.service.PhotoService;
 import com.cloudsync.service.SyncService;
+import com.cloudsync.service.ThumbnailService;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
+import io.micronaut.http.sse.Event;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.security.annotation.Secured;
@@ -15,6 +20,8 @@ import io.micronaut.security.rules.SecurityRule;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 
@@ -26,10 +33,12 @@ public class PhotoController {
 
     private final PhotoService photoService;
     private final SyncService syncService;
+    private final ThumbnailService thumbnailService;
 
-    public PhotoController(PhotoService photoService, SyncService syncService) {
+    public PhotoController(PhotoService photoService, SyncService syncService, ThumbnailService thumbnailService) {
         this.photoService = photoService;
         this.syncService = syncService;
+        this.thumbnailService = thumbnailService;
     }
 
     @Operation(summary = "List photos", description = "Returns paginated photos with optional filters")
@@ -39,12 +48,36 @@ public class PhotoController {
     public PhotoListResponse listPhotos(
             @QueryValue(defaultValue = "") String accountId,
             @QueryValue(defaultValue = "") String synced,
+            @QueryValue(defaultValue = "") String storageDeviceId,
             @QueryValue(defaultValue = "0") int page,
             @QueryValue(defaultValue = "20") int size) {
 
         String accountIdParam = accountId.isBlank() ? null : accountId;
         Boolean syncedParam = synced.isBlank() ? null : Boolean.parseBoolean(synced);
-        return photoService.listPhotos(accountIdParam, syncedParam, page, size);
+        String deviceIdParam = storageDeviceId.isBlank() ? null : storageDeviceId;
+        return photoService.listPhotos(accountIdParam, syncedParam, deviceIdParam, page, size);
+    }
+
+    @Operation(summary = "Count photos missing thumbnails")
+    @ApiResponse(responseCode = "200", description = "Count of synced photos without thumbnail")
+    @Get("/missing-thumbnails-count")
+    @Produces(MediaType.APPLICATION_JSON)
+    public MissingThumbnailsCount countMissingThumbnails(
+            @QueryValue(defaultValue = "") String storageDeviceId) {
+
+        long count = storageDeviceId.isBlank()
+                ? thumbnailService.countMissing()
+                : thumbnailService.countMissingByDevice(storageDeviceId);
+        return new MissingThumbnailsCount(count);
+    }
+
+    @Operation(summary = "Generate missing thumbnails", description = "Async SSE stream with progress events")
+    @ApiResponse(responseCode = "200", description = "SSE progress stream")
+    @Post(value = "/generate-thumbnails", produces = MediaType.TEXT_EVENT_STREAM)
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Publisher<Event<ThumbnailProgress>> generateThumbnails(@Body GenerateThumbnailsRequest request) {
+        String deviceId = request != null ? request.storageDeviceId() : null;
+        return Flux.from(thumbnailService.generateMissingForDevice(deviceId)).map(Event::of);
     }
 
     @Operation(summary = "Get photo details")

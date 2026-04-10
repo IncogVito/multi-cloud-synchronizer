@@ -20,6 +20,8 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
 
     Page<Photo> findBySyncedToDisk(boolean syncedToDisk, Pageable pageable);
 
+    Page<Photo> findBySyncedToDiskAndStorageDeviceId(boolean syncedToDisk, String storageDeviceId, Pageable pageable);
+
     List<Photo> findByAccountIdAndSyncedToDisk(String accountId, boolean syncedToDisk);
 
     Optional<Photo> findByIcloudPhotoId(String icloudPhotoId);
@@ -32,4 +34,16 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
     List<Photo> findByAccountIdAndSyncStatus(String accountId, String syncStatus);
 
     long countByAccountIdAndSyncStatus(String accountId, String syncStatus);
+
+    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND (thumbnail_path IS NULL OR thumbnail_path = '')")
+    long countMissingThumbnails();
+
+    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (thumbnail_path IS NULL OR thumbnail_path = '')")
+    long countMissingThumbnailsByDevice(String storageDeviceId);
+
+    @Query("SELECT * FROM photos WHERE synced_to_disk = true AND (thumbnail_path IS NULL OR thumbnail_path = '')")
+    List<Photo> findSyncedWithoutThumbnail();
+
+    @Query("SELECT * FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (thumbnail_path IS NULL OR thumbnail_path = '')")
+    List<Photo> findSyncedWithoutThumbnailByDevice(String storageDeviceId);
 }

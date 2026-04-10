@@ -1,8 +1,17 @@
+:host {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .content-area {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--spacing-8);
   padding-bottom: var(--spacing-20);
+  padding-top: 0;
 }
 
 .timeline {
@@ -110,6 +119,39 @@
   align-items: center;
 }
 
+.thumb-locations {
+  position: absolute;
+  bottom: var(--spacing-1);
+  left: var(--spacing-1);
+  display: flex;
+  gap: 2px;
+}
+
+.loc-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(4px);
+
+  &.loc-disk {
+    background: rgba(34, 197, 94, 0.85);
+    color: #fff;
+  }
+
+  &.loc-iphone {
+    background: rgba(249, 115, 22, 0.85);
+    color: #fff;
+  }
+
+  &.loc-cloud {
+    background: rgba(59, 130, 246, 0.85);
+    color: #fff;
+  }
+}
+
 .checkbox {
   width: 16px;
   height: 16px;
@@ -145,6 +187,12 @@
 }
 
 .load-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-6) 0;
+}
+
+.load-more-spinner {
   display: flex;
   justify-content: center;
   padding: var(--spacing-6) 0;
