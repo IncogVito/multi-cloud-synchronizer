@@ -44,6 +44,10 @@ public class AppContextService {
             Optional<AppContext> ctx = loadFromDb();
             ctx.ifPresent(c -> cached = c);
             return ctx;
+        } catch (io.micronaut.context.exceptions.ConfigurationException e) {
+            // Datasource not yet ready (startup race) — expected transiently, no stacktrace needed
+            LOG.debug("Failed to load app context (datasource not ready): {}", e.getMessage());
+            return Optional.empty();
         } catch (Exception e) {
             LOG.warn("Failed to load app context: {}", e.getMessage(), e);
             return Optional.empty();

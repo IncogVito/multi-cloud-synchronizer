@@ -25,6 +25,16 @@ MICRONAUT_ENVIRONMENTS=dev ./gradlew run
 ./build/native/nativeCompile/cloud-synchronizer-backend
 ```
 
+## First-time dev setup
+
+Before running with Docker, initialize the dev directories (Docker daemon creates them as root, but the container runs as `gradle` uid=1000):
+
+```bash
+./scripts/dev/init-dev-env.sh   # requires sudo
+```
+
+This sets `chmod 777` on `backend/dev-drive` and `/mnt/external-drive` — run it once after cloning and again after `docker compose down -v`.
+
 ## Running with Docker
 
 ```bash

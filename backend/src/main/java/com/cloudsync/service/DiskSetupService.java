@@ -46,14 +46,18 @@ public class DiskSetupService {
         // Only report mounted=true when a StorageDevice row exists for whatever is
         // mounted at MOUNT_POINT — i.e. the user explicitly went through mountAndRegister.
         // A directory existing (or even an ad-hoc mount done outside the app) is not enough.
-        Optional<StorageDevice> device = findMountedDevice();
-        if (device.isEmpty()) {
+        try {
+            Optional<StorageDevice> device = findMountedDevice();
+            if (device.isEmpty()) {
+                return new DriveStatus(false, null, null, null, null);
+            }
+            StorageDevice d = device.get();
+            Long freeBytes = queryFreeBytes(MOUNT_POINT);
+            return new DriveStatus(true, MOUNT_POINT, freeBytes, d.getId(), d.getLabel());
+        } catch (Exception e) {
+            LOG.warn("getDriveStatus failed, reporting unmounted: {}", e.getMessage());
             return new DriveStatus(false, null, null, null, null);
         }
-
-        StorageDevice d = device.get();
-        Long freeBytes = queryFreeBytes(MOUNT_POINT);
-        return new DriveStatus(true, MOUNT_POINT, freeBytes, d.getId(), d.getLabel());
     }
 
     private Long queryFreeBytes(String path) {
@@ -155,6 +159,11 @@ public class DiskSetupService {
             return Optional.empty();
         }
         String device = result.stdout().trim();
+        // findmnt may return bind-mount notation like /dev/sdc[/mnt/external-drive] — strip the bracket part
+        int bracketIdx = device.indexOf('[');
+        if (bracketIdx >= 0) {
+            device = device.substring(0, bracketIdx).trim();
+        }
         ShellExecutor.ShellResult blkid = shell.execute("bash", scriptsDir + "/read-device-id.sh", device);
         String uuid = parseJsonString(blkid.stdout(), "uuid");
         if (uuid == null) return Optional.empty();

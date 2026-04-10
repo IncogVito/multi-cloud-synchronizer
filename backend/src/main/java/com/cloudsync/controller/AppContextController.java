@@ -1,6 +1,7 @@
 package com.cloudsync.controller;
 
 import com.cloudsync.model.dto.AppContext;
+import com.cloudsync.model.entity.StorageDevice;
 import com.cloudsync.service.AppContextService;
 import com.cloudsync.service.DiskSetupService;
 import io.micronaut.http.HttpResponse;
@@ -14,10 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -151,7 +149,7 @@ public class AppContextController {
         if (parent == null || name == null || name.isBlank() || name.contains("/") || name.contains("..")) {
             return HttpResponse.badRequest(Map.of("error", "INVALID_NAME"));
         }
-        Optional<com.cloudsync.model.entity.StorageDevice> mountedDevice = diskSetupService.findMountedDevice();
+        Optional<StorageDevice> mountedDevice = diskSetupService.findMountedDevice();
         if (mountedDevice.isEmpty()) {
             return HttpResponse.badRequest(Map.of("error", "NO_DRIVE_MOUNTED"));
         }
@@ -166,7 +164,10 @@ public class AppContextController {
         }
         try {
             Files.createDirectories(created);
+        } catch (AccessDeniedException e) {
+            return HttpResponse.serverError(Map.of("error", "ACCESS_DENIED", "message", "Access denied: " + e.getMessage()));
         } catch (IOException e) {
+            LOG.error("mkdir failed at {}: {}", created, e.getMessage());
             return HttpResponse.serverError(Map.of("error", "IO_ERROR", "message", e.getMessage()));
         }
         return HttpResponse.ok(Map.of(
