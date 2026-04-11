@@ -14,7 +14,7 @@ import { ToastHostComponent } from './core/components/toast-host.component';
       @if (authService.isAuthenticated()) {
         <aside class="sidebar">
           <div class="sidebar-logo">
-            <span class="logo-icon">&#9729;</span>
+            <img class="logo-icon" src="assets/favicon-32x32.png" alt="CloudSync" width="24" height="24">
             <span class="logo-text">CloudSync</span>
           </div>
 
@@ -96,8 +96,9 @@ import { ToastHostComponent } from './core/components/toast-host.component';
     }
 
     .logo-icon {
-      font-size: 1.5rem;
-      line-height: 1;
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
     }
 
     .logo-text {

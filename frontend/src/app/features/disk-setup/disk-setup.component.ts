@@ -16,7 +16,7 @@ type SetupState = 'loading' | 'no-disk' | 'disks-available' | 'mounted' | 'path-
     <div class="setup-page">
       <div class="setup-card">
         <div class="setup-header">
-          <span class="logo-icon">&#9729;</span>
+          <img class="logo-icon" src="assets/favicon-32x32.png" alt="CloudSync" width="28" height="28">
           <h1>CloudSync — konfiguracja dysku</h1>
         </div>
 
@@ -159,7 +159,7 @@ type SetupState = 'loading' | 'no-disk' | 'disks-available' | 'mounted' | 'path-
       gap: 0.75rem;
       margin-bottom: 2rem;
 
-      .logo-icon { font-size: 1.8rem; }
+      .logo-icon { width: 28px; height: 28px; flex-shrink: 0; }
       h1 { font-size: 1.25rem; font-weight: 600; margin: 0; }
     }
 
