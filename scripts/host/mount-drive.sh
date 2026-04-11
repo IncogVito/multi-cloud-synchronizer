@@ -21,7 +21,11 @@ if [ -z "$DEVICE" ]; then
 fi
 
 # Create mount point if missing
-mkdir -p "$MOUNT_POINT" 2>/dev/null
+if ! mkdir -p "$MOUNT_POINT" 2>/tmp/mkdir-err; then
+    MKDIR_ERR=$(cat /tmp/mkdir-err | tr '"' "'" | tr '\n' ' ')
+    echo "{\"mounted\": false, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Cannot create mount point $MOUNT_POINT: $MKDIR_ERR — try: sudo mkdir -p $MOUNT_POINT\"}"
+    exit 1
+fi
 
 # Detect filesystem type
 FSTYPE=$(blkid -s TYPE -o value "$DEVICE" 2>/dev/null)

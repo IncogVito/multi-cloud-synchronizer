@@ -51,6 +51,8 @@ public class DiskSetupController {
             LOG.warn("Mount failed: {}", e.getMessage());
             return HttpResponse.serverError(Map.of(
                     "error", "MOUNT_FAILED",
+                    "device", device,
+                    "host_mount_path", diskSetupService.getHostMountPath(),
                     "message", e.getMessage() == null ? "Unknown error" : e.getMessage()
             ));
         } catch (Exception e) {

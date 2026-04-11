@@ -19,21 +19,32 @@ import java.util.UUID;
 public class DiskSetupService {
 
     private static final Logger LOG = LoggerFactory.getLogger(DiskSetupService.class);
-    private static final String MOUNT_POINT = "/mnt/external-drive";
 
     private final ShellExecutor shell;
     private final StorageDeviceRepository storageDeviceRepository;
     private final jakarta.inject.Provider<AppContextService> appContextServiceProvider;
     private final String scriptsDir;
+    /** Path on the HOST where the drive is mounted — passed to mount-drive.sh via the bridge. */
+    private final String hostMountPath;
+    /** Path inside THIS container where the bind-mount lands — used for df, findmnt, etc. */
+    private final String containerMountPath;
 
     public DiskSetupService(ShellExecutor shell,
                             StorageDeviceRepository storageDeviceRepository,
                             jakarta.inject.Provider<AppContextService> appContextServiceProvider,
-                            @Value("${app.scripts-dir:/scripts}") String scriptsDir) {
+                            @Value("${app.scripts-dir:/scripts}") String scriptsDir,
+                            @Value("${app.external-drive-path-host}") String hostMountPath,
+                            @Value("${app.external-drive-path}") String containerMountPath) {
         this.shell = shell;
         this.storageDeviceRepository = storageDeviceRepository;
         this.appContextServiceProvider = appContextServiceProvider;
         this.scriptsDir = scriptsDir;
+        this.hostMountPath = hostMountPath;
+        this.containerMountPath = containerMountPath;
+    }
+
+    public String getHostMountPath() {
+        return hostMountPath;
     }
 
     @Serdeable
@@ -44,7 +55,7 @@ public class DiskSetupService {
 
     public DriveStatus getDriveStatus() {
         // Only report mounted=true when a StorageDevice row exists for whatever is
-        // mounted at MOUNT_POINT — i.e. the user explicitly went through mountAndRegister.
+        // mounted at mountPoint — i.e. the user explicitly went through mountAndRegister.
         // A directory existing (or even an ad-hoc mount done outside the app) is not enough.
         try {
             Optional<StorageDevice> device = findMountedDevice();
@@ -52,8 +63,8 @@ public class DiskSetupService {
                 return new DriveStatus(false, null, null, null, null);
             }
             StorageDevice d = device.get();
-            Long freeBytes = queryFreeBytes(MOUNT_POINT);
-            return new DriveStatus(true, MOUNT_POINT, freeBytes, d.getId(), d.getLabel());
+            Long freeBytes = queryFreeBytes(containerMountPath);
+            return new DriveStatus(true, containerMountPath, freeBytes, d.getId(), d.getLabel());
         } catch (Exception e) {
             LOG.warn("getDriveStatus failed, reporting unmounted: {}", e.getMessage());
             return new DriveStatus(false, null, null, null, null);
@@ -80,13 +91,22 @@ public class DiskSetupService {
     }
 
     public DriveStatus mountAndRegister(String device) {
-        ShellExecutor.ShellResult mountResult = shell.execute("bash", scriptsDir + "/mount-drive.sh", device);
+        // Pass the HOST-side mount path explicitly so the script never falls back to its hardcoded default.
+        ShellExecutor.ShellResult mountResult = shell.execute("bash", scriptsDir + "/mount-drive.sh", device, hostMountPath);
         if (!mountResult.isSuccess()) {
-            String scriptMsg = parseJsonString(mountResult.stdout(), "message");
-            String stderr = mountResult.stderr() == null ? "" : mountResult.stderr().trim();
             int exit = mountResult.exitCode();
+            String stderr = mountResult.stderr() == null ? "" : mountResult.stderr().trim();
+            if (exit == 124) {
+                LOG.warn("Mount bridge timeout for {} (exit=124): {}", device, stderr);
+                throw new IllegalStateException(
+                        "Bridge timeout — pipe-daemon nie odpowiada na hoście" +
+                        " (device=" + device + ", host_mount_path=" + hostMountPath + ")");
+            }
+            String scriptMsg = parseJsonString(mountResult.stdout(), "message");
             LOG.warn("Mount failed for {} (exit={}): script='{}' stderr='{}'", device, exit, scriptMsg, stderr);
-            StringBuilder msg = new StringBuilder("device=").append(device).append(", exit=").append(exit);
+            StringBuilder msg = new StringBuilder("device=").append(device)
+                    .append(", host_mount_path=").append(hostMountPath)
+                    .append(", exit=").append(exit);
             if (scriptMsg != null && !scriptMsg.isBlank()) msg.append(", reason: ").append(scriptMsg);
             if (!stderr.isBlank()) msg.append(", stderr: ").append(stderr);
             throw new IllegalStateException(msg.toString());
@@ -102,7 +122,7 @@ public class DiskSetupService {
         }
 
         ShellExecutor.ShellResult sizeResult = shell.execute("bash", "-c",
-                "df -B1 --output=size " + MOUNT_POINT + " 2>/dev/null | tail -1 | tr -d ' '");
+                "df -B1 --output=size " + containerMountPath + " 2>/dev/null | tail -1 | tr -d ' '");
         Long sizeBytes = null;
         try {
             if (sizeResult.isSuccess() && !sizeResult.stdout().isBlank()) {
@@ -120,14 +140,14 @@ public class DiskSetupService {
         });
 
         storageDevice.setDevicePath(device);
-        storageDevice.setMountPoint(MOUNT_POINT);
+        storageDevice.setMountPoint(hostMountPath);
         storageDevice.setLabel(label);
         storageDevice.setSizeBytes(sizeBytes);
         storageDevice.setLastSeenAt(Instant.now());
         storageDeviceRepository.save(storageDevice);
 
         ShellExecutor.ShellResult freeResult = shell.execute("bash", "-c",
-                "df -B1 --output=avail " + MOUNT_POINT + " 2>/dev/null | tail -1 | tr -d ' '");
+                "df -B1 --output=avail " + containerMountPath + " 2>/dev/null | tail -1 | tr -d ' '");
         Long freeBytes = null;
         try {
             if (freeResult.isSuccess() && !freeResult.stdout().isBlank()) {
@@ -135,7 +155,7 @@ public class DiskSetupService {
             }
         } catch (NumberFormatException ignored) {}
 
-        return new DriveStatus(true, MOUNT_POINT, freeBytes, storageDevice.getId(), label);
+        return new DriveStatus(true, containerMountPath, freeBytes, storageDevice.getId(), label);
     }
 
     public void unmount() {
@@ -154,7 +174,7 @@ public class DiskSetupService {
 
     public Optional<StorageDevice> findMountedDevice() {
         ShellExecutor.ShellResult result = shell.execute("bash", "-c",
-                "findmnt -n -o SOURCE " + MOUNT_POINT + " 2>/dev/null");
+                "findmnt -n -o SOURCE " + containerMountPath + " 2>/dev/null");
         if (!result.isSuccess() || result.stdout().isBlank()) {
             return Optional.empty();
         }

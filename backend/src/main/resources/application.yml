@@ -74,7 +74,8 @@ openrouter:
 app:
   username: ${APP_USERNAME:admin}
   password: ${APP_PASSWORD:changeme}
-  external-drive-path: ${EXTERNAL_DRIVE_PATH_CONTAINER}
+  external-drive-path-host: ${EXTERNAL_DRIVE_PATH_HOST:/mnt/external-drive}
+  external-drive-path: ${EXTERNAL_DRIVE_PATH_CONTAINER:/mnt/external-drive}
   scripts-dir: ${SCRIPTS_DIR:/scripts}
   iphone-mount-path: ${IPHONE_MOUNT_PATH_CONTAINER:/mnt/iphone}
 
