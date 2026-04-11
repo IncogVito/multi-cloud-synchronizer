@@ -124,6 +124,29 @@ jobs:
           source: "compose.yaml,scripts/**"
           target: "/home/${{ secrets.SERVER_V2_USER }}/docker-apps/multi-cloud-synchronizer/app"
 
+      - name: Deploy host scripts to HOST_SCRIPTS_PATH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_V2_TUNNEL_HOSTNAME }}
+          username: ${{ secrets.SERVER_V2_USER }}
+          key: ${{ secrets.SERVER_V2_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_V2_SSH_PORT }}
+
+          proxy_host: ${{ secrets.SERVER_HOST }}
+          proxy_username: ${{ secrets.SERVER_USER }}
+          proxy_key: ${{ secrets.SERVER_SSH_KEY }}
+          proxy_port: ${{ secrets.SERVER_SSH_PORT }}
+          proxy_passphrase: ${{ secrets.SERVER_SSH_PASSWORD }}
+          script: |
+            set -e
+
+            APP_DIR="/home/${{ secrets.SERVER_V2_USER }}/docker-apps/multi-cloud-synchronizer/app"
+            HOST_SCRIPTS_PATH="${{ secrets.HOST_SCRIPTS_PATH }}"
+
+            mkdir -p "$HOST_SCRIPTS_PATH"
+            cp -r "$APP_DIR/scripts/host/." "$HOST_SCRIPTS_PATH/"
+            chmod +x "$HOST_SCRIPTS_PATH"/*.sh
+
       - name: Creating .env file on server and running the app
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -149,12 +172,17 @@ jobs:
             FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ needs.build.outputs.frontend == 'true' && needs.build.outputs.version || 'latest' }}
             ICLOUD_SERVICE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ICLOUD }}:${{ needs.build.outputs.icloud_service == 'true' && needs.build.outputs.version || 'latest' }}
             FRONTEND_PORT=${{ 3003 }}
+
             EXTERNAL_DRIVE_PATH_HOST=${{ secrets.EXTERNAL_DRIVE_PATH_HOST }}
             IPHONE_MOUNT_PATH_HOST=${{ secrets.IPHONE_MOUNT_PATH_HOST }}
-            SCRIPTS_BRIDGE_PATH_HOST=./scripts/bridge
-            SSH_PRIVATE_KEY_PATH_HOST=./scripts/bridge/ssh/id_ed25519
+
+            SCRIPTS_BRIDGE_PATH_HOST=${{ secrets.SCRIPTS_BRIDGE_PATH_HOST }}
+            HOST_SCRIPTS_PATH=${{ secrets.HOST_SCRIPTS_PATH }}
+
+            SSH_PRIVATE_KEY_PATH_HOST=${{ secrets.SSH_PRIVATE_KEY_PATH_HOST }}
             APP_USERNAME=${{ secrets.APP_USERNAME }}
             APP_PASSWORD=${{ secrets.APP_PASSWORD }}
+            
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
             OPENROUTER_MODEL=google/gemini-2.0-flash-001
             EOF
