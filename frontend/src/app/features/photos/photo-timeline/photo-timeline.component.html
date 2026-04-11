@@ -44,6 +44,13 @@
                   [alt]="photo.filename"
                   loading="lazy"
                 />
+              } @else if (photo.mediaType === 'VIDEO') {
+                <div class="thumb-placeholder">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="7" width="15" height="10" rx="2"/>
+                    <polyline points="17 9 22 7 22 17 17 15"/>
+                  </svg>
+                </div>
               } @else {
                 <div class="thumb-placeholder">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">

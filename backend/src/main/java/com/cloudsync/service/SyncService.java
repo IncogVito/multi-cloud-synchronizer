@@ -8,6 +8,7 @@ import com.cloudsync.model.dto.SyncProgressEvent;
 import com.cloudsync.model.dto.SyncStartResponse;
 import com.cloudsync.model.entity.ICloudAccount;
 import com.cloudsync.model.entity.Photo;
+import com.cloudsync.model.enums.MediaType;
 import com.cloudsync.model.enums.SyncPhase;
 import com.cloudsync.model.enums.SyncStatus;
 import com.cloudsync.provider.PhotoSyncProvider;
@@ -31,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
@@ -663,6 +666,8 @@ public class SyncService {
         syncStateHolder.updateAndEmit(accountId, event);
     }
 
+    private static final Set<String> VIDEO_EXTENSIONS = Set.of("mp4", "m4v", "mov", "avi", "mkv");
+
     private Photo buildPhoto(PhotoAsset asset, String accountId, String storageDeviceId, String providerType) {
         Photo p = new Photo();
         p.setId(UUID.randomUUID().toString());
@@ -677,7 +682,16 @@ public class SyncService {
         p.setExistsOnIcloud("ICLOUD".equals(providerType));
         p.setExistsOnIphone("IPHONE".equals(providerType) ? Boolean.TRUE : null);
         p.setSourceProvider(providerType);
+        p.setMediaType(detectMediaType(asset.filename()));
         if (storageDeviceId != null) p.setStorageDeviceId(storageDeviceId);
         return p;
+    }
+
+    private static String detectMediaType(String filename) {
+        if (filename == null) return MediaType.PHOTO.name();
+        int dot = filename.lastIndexOf('.');
+        if (dot < 0) return MediaType.PHOTO.name();
+        String ext = filename.substring(dot + 1).toLowerCase(Locale.ROOT);
+        return VIDEO_EXTENSIONS.contains(ext) ? MediaType.VIDEO.name() : MediaType.PHOTO.name();
     }
 }

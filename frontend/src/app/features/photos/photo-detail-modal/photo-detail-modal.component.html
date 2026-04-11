@@ -10,7 +10,11 @@
 
       <div class="detail-image-area">
         @if (imageUrl()) {
-          <img [src]="imageUrl()!" [alt]="p.filename" class="detail-image" />
+          @if (p.mediaType === 'VIDEO') {
+            <video [src]="imageUrl()!" class="detail-image" controls autoplay muted playsinline></video>
+          } @else {
+            <img [src]="imageUrl()!" [alt]="p.filename" class="detail-image" />
+          }
         } @else {
           <div class="detail-loading">
             <span class="spinner"></span>
@@ -58,7 +62,7 @@
           </div>
           <div class="detail-status-item" [class.active]="p.syncedToDisk">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
             </svg>
             On Disk
           </div>

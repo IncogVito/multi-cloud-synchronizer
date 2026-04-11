@@ -108,8 +108,9 @@ public class PhotoController {
     @Get("/{id}/full")
     @Produces(MediaType.APPLICATION_OCTET_STREAM)
     public HttpResponse<byte[]> getFullPhoto(@PathVariable String id) throws IOException {
-        return photoService.getFullPhotoBytes(id)
-                .map(HttpResponse::ok)
+        return photoService.getFullPhotoData(id)
+                .<HttpResponse<byte[]>>map(data -> HttpResponse.ok(data.bytes())
+                        .contentType(new MediaType(data.mimeType())))
                 .orElse(HttpResponse.notFound());
     }
 
