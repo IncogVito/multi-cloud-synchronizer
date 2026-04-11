@@ -145,7 +145,6 @@ jobs:
             PIPE_DIR="${{ secrets.BRIDGE_PIPE_DIR_HOST }}"
             PIPE_DIR="${PIPE_DIR:-/var/run/cloudsync-bridge}"
 
-            mkdir -p "$HOST_SCRIPTS_PATH"
             cp -r "$APP_DIR/scripts/host/." "$HOST_SCRIPTS_PATH/"
             chmod +x "$HOST_SCRIPTS_PATH"/*.sh
             rm -rf "$APP_DIR/scripts/host"
