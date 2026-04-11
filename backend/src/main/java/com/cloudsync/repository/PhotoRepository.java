@@ -35,6 +35,33 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
 
     long countByAccountIdAndSyncStatus(String accountId, String syncStatus);
 
+    long countBySyncedToDiskAndStorageDeviceId(boolean syncedToDisk, String storageDeviceId);
+
+    @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId")
+    Long sumFileSizeOnDisk(String storageDeviceId);
+
+    long countByAccountIdAndExistsOnIcloud(String accountId, boolean existsOnIcloud);
+
+    @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE account_id = :accountId AND exists_on_icloud = true")
+    Long sumFileSizeOnIcloud(String accountId);
+
+    long countByAccountIdAndExistsOnIphone(String accountId, Boolean existsOnIphone);
+
+    @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE account_id = :accountId AND exists_on_iphone = true")
+    Long sumFileSizeOnIphone(String accountId);
+
+    @Query("SELECT COUNT(*) FROM photos WHERE storage_device_id = :storageDeviceId AND exists_on_icloud = true")
+    long countByStorageDeviceIdAndExistsOnIcloud(String storageDeviceId);
+
+    @Query("SELECT COUNT(*) FROM photos WHERE storage_device_id = :storageDeviceId AND exists_on_iphone = true")
+    long countByStorageDeviceIdAndExistsOnIphone(String storageDeviceId);
+
+    @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE storage_device_id = :storageDeviceId AND exists_on_icloud = true")
+    Long sumFileSizeOnIcloudByDevice(String storageDeviceId);
+
+    @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE storage_device_id = :storageDeviceId AND exists_on_iphone = true")
+    Long sumFileSizeOnIphoneByDevice(String storageDeviceId);
+
     @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND (thumbnail_path IS NULL OR thumbnail_path = '')")
     long countMissingThumbnails();
 

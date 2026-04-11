@@ -3,8 +3,9 @@
   bottom: 0;
   left: 220px;
   right: 0;
-  background: var(--color-gray-900);
-  color: white;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border-top: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -16,7 +17,7 @@
 .batch-count {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--color-text-secondary);
 }
 
 .batch-actions {

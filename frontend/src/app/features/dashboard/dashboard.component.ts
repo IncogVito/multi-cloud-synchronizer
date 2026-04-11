@@ -5,12 +5,13 @@ import { AddAccountModalComponent } from './add-account-modal/add-account-modal.
 import { SyncSectionComponent } from './sync-section/sync-section.component';
 import { ReorganizeSectionComponent } from './reorganize-section/reorganize-section.component';
 import { ActiveContextCardComponent } from './active-context-card/active-context-card.component';
+import { StorageStatsCardComponent } from './storage-stats-card/storage-stats-card.component';
 import { AccountResponse } from '../../core/api/generated/model/accountResponse';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [DeviceStatusPanelComponent, AccountsPanelComponent, AddAccountModalComponent, SyncSectionComponent, ReorganizeSectionComponent, ActiveContextCardComponent],
+  imports: [DeviceStatusPanelComponent, AccountsPanelComponent, AddAccountModalComponent, SyncSectionComponent, ReorganizeSectionComponent, ActiveContextCardComponent, StorageStatsCardComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })

@@ -306,13 +306,17 @@ public class SyncService {
             Path destDir = Path.of(ctx.basePath());
             Map<String, Long> diskFiles = scanDiskFiles(destDir);
             Map<String, Photo> existingByExternalId = loadExistingPhotosAsMap(accountId, provider.providerType());
+            Map<String, Photo> syncedByFilename = loadSyncedPhotosByFilename(accountId);
 
             List<Photo> toSave = new ArrayList<>();
             List<Photo> toUpdate = new ArrayList<>();
 
             for (PhotoAsset asset : remotePhotos) {
                 if (isAlreadySynced(existingByExternalId, asset)) continue;
-                if (isAlreadyOnDisk(diskFiles, asset)) continue;
+                if (isAlreadyOnDisk(diskFiles, asset)) {
+                    updateCrossProviderFlag(syncedByFilename, asset, provider.providerType(), toUpdate);
+                    continue;
+                }
                 classifyAsset(asset, accountId, ctx.storageDeviceId(), provider.providerType(), existingByExternalId, toSave, toUpdate);
             }
 
@@ -354,6 +358,36 @@ public class SyncService {
         return Path.of(basePath,
                 String.valueOf(date.getYear()),
                 String.format("%02d", date.getMonthValue()));
+    }
+
+    private Map<String, Photo> loadSyncedPhotosByFilename(String accountId) {
+        return photoRepository.findByAccountIdAndSyncedToDisk(accountId, true).stream()
+                .filter(p -> p.getFilename() != null)
+                .collect(Collectors.toMap(Photo::getFilename, p -> p, (a, b) -> a));
+    }
+
+    /**
+     * When a remote asset is already on disk (matched by filename+size), update the cross-provider
+     * existence flag on the existing DB record so we can tell which providers own each photo.
+     * E.g. a photo synced from iCloud that also appears on iPhone gets existsOnIphone=true.
+     */
+    private void updateCrossProviderFlag(Map<String, Photo> syncedByFilename, PhotoAsset asset,
+                                         String providerType, List<Photo> toUpdate) {
+        String sanitized = sanitizeFilename(asset.filename());
+        Photo existing = syncedByFilename.get(sanitized);
+        if (existing == null) return;
+        // Guard against size mismatch (shouldn't happen — isAlreadyOnDisk already verified it, but be safe)
+        if (existing.getFileSize() != null && asset.size() != null && !existing.getFileSize().equals(asset.size())) return;
+
+        boolean changed = false;
+        if ("IPHONE".equals(providerType) && !Boolean.TRUE.equals(existing.getExistsOnIphone())) {
+            existing.setExistsOnIphone(true);
+            changed = true;
+        } else if ("ICLOUD".equals(providerType) && !existing.isExistsOnIcloud()) {
+            existing.setExistsOnIcloud(true);
+            changed = true;
+        }
+        if (changed) toUpdate.add(existing);
     }
 
     private Map<String, Photo> loadExistingPhotosAsMap(String accountId, String providerType) {

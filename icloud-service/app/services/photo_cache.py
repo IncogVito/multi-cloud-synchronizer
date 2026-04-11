@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # page_size still returns 100 photos but our offset would jump by 200, skipping half.
 _PAGE_SIZE = 100
 # Cap the number of photos fetched per session (for faster testing; set to None for unlimited).
-_MAX_PHOTOS = 500
+_MAX_PHOTOS = None
 # Initial parallel HTTP connections to iCloud. Reduced automatically on 429.
 _MAX_WORKERS = 15
 _MAX_RETRIES = 4

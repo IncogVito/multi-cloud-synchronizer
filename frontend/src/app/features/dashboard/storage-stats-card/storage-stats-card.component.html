@@ -1,0 +1,77 @@
+@if (appContext.hasContext()) {
+  <div class="section">
+    <div class="section-header">
+      <h2>Statystyki</h2>
+      @if (loading()) {
+        <span class="spinner"></span>
+      }
+    </div>
+
+    @if (stats(); as s) {
+      <div class="stats-grid">
+
+        <!-- Dysk lokalny -->
+        <div class="stat-card card">
+          <div class="stat-header">
+            <span class="stat-title">Dysk lokalny</span>
+          </div>
+          <div class="stat-primary">
+            <span class="stat-count">{{ s.diskPhotoCount | number }}</span>
+            <span class="stat-label">zdjęć na dysku</span>
+          </div>
+          <div class="stat-size">{{ formatBytes(s.diskSizeBytes) }}</div>
+          @if (s.diskCapacityBytes) {
+            <div class="capacity-bar-wrap">
+              <div class="capacity-bar">
+                <div class="capacity-fill" [style.width.%]="diskUsedPercent()"></div>
+              </div>
+              <span class="capacity-text">
+                {{ formatBytes(s.diskSizeBytes) }} / {{ formatBytes(s.diskCapacityBytes) }}
+                ({{ diskUsedPercent() }}%)
+              </span>
+            </div>
+          }
+          <div class="stat-footer">
+            <span class="stat-meta-label">ostatni sync:</span>
+            <span class="stat-meta-value">{{ formatDate(s.diskLastSyncAt) }}</span>
+          </div>
+        </div>
+
+        <!-- iPhone -->
+        <div class="stat-card card">
+          <div class="stat-header">
+            <span class="stat-title">iPhone</span>
+          </div>
+          <div class="stat-primary">
+            <span class="stat-count">{{ s.iphonePhotoCount | number }}</span>
+            <span class="stat-label">zdjęć na iPhonie</span>
+          </div>
+          <div class="stat-size">{{ formatBytes(s.iphoneSizeBytes) }}</div>
+          <div class="stat-footer">
+            <span class="stat-meta-label">ostatni sync:</span>
+            <span class="stat-meta-value">{{ formatDate(s.iphoneLastSyncAt) }}</span>
+          </div>
+        </div>
+
+        <!-- iCloud -->
+        <div class="stat-card card">
+          <div class="stat-header">
+            <span class="stat-title">iCloud</span>
+          </div>
+          <div class="stat-primary">
+            <span class="stat-count">{{ s.icloudPhotoCount | number }}</span>
+            <span class="stat-label">zdjęć w chmurze</span>
+          </div>
+          <div class="stat-size">{{ formatBytes(s.icloudSizeBytes) }}</div>
+          <div class="stat-footer">
+            <span class="stat-meta-label">ostatni sync:</span>
+            <span class="stat-meta-value">{{ formatDate(s.icloudLastSyncAt) }}</span>
+          </div>
+        </div>
+
+      </div>
+    } @else if (!loading()) {
+      <div class="stats-empty">Brak danych statystyk dla bieżącego kontekstu.</div>
+    }
+  </div>
+}

@@ -652,6 +652,27 @@ paths:
             application/json:
               schema:
                 type: object
+  /api/stats/overview:
+    get:
+      tags:
+      - Stats
+      summary: Get storage statistics
+      description: "Returns photo counts and sizes for disk, iCloud and iPhone within\
+        \ a storage device context"
+      operationId: getOverview
+      parameters:
+      - name: storageDeviceId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Stats overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
   /api/status/check-drive:
     post:
       tags:
@@ -1205,6 +1226,50 @@ components:
           type: boolean
         mediaType:
           type: string
+    StatsResponse:
+      required:
+      - diskCapacityBytes
+      - diskLastSyncAt
+      - diskPhotoCount
+      - diskSizeBytes
+      - icloudLastSyncAt
+      - icloudPhotoCount
+      - icloudSizeBytes
+      - iphoneLastSyncAt
+      - iphonePhotoCount
+      - iphoneSizeBytes
+      type: object
+      properties:
+        diskPhotoCount:
+          type: integer
+          format: int64
+        diskSizeBytes:
+          type: integer
+          format: int64
+        diskCapacityBytes:
+          type: integer
+          format: int64
+        diskLastSyncAt:
+          type: string
+          format: date-time
+        icloudPhotoCount:
+          type: integer
+          format: int64
+        icloudSizeBytes:
+          type: integer
+          format: int64
+        icloudLastSyncAt:
+          type: string
+          format: date-time
+        iphonePhotoCount:
+          type: integer
+          format: int64
+        iphoneSizeBytes:
+          type: integer
+          format: int64
+        iphoneLastSyncAt:
+          type: string
+          format: date-time
     SyncConfigRequest:
       required:
       - organizeBy
