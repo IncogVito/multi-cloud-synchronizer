@@ -145,6 +145,7 @@ jobs:
             APP_DIR="/home/${{ secrets.SERVER_V2_USER }}/docker-apps/multi-cloud-synchronizer/app"
             HOST_SCRIPTS_PATH="${{ secrets.HOST_SCRIPTS_PATH }}"
             PIPE_DIR="${{ secrets.BRIDGE_PIPE_DIR_HOST }}"
+            PIPE_DIR="${PIPE_DIR:-$HOME/cloudsync-bridge}"
             echo "APP_DIR=$APP_DIR HOST_SCRIPTS_PATH=$HOST_SCRIPTS_PATH PIPE_DIR=$PIPE_DIR"
 
             echo "[2/6] Copying host scripts"

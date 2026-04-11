@@ -27,7 +27,7 @@
 
 set -euo pipefail
 
-PIPE_DIR="${PIPE_DIR:-/var/run/cloudsync-bridge}"
+PIPE_DIR="${PIPE_DIR:-$HOME/cloudsync-bridge}"
 CMD_PIPE="$PIPE_DIR/cmd"
 RESP_DIR="$PIPE_DIR/responses"
 LOG_FILE="${LOG_FILE:-$PIPE_DIR/daemon.log}"
