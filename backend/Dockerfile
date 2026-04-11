@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     mount \
     imagemagick \
     libheif1 \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the fat jar from the builder stage
