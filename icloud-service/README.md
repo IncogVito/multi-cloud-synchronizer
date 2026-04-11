@@ -56,4 +56,3 @@ curl http://localhost:8000/health
 
 - This service is internal-only; it is not exposed outside the Docker network.
 - The backend proxies requests to this service.
-

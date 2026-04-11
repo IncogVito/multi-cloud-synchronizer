@@ -7,7 +7,7 @@ version: '3.8'
 services:
   backend:
     image: ${BACKEND_IMAGE}
-    name: cloud-synchronizer-backend
+    container_name: cloud-synchronizer-backend
     restart: unless-stopped
     environment:
       - MICRONAUT_ENVIRONMENTS=docker
@@ -53,7 +53,7 @@ services:
 
   icloud-service:
     image: ${ICLOUD_SERVICE_IMAGE}
-    name: cloud-synchronizer-icloud-service
+    container_name: cloud-synchronizer-icloud-service
     restart: unless-stopped
     environment:
       - LOG_LEVEL=info
@@ -69,7 +69,7 @@ services:
 
   frontend:
     image: ${FRONTEND_IMAGE}
-    name: cloud-synchronizer-frontend
+    container_name: cloud-synchronizer-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-4200}:80"
