@@ -20,9 +20,15 @@ public class AppConfig {
     }
 
     @Bean
+    @jakarta.inject.Named("externalDrivePath")
+    public String externalDrivePath(@Value("${app.external-drive-path}") String path) {
+        return path;
+    }
+
+    @Bean
     @jakarta.inject.Named("thumbnailDir")
-    public String thumbnailDir(@Value("${app.thumbnail-dir:/mnt/external-drive/thumbnails}") String dir) {
-        return dir;
+    public String thumbnailDir(@Value("${app.external-drive-path}") String externalDrivePath) {
+        return externalDrivePath + "/thumbnails";
     }
 
     @Bean

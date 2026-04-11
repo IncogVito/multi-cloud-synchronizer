@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, effect, ViewChild } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { PhotosService } from '../../core/api/generated/photos/photos.service';
 import { PhotoResponse } from '../../core/api/generated/model/photoResponse';
@@ -31,6 +31,8 @@ type Granularity = 'year' | 'month';
   styleUrl: './photos.component.scss'
 })
 export class PhotosComponent implements OnInit, OnDestroy {
+  @ViewChild(PhotoTimelineComponent) private timeline!: PhotoTimelineComponent;
+
   private photosService = inject(PhotosService);
   private http = inject(HttpClient);
   private syncService = inject(SyncService);
@@ -57,6 +59,12 @@ export class PhotosComponent implements OnInit, OnDestroy {
   selectedIds = signal(new Set<string>());
   thumbnailUrls = signal(new Map<string, string>());
   private thumbnailBlobUrls: string[] = [];
+
+  private thumbnailQueue: PhotoResponse[] = [];
+  private thumbnailLoadingActive = false;
+  private isScrolling = false;
+  private scrollDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private thumbnailDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
   detailPhoto = signal<PhotoResponse | null>(null);
   detailImageUrl = signal<string | null>(null);
@@ -103,6 +111,9 @@ export class PhotosComponent implements OnInit, OnDestroy {
     }
     this.syncSub?.unsubscribe();
     this.syncService.closeEvents();
+    if (this.scrollDebounceTimer !== null) clearTimeout(this.scrollDebounceTimer);
+    if (this.thumbnailDelayTimer !== null) clearTimeout(this.thumbnailDelayTimer);
+    this.thumbnailQueue = [];
   }
 
   onGranularityChanged(g: Granularity): void {
@@ -240,7 +251,36 @@ export class PhotosComponent implements OnInit, OnDestroy {
   }
 
   onThumbnailsGenerated(): void {
-    this.reloadThumbnailsForPhotosWithoutPreview();
+    this.timeline.refreshObserver();
+  }
+
+  onThumbnailNeeded(photoId: string): void {
+    if (this.thumbnailUrls().has(photoId)) return;
+
+    const idx = this.thumbnailQueue.findIndex(p => p.id === photoId);
+    if (idx > 0) {
+      const [photo] = this.thumbnailQueue.splice(idx, 1);
+      this.thumbnailQueue.unshift(photo);
+    } else if (idx === -1) {
+      const photo = this.allPhotos().find(p => p.id === photoId);
+      if (photo) this.thumbnailQueue.unshift(photo);
+    }
+
+    if (!this.thumbnailLoadingActive && !this.isScrolling) {
+      this.processNextThumbnail();
+    }
+  }
+
+  onScrolled(): void {
+    this.isScrolling = true;
+    if (this.scrollDebounceTimer !== null) clearTimeout(this.scrollDebounceTimer);
+    this.scrollDebounceTimer = setTimeout(() => {
+      this.isScrolling = false;
+      this.scrollDebounceTimer = null;
+      if (!this.thumbnailLoadingActive) {
+        this.processNextThumbnail();
+      }
+    }, 250);
   }
 
   clearSelection(): void {
@@ -248,6 +288,8 @@ export class PhotosComponent implements OnInit, OnDestroy {
   }
 
   private resetAndLoad(): void {
+    this.thumbnailQueue = [];
+    this.thumbnailLoadingActive = false;
     this.allPhotos.set([]);
     this.selectedIds.set(new Set());
     this.currentPage.set(0);
@@ -271,7 +313,6 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.allPhotos.update(existing => [...existing, ...photos]);
         this.hasMore.set(this.allPhotos().length < (resp.total ?? 0));
         this.loading.set(false);
-        this.loadThumbnails(photos);
       },
       error: (err) => {
         this.loadError.set('Failed to load photos: ' + (err?.message ?? 'Unknown error'));
@@ -293,7 +334,6 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.allPhotos.update(existing => [...existing, ...photos]);
         this.hasMore.set(this.allPhotos().length < (resp.total ?? 0));
         this.loadingMore.set(false);
-        this.loadThumbnails(photos);
       },
       error: () => {
         this.loadingMore.set(false);
@@ -327,23 +367,35 @@ export class PhotosComponent implements OnInit, OnDestroy {
       }));
   }
 
-  private loadThumbnails(photos: PhotoResponse[]): void {
-    for (const photo of photos) {
-      if (this.thumbnailUrls().has(photo.id)) continue;
-
-      this.http.get(`/api/photos/${photo.id}/thumbnail`, { responseType: 'blob' }).subscribe({
-        next: (blob) => {
-          const url = URL.createObjectURL(blob);
-          this.thumbnailBlobUrls.push(url);
-          this.thumbnailUrls.update(urls => new Map(urls).set(photo.id, url));
-        },
-        error: () => { /* thumbnail failed, leave placeholder */ }
-      });
+  private processNextThumbnail(): void {
+    if (this.thumbnailQueue.length === 0) {
+      this.thumbnailLoadingActive = false;
+      return;
     }
+    if (this.isScrolling) {
+      this.thumbnailLoadingActive = false;
+      return;
+    }
+
+    this.thumbnailLoadingActive = true;
+    const photo = this.thumbnailQueue.shift()!;
+
+    if (this.thumbnailUrls().has(photo.id)) {
+      this.processNextThumbnail();
+      return;
+    }
+
+    this.http.get(`/api/photos/${photo.id}/thumbnail`, { responseType: 'blob' }).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        this.thumbnailBlobUrls.push(url);
+        this.thumbnailUrls.update(urls => new Map(urls).set(photo.id, url));
+        this.thumbnailDelayTimer = setTimeout(() => this.processNextThumbnail(), 40);
+      },
+      error: () => {
+        this.thumbnailDelayTimer = setTimeout(() => this.processNextThumbnail(), 40);
+      }
+    });
   }
 
-  private reloadThumbnailsForPhotosWithoutPreview(): void {
-    const photosWithoutPreview = this.allPhotos().filter(p => !this.thumbnailUrls().has(p.id));
-    this.loadThumbnails(photosWithoutPreview);
-  }
 }

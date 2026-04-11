@@ -25,6 +25,8 @@
     (photoClicked)="onPhotoClicked($event)"
     (selectionChanged)="onSelectionChanged($event)"
     (loadMoreRequested)="onLoadMoreRequested()"
+    (scrolled)="onScrolled()"
+    (thumbnailNeeded)="onThumbnailNeeded($event)"
   ></app-photo-timeline>
 
   <app-batch-actions-bar

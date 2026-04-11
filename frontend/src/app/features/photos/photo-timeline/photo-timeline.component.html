@@ -34,6 +34,7 @@
           @for (photo of group.photos; track photo.id) {
             <div
               class="photo-thumb"
+              [attr.data-photo-id]="photo.id"
               [class.selected]="selectedIds().has(photo.id)"
               [class.shift-preview]="shiftPreviewIds().has(photo.id)"
               [class.any-selected]="selectedIds().size > 0"

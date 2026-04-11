@@ -28,8 +28,13 @@ export class PhotoTimelineComponent implements OnInit, OnDestroy {
   photoClicked = output<PhotoResponse>();
   selectionChanged = output<Set<string>>();
   loadMoreRequested = output<void>();
+  scrolled = output<void>();
+  thumbnailNeeded = output<string>();
 
   private scrollListener!: () => void;
+  private intersectionObserver: IntersectionObserver | null = null;
+  private mutationObserver: MutationObserver | null = null;
+  private observedElements = new Set<Element>();
 
   private anchorPhotoId: string | null = null;
   private isShiftKeyHeld = signal(false);
@@ -62,6 +67,7 @@ export class PhotoTimelineComponent implements OnInit, OnDestroy {
     const el = this.contentAreaRef.nativeElement;
 
     this.scrollListener = () => {
+      this.scrolled.emit();
       if (this.loading() || this.loadingMore() || !this.hasMore()) return;
       if (el.scrollTop + el.clientHeight >= el.scrollHeight - 400) {
         this.loadMoreRequested.emit();
@@ -69,10 +75,43 @@ export class PhotoTimelineComponent implements OnInit, OnDestroy {
     };
 
     el.addEventListener('scroll', this.scrollListener, { passive: true });
+
+    this.intersectionObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const photoId = (entry.target as HTMLElement).dataset['photoId'];
+          if (photoId) {
+            this.thumbnailNeeded.emit(photoId);
+          }
+        }
+      }
+    }, { root: el, rootMargin: '200px' });
+
+    this.mutationObserver = new MutationObserver(() => this.observePhotoThumbs());
+    this.mutationObserver.observe(el, { childList: true, subtree: true });
+    this.observePhotoThumbs();
   }
 
   ngOnDestroy(): void {
     this.contentAreaRef.nativeElement.removeEventListener('scroll', this.scrollListener);
+    this.intersectionObserver?.disconnect();
+    this.mutationObserver?.disconnect();
+  }
+
+  refreshObserver(): void {
+    this.observedElements.clear();
+    this.intersectionObserver?.disconnect();
+    this.observePhotoThumbs();
+  }
+
+  private observePhotoThumbs(): void {
+    const thumbs = Array.from(this.contentAreaRef.nativeElement.querySelectorAll<HTMLElement>('.photo-thumb[data-photo-id]'));
+    for (const thumb of thumbs) {
+      if (!this.observedElements.has(thumb)) {
+        this.observedElements.add(thumb);
+        this.intersectionObserver!.observe(thumb);
+      }
+    }
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -117,7 +156,7 @@ export class PhotoTimelineComponent implements OnInit, OnDestroy {
 
   handleSelectionClick(photo: PhotoResponse, event: MouseEvent): void {
     event.stopPropagation();
-    event.preventDefault();
+    event.preventDefault(); 
 
     if (event.shiftKey && this.anchorPhotoId !== null) {
       this.confirmRangeSelectionFromAnchor(photo.id);

@@ -74,9 +74,9 @@ openrouter:
 app:
   username: ${APP_USERNAME:admin}
   password: ${APP_PASSWORD:changeme}
-  thumbnail-dir: ${THUMBNAIL_DIR:/mnt/external-drive/thumbnails}
+  external-drive-path: ${EXTERNAL_DRIVE_PATH_CONTAINER}
   scripts-dir: ${SCRIPTS_DIR:/scripts}
-  iphone-mount-path: ${IPHONE_MOUNT_PATH:/mnt/iphone}
+  iphone-mount-path: ${IPHONE_MOUNT_PATH_CONTAINER:/mnt/iphone}
 
 ---
 micronaut:

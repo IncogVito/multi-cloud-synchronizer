@@ -17,15 +17,14 @@ services:
       - APP_USERNAME=${APP_USERNAME:-admin}
       - APP_PASSWORD=${APP_PASSWORD:-changeme}
       - ICLOUD_SERVICE_URL=${ICLOUD_SERVICE_URL:-http://localhost:8000}
-      - EXTERNAL_DRIVE_PATH=/mnt/external-drive
-      - THUMBNAIL_DIR=/mnt/external-drive/thumbnails
+      - EXTERNAL_DRIVE_PATH_CONTAINER=${EXTERNAL_DRIVE_PATH_CONTAINER}
       - SCRIPTS_DIR=/scripts/dev
-      - IPHONE_MOUNT_PATH=/mnt/iphone
+      - IPHONE_MOUNT_PATH_CONTAINER=${IPHONE_MOUNT_PATH_CONTAINER}
     volumes:
-      - ./dev-drive:/mnt/external-drive
+      - ./dev-drive:${EXTERNAL_DRIVE_PATH_CONTAINER}
       - type: bind
-        source: /mnt/iphone
-        target: /mnt/iphone
+        source: ${IPHONE_MOUNT_PATH_HOST}
+        target: ${IPHONE_MOUNT_PATH_CONTAINER}
         bind:
           create_host_path: true
           propagation: rshared

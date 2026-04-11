@@ -149,7 +149,10 @@ jobs:
             FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ needs.build.outputs.frontend == 'true' && needs.build.outputs.version || 'latest' }}
             ICLOUD_SERVICE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ICLOUD }}:${{ needs.build.outputs.icloud_service == 'true' && needs.build.outputs.version || 'latest' }}
             FRONTEND_PORT=${{ 3003 }}
-            EXTERNAL_DRIVE_PATH=${{ secrets.EXTERNAL_DRIVE_PATH }}
+            EXTERNAL_DRIVE_PATH_HOST=${{ secrets.EXTERNAL_DRIVE_PATH_HOST }}
+            IPHONE_MOUNT_PATH_HOST=${{ secrets.IPHONE_MOUNT_PATH_HOST }}
+            SCRIPTS_BRIDGE_PATH_HOST=./scripts/bridge
+            SSH_PRIVATE_KEY_PATH_HOST=./scripts/bridge/ssh/id_ed25519
             APP_USERNAME=${{ secrets.APP_USERNAME }}
             APP_PASSWORD=${{ secrets.APP_PASSWORD }}
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}

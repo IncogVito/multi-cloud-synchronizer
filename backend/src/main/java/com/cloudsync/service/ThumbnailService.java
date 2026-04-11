@@ -3,7 +3,6 @@ package com.cloudsync.service;
 import com.cloudsync.model.dto.ThumbnailProgress;
 import com.cloudsync.model.entity.Photo;
 import com.cloudsync.repository.PhotoRepository;
-import io.micronaut.context.annotation.Value;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import net.coobird.thumbnailator.Thumbnails;
@@ -35,14 +34,14 @@ public class ThumbnailService {
 
     private final PhotoRepository photoRepository;
     private final ExecutorService thumbnailExecutor;
-
-    @Value("${app.thumbnail-dir:/mnt/external-drive/thumbnails}")
-    private String thumbnailDir;
+    private final String thumbnailDir;
 
     public ThumbnailService(PhotoRepository photoRepository,
-                            @Named("thumbnailExecutor") ExecutorService thumbnailExecutor) {
+                            @Named("thumbnailExecutor") ExecutorService thumbnailExecutor,
+                            @Named("thumbnailDir") String thumbnailDir) {
         this.photoRepository = photoRepository;
         this.thumbnailExecutor = thumbnailExecutor;
+        this.thumbnailDir = thumbnailDir;
     }
 
     /**

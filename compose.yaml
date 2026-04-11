@@ -12,31 +12,30 @@ services:
       - MICRONAUT_ENVIRONMENTS=docker
       - APP_USERNAME=${APP_USERNAME:-admin}
       - APP_PASSWORD=${APP_PASSWORD}
-      - ICLOUD_SERVICE_URL=http://icloud-service:8000
-      - EXTERNAL_DRIVE_PATH=/mnt/external-drive
-      - THUMBNAIL_DIR=/mnt/external-drive/thumbnails
-      - SCRIPTS_DIR=/scripts
-      - IPHONE_MOUNT_PATH=/mnt/iphone
+      - ICLOUD_SERVICE_URL=${ICLOUD_SERVICE_URL}
+      - EXTERNAL_DRIVE_PATH_CONTAINER=${EXTERNAL_DRIVE_PATH_CONTAINER}
+      - SCRIPTS_DIR=${SCRIPTS_DIR}
+      - IPHONE_MOUNT_PATH_CONTAINER=${IPHONE_MOUNT_PATH_CONTAINER}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-001}
-      - SSH_USER=${SSH_USER:-wdrozdzowski}
-      - HOST_SCRIPTS_PATH=${HOST_SCRIPTS_PATH:-/home/wdrozdzowski/projects/multi-cloud-synchronizer/scripts/host}
+      - SSH_USER=${SSH_USER}
+      - HOST_SCRIPTS_PATH=${HOST_SCRIPTS_PATH}
     volumes:
       - db-data:/data
       - type: bind
-        source: ${EXTERNAL_DRIVE_PATH}
-        target: /mnt/external-drive
+        source: ${EXTERNAL_DRIVE_PATH_HOST}
+        target: ${EXTERNAL_DRIVE_PATH_CONTAINER}
         bind:
           create_host_path: true
           propagation: rshared
       - type: bind
-        source: /mnt/iphone
-        target: /mnt/iphone
+        source: ${IPHONE_MOUNT_PATH_HOST}
+        target: ${IPHONE_MOUNT_PATH_CONTAINER}
         bind:
           create_host_path: true
           propagation: rshared
-      - ./scripts/bridge:/scripts:ro
-      - ./scripts/bridge/ssh/id_ed25519:/ssh/id_ed25519:ro
+      - ${SCRIPTS_BRIDGE_PATH_HOST}:/scripts:ro
+      - ${SSH_PRIVATE_KEY_PATH_HOST}:/ssh/id_ed25519:ro
     networks:
       - cloud-sync-net
     depends_on:

@@ -36,7 +36,7 @@ public class DeviceStatusService {
     private final DiskDetectionAgent diskDetectionAgent;
     private final ICloudServiceClient iCloudServiceClient;
 
-    @Value("${EXTERNAL_DRIVE_PATH:/mnt/external-drive}")
+    @Value("${app.external-drive-path}")
     private String externalDrivePath;
 
     @Value("${app.scripts-dir:/scripts}")
