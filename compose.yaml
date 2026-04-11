@@ -18,7 +18,7 @@ services:
       - IPHONE_MOUNT_PATH_CONTAINER=${IPHONE_MOUNT_PATH_CONTAINER}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-001}
-      - SSH_USER=${SSH_USER}
+      - BRIDGE_PIPE_DIR=/bridge
       - SCRIPTS_DIR=/scripts
       - HOST_SCRIPTS_PATH=${HOST_SCRIPTS_PATH}
     volumes:
@@ -36,7 +36,7 @@ services:
           create_host_path: true
           propagation: rshared
       - ${SCRIPTS_BRIDGE_PATH_HOST}:/scripts:ro
-      - ${SSH_PRIVATE_KEY_PATH_HOST}:/ssh/id_ed25519:ro
+      - ${BRIDGE_PIPE_DIR_HOST:-/var/run/cloudsync-bridge}:/bridge
     networks:
       - cloud-sync-net
     depends_on:
@@ -48,8 +48,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   icloud-service:
     image: ${ICLOUD_SERVICE_IMAGE}

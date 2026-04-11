@@ -1,11 +1,11 @@
 #!/bin/bash
-# BRIDGE: Delegates to host via SSH.
+# BRIDGE: Delegates to host via named pipe.
 # Get detailed info about a connected iPhone.
 # Usage: ./iphone-get-info.sh [udid]
 # Output: JSON with device details
 
-SSH_HOST="${SSH_HOST:-host.docker.internal}"
-SSH_USER="${SSH_USER:-}"
-SSH_TARGET="${SSH_USER:+${SSH_USER}@}${SSH_HOST}"
+# shellcheck source=pipe-call.sh
+source "$(dirname "$0")/pipe-call.sh"
 
-exec ssh -i /ssh/id_ed25519 -o StrictHostKeyChecking=no -o BatchMode=yes "$SSH_TARGET" "${HOST_SCRIPTS_PATH:-/home/wdrozdzowski/projects/multi-cloud-synchronizer/scripts}/iphone-get-info.sh" "$@"
+args=$(printf '%q ' "$@")
+pipe_call "${HOST_SCRIPTS_PATH:-/home/wdrozdzowski/projects/multi-cloud-synchronizer/scripts/host}/iphone-get-info.sh $args"

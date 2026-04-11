@@ -1,10 +1,10 @@
 #!/bin/bash
-# BRIDGE: Delegates to host via SSH.
+# BRIDGE: Delegates to host via named pipe.
 # List all connected iOS devices (UDIDs).
 # Output: JSON {"devices": ["udid1", "udid2", ...]}
 
-SSH_HOST="${SSH_HOST:-host.docker.internal}"
-SSH_USER="${SSH_USER:-}"
-SSH_TARGET="${SSH_USER:+${SSH_USER}@}${SSH_HOST}"
+# shellcheck source=pipe-call.sh
+source "$(dirname "$0")/pipe-call.sh"
 
-exec ssh -i /ssh/id_ed25519 -o StrictHostKeyChecking=no -o BatchMode=yes "$SSH_TARGET" "${HOST_SCRIPTS_PATH:-/home/wdrozdzowski/projects/multi-cloud-synchronizer/scripts}/iphone-list-devices.sh" "$@"
+args=$(printf '%q ' "$@")
+pipe_call "${HOST_SCRIPTS_PATH:-/home/wdrozdzowski/projects/multi-cloud-synchronizer/scripts/host}/iphone-list-devices.sh $args"

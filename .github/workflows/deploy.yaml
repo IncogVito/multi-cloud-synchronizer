@@ -142,11 +142,23 @@ jobs:
 
             APP_DIR="/home/${{ secrets.SERVER_V2_USER }}/docker-apps/multi-cloud-synchronizer/app"
             HOST_SCRIPTS_PATH="${{ secrets.HOST_SCRIPTS_PATH }}"
+            PIPE_DIR="${{ secrets.BRIDGE_PIPE_DIR_HOST }}"
+            PIPE_DIR="${PIPE_DIR:-/var/run/cloudsync-bridge}"
 
             mkdir -p "$HOST_SCRIPTS_PATH"
             cp -r "$APP_DIR/scripts/host/." "$HOST_SCRIPTS_PATH/"
             chmod +x "$HOST_SCRIPTS_PATH"/*.sh
             rm -rf "$APP_DIR/scripts/host"
+
+            # Ensure the pipe directory exists and is writable by the container user
+            mkdir -p "$PIPE_DIR"
+            chmod 777 "$PIPE_DIR"
+
+            # Restart the pipe daemon (kill old instance, start updated one)
+            pkill -f "pipe-daemon.sh" || true
+            sleep 1
+            nohup "$HOST_SCRIPTS_PATH/pipe-daemon.sh" >> /var/log/cloudsync-bridge.log 2>&1 &
+            echo "pipe-daemon started (PID $!)"
 
       - name: Creating .env file on server and running the app
         uses: appleboy/ssh-action@v1.2.0
@@ -180,14 +192,13 @@ jobs:
             SCRIPTS_BRIDGE_PATH_HOST=${{ secrets.SCRIPTS_BRIDGE_PATH_HOST }}
             HOST_SCRIPTS_PATH=${{ secrets.HOST_SCRIPTS_PATH }}
 
-            SSH_PRIVATE_KEY_PATH_HOST=${{ secrets.SSH_PRIVATE_KEY_PATH_HOST }}
+            BRIDGE_PIPE_DIR_HOST=${{ secrets.BRIDGE_PIPE_DIR_HOST }}
             APP_USERNAME=${{ secrets.APP_USERNAME }}
             APP_PASSWORD=${{ secrets.APP_PASSWORD }}
 
             ICLOUD_SERVICE_URL=http://icloud-service:8000
             EXTERNAL_DRIVE_PATH_CONTAINER=/mnt/external-drive
             IPHONE_MOUNT_PATH_CONTAINER=/mnt/iphone
-            SSH_USER=${{ secrets.SSH_USER }}
             
             OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
             OPENROUTER_MODEL=google/gemini-2.0-flash-001
