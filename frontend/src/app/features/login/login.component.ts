@@ -164,6 +164,7 @@ export class LoginComponent {
           });
           this.requires2fa.set(true);
           this.sessionId.set(response.sessionId || '');
+          this.currentAccountId.set(response.accountId || '');
           this.isLoading.set(false);
         } else {
           this.authService.setCredentials(username, password);
