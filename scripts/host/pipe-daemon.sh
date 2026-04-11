@@ -32,6 +32,65 @@ CMD_PIPE="$PIPE_DIR/cmd"
 RESP_DIR="$PIPE_DIR/responses"
 LOG_FILE="${LOG_FILE:-$PIPE_DIR/daemon.log}"
 
+# Whitelist: only these script basenames may be executed via the bridge.
+ALLOWED_SCRIPTS=(
+    "check-drive.sh"
+    "detect-iphone.sh"
+    "iphone-check-trust.sh"
+    "iphone-get-info.sh"
+    "iphone-list-devices.sh"
+    "iphone-mount.sh"
+    "iphone-unmount.sh"
+    "list-disks.sh"
+    "mount-drive.sh"
+    "read-device-id.sh"
+    "unmount-drive.sh"
+)
+
+# Returns 0 if the command is allowed, 1 otherwise.
+# Allowed format (same as bridge scripts produce):
+#   [KEY=VALUE ]* /absolute/path/to/allowed-script.sh [args...]
+# Rules:
+#   1. Env var keys must match ^[A-Z_][A-Z0-9_]*$ and values must not contain shell metacharacters.
+#   2. The script path must be under HOST_SCRIPTS_PATH.
+#   3. The script basename must be in ALLOWED_SCRIPTS.
+#   4. No shell metacharacters (; | & ` $ ( ) < > \n) outside of quoted env values.
+is_command_allowed() {
+    local cmd="$1"
+    local host_scripts_path="${HOST_SCRIPTS_PATH:-}"
+
+    # Reject if any shell metacharacter appears anywhere in the command.
+    # Env values with = are allowed to contain / _ - . but nothing dangerous.
+    if [[ "$cmd" =~ [;\|\&\`\$\(\)\<\>\\] ]]; then
+        return 1
+    fi
+
+    # Walk through space-separated tokens; skip leading KEY=VALUE pairs.
+    local script_path=""
+    for token in $cmd; do
+        if [[ "$token" =~ ^[A-Z_][A-Z0-9_]*=.* ]]; then
+            continue  # env var prefix — skip
+        fi
+        script_path="$token"
+        break
+    done
+
+    [[ -z "$script_path" ]] && return 1
+
+    # Script must be under HOST_SCRIPTS_PATH (if set).
+    if [[ -n "$host_scripts_path" && "$script_path" != "$host_scripts_path"/* ]]; then
+        return 1
+    fi
+
+    # Script basename must be in the whitelist.
+    local basename
+    basename="$(basename "$script_path")"
+    for allowed in "${ALLOWED_SCRIPTS[@]}"; do
+        [[ "$basename" == "$allowed" ]] && return 0
+    done
+    return 1
+}
+
 mkdir -p "$RESP_DIR"
 chmod 0777 "$RESP_DIR"
 
@@ -61,12 +120,18 @@ while IFS= read -r line <&3; do
 
     # Run the command asynchronously so the daemon stays responsive.
     (
-        output=$(eval "$command" 2>&1)
-        code=$?
-        log "RSP $req_id: exit=$code"
-        # Write atomically: temp file then rename so the container never reads a partial response.
-        printf '%d\n%s' "$code" "$output" > "${resp_file}.tmp"
-        mv "${resp_file}.tmp" "$resp_file"
+        if ! is_command_allowed "$command"; then
+            log "DENIED $req_id: $command"
+            printf '%d\n%s' "1" "ERROR: command not in whitelist: $command" > "${resp_file}.tmp"
+            mv "${resp_file}.tmp" "$resp_file"
+        else
+            output=$(eval "$command" 2>&1)
+            code=$?
+            log "RSP $req_id: exit=$code"
+            # Write atomically: temp file then rename so the container never reads a partial response.
+            printf '%d\n%s' "$code" "$output" > "${resp_file}.tmp"
+            mv "${resp_file}.tmp" "$resp_file"
+        fi
     ) &
 done
 

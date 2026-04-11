@@ -157,7 +157,7 @@ jobs:
             chmod 777 "$PIPE_DIR"
 
             echo "[4/6] Killing old pipe-daemon"
-            pkill -f "pipe-daemon.sh" || true
+            pgrep -f "pipe-daemon.sh" | grep -v "^$$\$" | xargs -r kill || true
 
             echo "[5/6] Starting pipe-daemon"
             mkdir -p "$HOST_SCRIPTS_PATH/logs"
