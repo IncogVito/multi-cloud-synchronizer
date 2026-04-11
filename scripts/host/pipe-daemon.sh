@@ -61,7 +61,8 @@ is_command_allowed() {
 
     # Reject if any shell metacharacter appears anywhere in the command.
     # Env values with = are allowed to contain / _ - . but nothing dangerous.
-    if [[ "$cmd" =~ [;\|\&\`\$\(\)\<\>\\] ]]; then
+    local bad_chars='[;&|`$()<>\\]'
+    if [[ "$cmd" =~ $bad_chars ]]; then
         return 1
     fi
 
