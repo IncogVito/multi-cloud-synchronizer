@@ -35,8 +35,10 @@
             <div
               class="photo-thumb"
               [class.selected]="selectedIds().has(photo.id)"
+              [class.shift-preview]="shiftPreviewIds().has(photo.id)"
               [class.any-selected]="selectedIds().size > 0"
               (click)="photoClicked.emit(photo)"
+              (mouseenter)="handlePhotoMouseEnter(photo.id)"
             >
               @if (thumbnailUrls().has(photo.id)) {
                 <img
@@ -60,12 +62,12 @@
                   </svg>
                 </div>
               }
-              <div class="thumb-overlay" (click)="$event.stopPropagation()">
+              <div class="thumb-overlay">
                 <input
                   type="checkbox"
                   class="thumb-checkbox"
                   [checked]="selectedIds().has(photo.id)"
-                  (change)="togglePhotoSelection(photo.id)"
+                  (click)="handleSelectionClick(photo, $event)"
                 />
               </div>
               @if (photo.mediaType && photo.mediaType !== 'PHOTO') {

@@ -68,6 +68,14 @@
     border-color: var(--color-primary);
   }
 
+  &.shift-preview {
+    border-color: var(--color-warning);
+  }
+
+  &.shift-preview .thumb-overlay {
+    opacity: 1;
+  }
+
   img {
     width: 100%;
     height: 100%;

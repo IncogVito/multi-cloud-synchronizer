@@ -76,11 +76,6 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.previousDeviceId = deviceId;
       }
     });
-    
-    effect(() => {
-      const photos = this.allPhotos();
-      console.log('All photos changed, total count:', photos.length);
-    });
   }
 
   ngOnInit(): void {
@@ -134,7 +129,6 @@ export class PhotosComponent implements OnInit, OnDestroy {
     if (this.loadingMore() || !this.hasMore()) return;
     this.loadingMore.set(true);
 
-    console.log(this.currentPage());
     this.currentPage.update(p => p + 1);
     this.loadNextPage();
   }
@@ -254,7 +248,6 @@ export class PhotosComponent implements OnInit, OnDestroy {
   }
 
   private resetAndLoad(): void {
-    console.log('Resetting photo list and loading from scratch');
     this.allPhotos.set([]);
     this.selectedIds.set(new Set());
     this.currentPage.set(0);
@@ -297,7 +290,6 @@ export class PhotosComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (resp) => {
         const photos = resp.photos ?? [];
-        console.log('Loaded photos:', photos);
         this.allPhotos.update(existing => [...existing, ...photos]);
         this.hasMore.set(this.allPhotos().length < (resp.total ?? 0));
         this.loadingMore.set(false);
@@ -323,8 +315,6 @@ export class PhotosComponent implements OnInit, OnDestroy {
       }
       groupMap.get(key)!.push(photo);
     }
-
-    console.log('Grouping photos into groups:', photos);
 
     return Array.from(groupMap.entries())
       .sort((a, b) => b[0].localeCompare(a[0]))
