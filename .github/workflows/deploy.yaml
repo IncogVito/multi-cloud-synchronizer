@@ -137,26 +137,43 @@ jobs:
           proxy_key: ${{ secrets.SERVER_SSH_KEY }}
           proxy_port: ${{ secrets.SERVER_SSH_PORT }}
           proxy_passphrase: ${{ secrets.SERVER_SSH_PASSWORD }}
+          command_timeout: 120s
           script: |
-            set -e
+            set -ex
 
+            echo "[1/6] Setting variables"
             APP_DIR="/home/${{ secrets.SERVER_V2_USER }}/docker-apps/multi-cloud-synchronizer/app"
             HOST_SCRIPTS_PATH="${{ secrets.HOST_SCRIPTS_PATH }}"
             PIPE_DIR="${{ secrets.BRIDGE_PIPE_DIR_HOST }}"
+            echo "APP_DIR=$APP_DIR HOST_SCRIPTS_PATH=$HOST_SCRIPTS_PATH PIPE_DIR=$PIPE_DIR"
 
-            cp -r "$APP_DIR/scripts/host/." "$HOST_SCRIPTS_PATH/"
+            echo "[2/6] Copying host scripts"
+            cp -rv "$APP_DIR/scripts/host/." "$HOST_SCRIPTS_PATH/"
             chmod +x "$HOST_SCRIPTS_PATH"/*.sh
             rm -rf "$APP_DIR/scripts/host"
 
-            # Ensure the pipe directory exists and is writable by the container user
+            echo "[3/6] Ensuring pipe dir exists"
             mkdir -p "$PIPE_DIR"
             chmod 777 "$PIPE_DIR"
 
-            # Restart the pipe daemon (kill old instance, start updated one)
+            echo "[4/6] Killing old pipe-daemon"
             pkill -f "pipe-daemon.sh" || true
-            sleep 1
-            nohup "$HOST_SCRIPTS_PATH/pipe-daemon.sh" >> $HOST_SCRIPTS_PATH/logs/cloudsync-bridge.log 2>&1 &
-            echo "pipe-daemon started (PID $!)"
+
+            echo "[5/6] Starting pipe-daemon"
+            mkdir -p "$HOST_SCRIPTS_PATH/logs"
+            nohup "$HOST_SCRIPTS_PATH/pipe-daemon.sh" >> "$HOST_SCRIPTS_PATH/logs/cloudsync-bridge.log" 2>&1 &
+            DAEMON_PID=$!
+            echo "pipe-daemon started (PID $DAEMON_PID)"
+
+            echo "[6/6] Verifying daemon is alive"
+            sleep 2
+            if kill -0 $DAEMON_PID 2>/dev/null; then
+              echo "pipe-daemon is running OK"
+            else
+              echo "ERROR: pipe-daemon exited immediately, last log lines:"
+              tail -20 "$HOST_SCRIPTS_PATH/logs/cloudsync-bridge.log" || true
+              exit 1
+            fi
 
       - name: Creating .env file on server and running the app
         uses: appleboy/ssh-action@v1.2.0
