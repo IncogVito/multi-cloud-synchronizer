@@ -25,6 +25,15 @@ def is_system_mount(mp):
         return True
     return False
 
+def has_system_mount_recursive(dev):
+    \"\"\"Return True if this device or any descendant (LVM, etc.) has a system mount.\"\"\"
+    if is_system_mount(dev.get('mountpoint')):
+        return True
+    for child in (dev.get('children') or []):
+        if has_system_mount_recursive(child):
+            return True
+    return False
+
 def is_virtual(vendor, model):
     v = (vendor or '').strip().lower()
     m = (model or '').strip().lower()
@@ -46,19 +55,19 @@ data = json.load(sys.stdin)
 result = []
 
 for dev in data.get('blockdevices', []):
-    name = dev.get('name', '')
     dtype = dev.get('type', '')
-    if name.startswith('sda') or dtype in ('loop', 'rom'):
+    if dtype in ('loop', 'rom'):
         continue
     if is_virtual(dev.get('vendor'), dev.get('model')):
         continue
-    if is_system_mount(dev.get('mountpoint')):
+    # Skip entire disk if it or any descendant hosts a system mount
+    if has_system_mount_recursive(dev):
         continue
 
     children = dev.get('children') or []
     eligible_parts = [
         c for c in children
-        if c.get('type') == 'part' and not is_system_mount(c.get('mountpoint'))
+        if c.get('type') == 'part' and not has_system_mount_recursive(c)
     ]
 
     if eligible_parts:

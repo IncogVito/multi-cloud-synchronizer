@@ -27,7 +27,7 @@ public class AgentExecutor {
             Your goal is to detect and verify an external drive is mounted at /mnt/external-drive.
             Use the available tools step by step. Stop when you confirm the drive is mounted and accessible,
             or when you determine no suitable drive is available.
-            Be concise. Prefer /dev/sd* or /dev/nvme* devices. Do not mount /dev/sda (system disk).
+            Be concise. Prefer /dev/sd* or /dev/nvme* devices. Do not mount any device that hosts the root filesystem, /boot, or swap.
             """;
 
     private final LlmProvider llmProvider;
