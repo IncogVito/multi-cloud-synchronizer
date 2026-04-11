@@ -143,7 +143,6 @@ jobs:
             APP_DIR="/home/${{ secrets.SERVER_V2_USER }}/docker-apps/multi-cloud-synchronizer/app"
             HOST_SCRIPTS_PATH="${{ secrets.HOST_SCRIPTS_PATH }}"
             PIPE_DIR="${{ secrets.BRIDGE_PIPE_DIR_HOST }}"
-            PIPE_DIR="${PIPE_DIR:-/var/run/cloudsync-bridge}"
 
             cp -r "$APP_DIR/scripts/host/." "$HOST_SCRIPTS_PATH/"
             chmod +x "$HOST_SCRIPTS_PATH"/*.sh
@@ -156,7 +155,7 @@ jobs:
             # Restart the pipe daemon (kill old instance, start updated one)
             pkill -f "pipe-daemon.sh" || true
             sleep 1
-            nohup "$HOST_SCRIPTS_PATH/pipe-daemon.sh" >> /var/log/cloudsync-bridge.log 2>&1 &
+            nohup "$HOST_SCRIPTS_PATH/pipe-daemon.sh" >> $HOST_SCRIPTS_PATH/logs/cloudsync-bridge.log 2>&1 &
             echo "pipe-daemon started (PID $!)"
 
       - name: Creating .env file on server and running the app
