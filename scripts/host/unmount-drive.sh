@@ -2,6 +2,12 @@
 # Unmount the external drive from /mnt/external-drive.
 # Output: JSON {"success": bool, "message": str}
 
+# Requires root. Re-execs itself via sudo if not already running as root.
+# Configure passwordless sudo in /etc/sudoers (visudo):
+#   incogvito ALL=(root) NOPASSWD: /home/incogvito/docker-apps/multi-cloud-synchronizer/scripts/host/unmount-drive.sh
+
+[ "$(id -u)" -ne 0 ] && exec sudo -n "$0" "$@"
+
 MOUNT_POINT="${1:-/mnt/external-drive}"
 
 if ! mountpoint -q "$MOUNT_POINT" 2>/dev/null; then

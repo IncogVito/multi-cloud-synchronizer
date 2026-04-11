@@ -1,12 +1,18 @@
 #!/bin/bash
 # Mount a block device at a given mount point.
-# Usage: ./mount-drive.sh /dev/sdX [/mnt/external-drive]
+# Usage: ./mount-drive.sh /dev/sdX [/path/to/mount]
 # Output: JSON {"mounted": bool, "device": str, "mount_point": str, "message": str}
+#
+# Requires root. Re-execs itself via sudo if not already running as root.
+# Configure passwordless sudo for this script in /etc/sudoers (visudo):
+#   incogvito ALL=(root) NOPASSWD: /home/incogvito/docker-apps/multi-cloud-synchronizer/scripts/host/mount-drive.sh
 #
 # The backend container runs as gradle (uid=1000, gid=1000).
 # For FAT32/exFAT/NTFS we pass uid/gid/umask mount options so the container
 # user can write to the drive without needing root after mount.
 # For ext4/btrfs/xfs ownership is set via chown after mount.
+
+[ "$(id -u)" -ne 0 ] && exec sudo -n "$0" "$@"
 
 DEVICE="${1}"
 MOUNT_POINT="${2:-/mnt/external-drive}"
@@ -23,7 +29,7 @@ fi
 # Create mount point if missing
 if ! mkdir -p "$MOUNT_POINT" 2>/tmp/mkdir-err; then
     MKDIR_ERR=$(cat /tmp/mkdir-err | tr '"' "'" | tr '\n' ' ')
-    echo "{\"mounted\": false, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Cannot create mount point $MOUNT_POINT: $MKDIR_ERR — try: sudo mkdir -p $MOUNT_POINT\"}"
+    echo "{\"mounted\": false, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Cannot create mount point $MOUNT_POINT: $MKDIR_ERR\"}"
     exit 1
 fi
 

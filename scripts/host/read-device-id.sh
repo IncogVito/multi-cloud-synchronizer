@@ -3,6 +3,13 @@
 # Usage: ./read-device-id.sh /dev/sdb1
 # Output: JSON {"uuid": str|null, "label": str|null, "device": str}
 
+# blkid requires root to read UUID from block devices.
+# Re-execs itself via sudo if not already running as root.
+# Configure passwordless sudo in /etc/sudoers (visudo):
+#   incogvito ALL=(root) NOPASSWD: /home/incogvito/docker-apps/multi-cloud-synchronizer/scripts/host/read-device-id.sh
+
+[ "$(id -u)" -ne 0 ] && exec sudo -n "$0" "$@"
+
 DEVICE="${1}"
 
 if [ -z "$DEVICE" ]; then
