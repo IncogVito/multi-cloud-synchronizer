@@ -21,53 +21,47 @@ MOUNT_POINT="${2:-/mnt/external-drive}"
 CONTAINER_UID=1000
 CONTAINER_GID=1000
 
+json_err() { printf '%s' "$1" | tr '"' "'" | tr '\n' ' '; }
+
 if [ -z "$DEVICE" ]; then
     echo '{"mounted": false, "device": null, "mount_point": null, "message": "No device specified"}'
     exit 1
 fi
 
 # Create mount point if missing
-if ! mkdir -p "$MOUNT_POINT" 2>/tmp/mkdir-err; then
-    MKDIR_ERR=$(cat /tmp/mkdir-err | tr '"' "'" | tr '\n' ' ')
-    echo "{\"mounted\": false, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Cannot create mount point $MOUNT_POINT: $MKDIR_ERR\"}"
+if ! ERR=$(mkdir -p "$MOUNT_POINT" 2>&1); then
+    echo "{\"mounted\": false, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Cannot create mount point $MOUNT_POINT: $(json_err "$ERR")\"}"
     exit 1
 fi
 
 # Detect filesystem type
 FSTYPE=$(blkid -s TYPE -o value "$DEVICE" 2>/dev/null)
 
+do_mount() {
+    local opts="$1"
+    local err
+    if [ -n "$opts" ]; then
+        err=$(mount -o "$opts" "$DEVICE" "$MOUNT_POINT" 2>&1) && return 0
+    else
+        err=$(mount "$DEVICE" "$MOUNT_POINT" 2>&1) && return 0
+    fi
+    echo "{\"mounted\": false, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"$(json_err "$err")\"}"
+    exit 1
+}
+
 case "$FSTYPE" in
     vfat|fat16|fat32|exfat|ntfs|ntfs-3g)
-        # These filesystems support uid/gid/umask as mount options
-        MOUNT_OPTS="uid=${CONTAINER_UID},gid=${CONTAINER_GID},umask=022"
-        if mount -o "$MOUNT_OPTS" "$DEVICE" "$MOUNT_POINT" 2>/tmp/mount-err; then
-            echo "{\"mounted\": true, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Mounted $FSTYPE with uid/gid options\"}"
-        else
-            ERR=$(cat /tmp/mount-err | tr '"' "'" | tr '\n' ' ')
-            echo "{\"mounted\": false, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"$ERR\"}"
-            exit 1
-        fi
+        do_mount "uid=${CONTAINER_UID},gid=${CONTAINER_GID},umask=022"
+        echo "{\"mounted\": true, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Mounted $FSTYPE with uid/gid options\"}"
         ;;
     ext2|ext3|ext4|btrfs|xfs|f2fs)
-        # POSIX filesystems: mount normally then chown the root
-        if mount "$DEVICE" "$MOUNT_POINT" 2>/tmp/mount-err; then
-            chown "${CONTAINER_UID}:${CONTAINER_GID}" "$MOUNT_POINT"
-            echo "{\"mounted\": true, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Mounted $FSTYPE and chowned mount point\"}"
-        else
-            ERR=$(cat /tmp/mount-err | tr '"' "'" | tr '\n' ' ')
-            echo "{\"mounted\": false, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"$ERR\"}"
-            exit 1
-        fi
+        do_mount ""
+        chown "${CONTAINER_UID}:${CONTAINER_GID}" "$MOUNT_POINT"
+        echo "{\"mounted\": true, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Mounted $FSTYPE and chowned mount point\"}"
         ;;
     *)
-        # Unknown filesystem — try plain mount, then chown as fallback
-        if mount "$DEVICE" "$MOUNT_POINT" 2>/tmp/mount-err; then
-            chown "${CONTAINER_UID}:${CONTAINER_GID}" "$MOUNT_POINT" 2>/dev/null || true
-            echo "{\"mounted\": true, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Mounted (fstype=${FSTYPE:-unknown}), chown attempted\"}"
-        else
-            ERR=$(cat /tmp/mount-err | tr '"' "'" | tr '\n' ' ')
-            echo "{\"mounted\": false, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"$ERR\"}"
-            exit 1
-        fi
+        do_mount ""
+        chown "${CONTAINER_UID}:${CONTAINER_GID}" "$MOUNT_POINT" 2>/dev/null || true
+        echo "{\"mounted\": true, \"device\": \"$DEVICE\", \"mount_point\": \"$MOUNT_POINT\", \"message\": \"Mounted (fstype=${FSTYPE:-unknown}), chown attempted\"}"
         ;;
 esac
