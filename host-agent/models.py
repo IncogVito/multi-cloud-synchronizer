@@ -7,6 +7,7 @@ class DriveStatus:
     available: bool
     path: str | None
     free_bytes: int | None
+    total_bytes: int | None = None
 
 
 @dataclass

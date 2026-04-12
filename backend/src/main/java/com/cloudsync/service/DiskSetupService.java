@@ -68,7 +68,7 @@ public class DiskSetupService {
                 return new DriveStatus(false, null, null, null, null, null);
             }
             StorageDevice d = device.get();
-            Long freeBytes = queryFreeBytes(containerMountPath);
+            Long freeBytes = queryFreeBytes();
             return new DriveStatus(true, containerMountPath, hostMountPath, freeBytes, d.getId(), d.getLabel());
         } catch (Exception e) {
             LOG.warn("getDriveStatus failed, reporting unmounted: {}", e.getMessage());
@@ -76,15 +76,14 @@ public class DiskSetupService {
         }
     }
 
-    private Long queryFreeBytes(String path) {
-        ShellExecutor.ShellResult result = shell.execute("bash", "-c",
-                "df -B1 --output=avail " + path + " 2>/dev/null | tail -1 | tr -d ' '");
+    private Long queryFreeBytes() {
         try {
-            if (result.isSuccess() && !result.stdout().isBlank()) {
-                return Long.parseLong(result.stdout().trim());
-            }
-        } catch (NumberFormatException ignored) {}
-        return null;
+            var status = hostAgent.checkDrive(hostMountPath);
+            return status.freeBytes();
+        } catch (HostAgentException e) {
+            LOG.warn("queryFreeBytes via host agent failed for {}: {}", hostMountPath, e.getMessage());
+            return null;
+        }
     }
 
     public List<DiskInfo> listDisks() {
@@ -144,7 +143,7 @@ public class DiskSetupService {
             uuid = UUID.randomUUID().toString();
         }
 
-        Long sizeBytes = querySizeBytes(containerMountPath);
+        Long sizeBytes = querySizeBytes();
 
         String finalUuid = uuid;
         Optional<StorageDevice> existing = storageDeviceRepository.findByFilesystemUuid(uuid);
@@ -158,7 +157,7 @@ public class DiskSetupService {
         });
 
         storageDevice.setDevicePath(device);
-        storageDevice.setMountPoint(hostMountPath);
+        storageDevice.setMountPoint(containerMountPath);
         storageDevice.setLabel(label);
         storageDevice.setSizeBytes(sizeBytes);
         storageDevice.setLastSeenAt(Instant.now());
@@ -209,14 +208,13 @@ public class DiskSetupService {
         return storageDeviceRepository.findByFilesystemUuid(uuid);
     }
 
-    private Long querySizeBytes(String path) {
-        ShellExecutor.ShellResult result = shell.execute("bash", "-c",
-                "df -B1 --output=size " + path + " 2>/dev/null | tail -1 | tr -d ' '");
+    private Long querySizeBytes() {
         try {
-            if (result.isSuccess() && !result.stdout().isBlank()) {
-                return Long.parseLong(result.stdout().trim());
-            }
-        } catch (NumberFormatException ignored) {}
-        return null;
+            var status = hostAgent.checkDrive(hostMountPath);
+            return status.totalBytes();
+        } catch (HostAgentException e) {
+            LOG.warn("querySizeBytes via host agent failed for {}: {}", hostMountPath, e.getMessage());
+            return null;
+        }
     }
 }

@@ -49,8 +49,10 @@ def check_drive(params: dict) -> DriveStatus:
     if not p.is_dir() or not _is_mountpoint(mount_path):
         return DriveStatus(available=False, path=None, free_bytes=None)
 
-    free_bytes = _get_free_bytes(mount_path)
-    return DriveStatus(available=True, path=mount_path, free_bytes=free_bytes)
+    usage = _get_disk_usage(mount_path)
+    free_bytes = usage.free if usage else None
+    total_bytes = usage.total if usage else None
+    return DriveStatus(available=True, path=mount_path, free_bytes=free_bytes, total_bytes=total_bytes)
 
 
 # ---------------------------------------------------------------------------
@@ -303,9 +305,8 @@ def read_device_id(params: dict) -> DeviceIdResult:
 # helpers
 # ---------------------------------------------------------------------------
 
-def _get_free_bytes(path: str) -> int | None:
+def _get_disk_usage(path: str):
     try:
-        stat = shutil.disk_usage(path)
-        return stat.free
+        return shutil.disk_usage(path)
     except Exception:
         return None
