@@ -1,0 +1,74 @@
+name: Deploy Host Agent
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'host-agent/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Copy host-agent to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SERVER_V2_TUNNEL_HOSTNAME }}
+          username: ${{ secrets.SERVER_V2_USER }}
+          key: ${{ secrets.SERVER_V2_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_V2_SSH_PORT }}
+
+          proxy_host: ${{ secrets.SERVER_HOST }}
+          proxy_username: ${{ secrets.SERVER_USER }}
+          proxy_key: ${{ secrets.SERVER_SSH_KEY }}
+          proxy_port: ${{ secrets.SERVER_SSH_PORT }}
+          proxy_passphrase: ${{ secrets.SERVER_SSH_PASSWORD }}
+          source: "host-agent/"
+          target: "/home/${{ secrets.SERVER_V2_USER }}/docker-apps/multi-cloud-synchronizer/update-host-agent"
+          strip_components: 1
+
+      - name: Create update script on server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_V2_TUNNEL_HOSTNAME }}
+          username: ${{ secrets.SERVER_V2_USER }}
+          key: ${{ secrets.SERVER_V2_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_V2_SSH_PORT }}
+
+          proxy_host: ${{ secrets.SERVER_HOST }}
+          proxy_username: ${{ secrets.SERVER_USER }}
+          proxy_key: ${{ secrets.SERVER_SSH_KEY }}
+          proxy_port: ${{ secrets.SERVER_SSH_PORT }}
+          proxy_passphrase: ${{ secrets.SERVER_SSH_PASSWORD }}
+          script: |
+            DEPLOY_DIR="/home/${{ secrets.SERVER_V2_USER }}/docker-apps/multi-cloud-synchronizer"
+            AGENT_DIR="$DEPLOY_DIR/update-host-agent"
+            SCRIPT="$DEPLOY_DIR/update-host-agent.sh"
+
+            chmod +x "$AGENT_DIR/install.sh"
+
+            cat > "$SCRIPT" <<'EOF'
+            #!/usr/bin/env bash
+            set -euo pipefail
+
+            DEPLOY_DIR="/home/incogvito/docker-apps/multi-cloud-synchronizer"
+            AGENT_DIR="$DEPLOY_DIR/update-host-agent"
+
+            echo "[INFO] Running host agent installer..."
+            cd "$AGENT_DIR"
+            sudo ./install.sh
+
+            echo "[INFO] Install succeeded. Cleaning up..."
+            rm -rf "$AGENT_DIR"
+            rm -f "$DEPLOY_DIR/update-host-agent.sh"
+            echo "[INFO] Done. Host agent updated and cleanup complete."
+            EOF
+
+            chmod +x "$SCRIPT"
+            echo "Ready. Run: $SCRIPT"
