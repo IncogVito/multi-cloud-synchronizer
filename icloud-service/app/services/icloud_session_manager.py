@@ -14,11 +14,13 @@ from app.exceptions import (
 )
 
 # File-based persistence for session metadata.
-# OPEN: Consider Redis or a proper DB for production persistence.
-_SESSIONS_FILE = Path("/tmp/icloud_sessions.json")
+# Stored under /data so that a bind-mounted volume survives container restarts.
+# If the cookie directory is also preserved, icloudpy can reuse trusted-session
+# cookies on re-login and skip 2FA entirely.
+_SESSIONS_FILE = Path("/data/icloud_sessions.json")
 
 # Cookie directory base – icloudpy stores session cookies here per-session.
-_COOKIE_DIR_BASE = Path("/tmp/icloud_cookies")
+_COOKIE_DIR_BASE = Path("/data/icloud_cookies")
 
 
 class ICloudSessionManager:

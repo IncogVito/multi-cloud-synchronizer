@@ -72,6 +72,7 @@ services:
       - LOG_LEVEL=debug
     volumes:
       - ./icloud-service:/app                # live source editing
+      - icloud-data:/data                    # persist cookies/sessions across restarts
     networks:
       - cloud-sync-dev
     healthcheck:
@@ -104,6 +105,9 @@ volumes:
     name: cloud-sync-gradle-cache
   frontend-modules:
     driver: local
+  icloud-data:
+    driver: local
+    name: cloud-sync-icloud-data
 
 networks:
   cloud-sync-dev:

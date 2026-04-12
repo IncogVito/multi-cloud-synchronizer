@@ -97,6 +97,10 @@ flyway:
 micronaut:
   environments: docker
 
+datasources:
+  default:
+    url: jdbc:sqlite:/data/cloud-sync.db?journal_mode=WAL
+
 flyway:
   datasources:
     default:
