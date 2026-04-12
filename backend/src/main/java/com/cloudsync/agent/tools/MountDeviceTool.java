@@ -1,20 +1,22 @@
 package com.cloudsync.agent.tools;
 
 import com.cloudsync.agent.AgentTool;
-import com.cloudsync.util.ShellExecutor;
+import com.cloudsync.client.HostAgentClient;
+import com.cloudsync.client.hostmodel.MountDriveResult;
+import com.cloudsync.exception.HostAgentException;
 import jakarta.inject.Singleton;
 
 /**
- * Mounts a device at a given mount point.
+ * Mounts a device at a given mount point via the host agent.
  * Argument format: "device:mountPoint" e.g. "/dev/sdb1:/mnt/external-drive"
  */
 @Singleton
 public class MountDeviceTool implements AgentTool {
 
-    private final ShellExecutor shell;
+    private final HostAgentClient hostAgent;
 
-    public MountDeviceTool(ShellExecutor shell) {
-        this.shell = shell;
+    public MountDeviceTool(HostAgentClient hostAgent) {
+        this.hostAgent = hostAgent;
     }
 
     @Override
@@ -34,13 +36,13 @@ public class MountDeviceTool implements AgentTool {
         String device = parts[0].trim();
         String mountPoint = parts[1].trim();
 
-        // Create mount point if it doesn't exist
-        shell.execute("mkdir", "-p", mountPoint);
-
-        ShellExecutor.ShellResult result = shell.execute("mount", device, mountPoint);
-        if (result.isSuccess()) {
-            return String.format("{\"mounted\": true, \"device\": \"%s\", \"mountPoint\": \"%s\"}", device, mountPoint);
+        try {
+            MountDriveResult result = hostAgent.mountDrive(device, mountPoint);
+            return String.format("{\"mounted\": %s, \"device\": \"%s\", \"mountPoint\": \"%s\", \"message\": \"%s\"}",
+                    result.mounted(), result.device(), result.mountPoint(),
+                    result.message().replace("\"", "'"));
+        } catch (HostAgentException e) {
+            return String.format("{\"mounted\": false, \"error\": \"%s\"}", e.getMessage().replace("\"", "'"));
         }
-        return String.format("{\"mounted\": false, \"error\": \"%s\"}", result.stderr().replace("\"", "'"));
     }
 }

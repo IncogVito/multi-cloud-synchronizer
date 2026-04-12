@@ -1,7 +1,8 @@
 package com.cloudsync.agent.tools;
 
 import com.cloudsync.agent.AgentTool;
-import com.cloudsync.util.ShellExecutor;
+import com.cloudsync.client.HostAgentClient;
+import com.cloudsync.exception.HostAgentException;
 import jakarta.inject.Singleton;
 
 import java.nio.file.Files;
@@ -10,10 +11,10 @@ import java.nio.file.Path;
 @Singleton
 public class CheckMountPointTool implements AgentTool {
 
-    private final ShellExecutor shell;
+    private final HostAgentClient hostAgent;
 
-    public CheckMountPointTool(ShellExecutor shell) {
-        this.shell = shell;
+    public CheckMountPointTool(HostAgentClient hostAgent) {
+        this.hostAgent = hostAgent;
     }
 
     @Override
@@ -29,9 +30,13 @@ public class CheckMountPointTool implements AgentTool {
         if (path == null || path.isBlank()) {
             path = "/mnt/external-drive";
         }
-        ShellExecutor.ShellResult result = shell.execute("mountpoint", "-q", path);
-        boolean mounted = result.isSuccess();
         boolean exists = Files.exists(Path.of(path));
+        boolean mounted;
+        try {
+            mounted = hostAgent.checkDrive(path).available();
+        } catch (HostAgentException e) {
+            mounted = false;
+        }
         return String.format("{\"path\": \"%s\", \"mounted\": %s, \"exists\": %s}", path, mounted, exists);
     }
 }

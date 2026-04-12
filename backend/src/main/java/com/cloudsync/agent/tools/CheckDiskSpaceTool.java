@@ -1,16 +1,18 @@
 package com.cloudsync.agent.tools;
 
 import com.cloudsync.agent.AgentTool;
-import com.cloudsync.util.ShellExecutor;
+import com.cloudsync.client.HostAgentClient;
+import com.cloudsync.client.hostmodel.DriveStatus;
+import com.cloudsync.exception.HostAgentException;
 import jakarta.inject.Singleton;
 
 @Singleton
 public class CheckDiskSpaceTool implements AgentTool {
 
-    private final ShellExecutor shell;
+    private final HostAgentClient hostAgent;
 
-    public CheckDiskSpaceTool(ShellExecutor shell) {
-        this.shell = shell;
+    public CheckDiskSpaceTool(HostAgentClient hostAgent) {
+        this.hostAgent = hostAgent;
     }
 
     @Override
@@ -26,7 +28,15 @@ public class CheckDiskSpaceTool implements AgentTool {
         if (path == null || path.isBlank()) {
             path = "/mnt/external-drive";
         }
-        ShellExecutor.ShellResult result = shell.execute("df", "-h", path);
-        return result.isSuccess() ? result.stdout() : "Error: " + result.stderr();
+        try {
+            DriveStatus status = hostAgent.checkDrive(path);
+            return String.format("{\"available\":%s,\"path\":%s,\"free_bytes\":%s,\"total_bytes\":%s}",
+                    status.available(),
+                    status.path() != null ? "\"" + status.path() + "\"" : "null",
+                    status.freeBytes() != null ? status.freeBytes() : "null",
+                    status.totalBytes() != null ? status.totalBytes() : "null");
+        } catch (HostAgentException e) {
+            return "Error: " + e.getMessage();
+        }
     }
 }

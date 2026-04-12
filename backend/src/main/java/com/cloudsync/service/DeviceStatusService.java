@@ -10,7 +10,6 @@ import com.cloudsync.model.entity.DeviceStatus;
 import com.cloudsync.model.enums.DeviceCheckStatus;
 import com.cloudsync.model.enums.DeviceType;
 import com.cloudsync.repository.DeviceStatusRepository;
-import com.cloudsync.util.ShellExecutor;
 import io.micronaut.context.annotation.Value;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -34,7 +33,6 @@ public class DeviceStatusService {
     private static final Logger LOG = LoggerFactory.getLogger(DeviceStatusService.class);
 
     private final DeviceStatusRepository deviceStatusRepository;
-    private final ShellExecutor shellExecutor;
     private final HostAgentClient hostAgent;
     private final DiskDetectionAgent diskDetectionAgent;
     private final ICloudServiceClient iCloudServiceClient;
@@ -46,12 +44,10 @@ public class DeviceStatusService {
     private String iphoneMountPath;
 
     public DeviceStatusService(DeviceStatusRepository deviceStatusRepository,
-                               ShellExecutor shellExecutor,
                                HostAgentClient hostAgent,
                                DiskDetectionAgent diskDetectionAgent,
                                ICloudServiceClient iCloudServiceClient) {
         this.deviceStatusRepository = deviceStatusRepository;
-        this.shellExecutor = shellExecutor;
         this.hostAgent = hostAgent;
         this.diskDetectionAgent = diskDetectionAgent;
         this.iCloudServiceClient = iCloudServiceClient;

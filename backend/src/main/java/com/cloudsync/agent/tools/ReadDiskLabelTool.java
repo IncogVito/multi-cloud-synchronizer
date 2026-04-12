@@ -1,16 +1,18 @@
 package com.cloudsync.agent.tools;
 
 import com.cloudsync.agent.AgentTool;
-import com.cloudsync.util.ShellExecutor;
+import com.cloudsync.client.HostAgentClient;
+import com.cloudsync.client.hostmodel.DeviceIdResult;
+import com.cloudsync.exception.HostAgentException;
 import jakarta.inject.Singleton;
 
 @Singleton
 public class ReadDiskLabelTool implements AgentTool {
 
-    private final ShellExecutor shell;
+    private final HostAgentClient hostAgent;
 
-    public ReadDiskLabelTool(ShellExecutor shell) {
-        this.shell = shell;
+    public ReadDiskLabelTool(HostAgentClient hostAgent) {
+        this.hostAgent = hostAgent;
     }
 
     @Override
@@ -18,7 +20,7 @@ public class ReadDiskLabelTool implements AgentTool {
 
     @Override
     public String getDescription() {
-        return "Reads the label/filesystem info of a block device. Argument: device path (e.g. /dev/sdb1).";
+        return "Reads the label/UUID of a block device. Argument: device path (e.g. /dev/sdb1).";
     }
 
     @Override
@@ -26,7 +28,14 @@ public class ReadDiskLabelTool implements AgentTool {
         if (device == null || device.isBlank()) {
             return "Error: device path required";
         }
-        ShellExecutor.ShellResult result = shell.execute("blkid", device);
-        return result.isSuccess() ? result.stdout() : "Error: " + result.stderr();
+        try {
+            DeviceIdResult result = hostAgent.readDeviceId(device);
+            return String.format("{\"device\":\"%s\",\"uuid\":%s,\"label\":%s}",
+                    result.device(),
+                    result.uuid() != null ? "\"" + result.uuid() + "\"" : "null",
+                    result.label() != null ? "\"" + result.label() + "\"" : "null");
+        } catch (HostAgentException e) {
+            return "Error: " + e.getMessage();
+        }
     }
 }

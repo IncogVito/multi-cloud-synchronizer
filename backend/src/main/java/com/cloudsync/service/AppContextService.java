@@ -6,12 +6,13 @@ import com.cloudsync.model.entity.AppContextEntity;
 import com.cloudsync.model.entity.StorageDevice;
 import com.cloudsync.repository.AppContextRepository;
 import com.cloudsync.repository.StorageDeviceRepository;
-import com.cloudsync.util.ShellExecutor;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -26,16 +27,13 @@ public class AppContextService {
 
     private final AppContextRepository repository;
     private final StorageDeviceRepository storageDeviceRepository;
-    private final ShellExecutor shell;
 
     private volatile AppContext cached;
 
     public AppContextService(AppContextRepository repository,
-                             StorageDeviceRepository storageDeviceRepository,
-                             ShellExecutor shell) {
+                             StorageDeviceRepository storageDeviceRepository) {
         this.repository = repository;
         this.storageDeviceRepository = storageDeviceRepository;
-        this.shell = shell;
     }
 
     public Optional<AppContext> getActive() {
@@ -172,24 +170,27 @@ public class AppContextService {
     }
 
     private boolean isMounted(String mountPoint) {
-        try {
-            ShellExecutor.ShellResult result = shell.execute("bash", "-c",
-                    "findmnt -n " + mountPoint + " >/dev/null 2>&1 && echo yes || echo no");
-            return result.isSuccess() && result.stdout().trim().equals("yes");
-        } catch (Exception e) {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(Files.newInputStream(Path.of("/proc/mounts"))))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split("\\s+");
+                if (parts.length >= 2 && parts[1].equals(mountPoint)) {
+                    return true;
+                }
+            }
+        } catch (IOException e) {
             LOG.warn("isMounted check failed for {}: {}", mountPoint, e.getMessage());
-            return false;
         }
+        return false;
     }
 
     private Long queryFreeBytes(String path) {
-        ShellExecutor.ShellResult result = shell.execute("bash", "-c",
-                "df -B1 --output=avail " + path + " 2>/dev/null | tail -1 | tr -d ' '");
         try {
-            if (result.isSuccess() && !result.stdout().isBlank()) {
-                return Long.parseLong(result.stdout().trim());
-            }
-        } catch (NumberFormatException ignored) {}
-        return null;
+            return Files.getFileStore(Path.of(path)).getUsableSpace();
+        } catch (IOException e) {
+            LOG.warn("queryFreeBytes failed for {}: {}", path, e.getMessage());
+            return null;
+        }
     }
 }

@@ -4,13 +4,16 @@ import com.cloudsync.client.HostAgentClient;
 import com.cloudsync.exception.HostAgentException;
 import com.cloudsync.model.entity.StorageDevice;
 import com.cloudsync.repository.StorageDeviceRepository;
-import com.cloudsync.util.ShellExecutor;
 import io.micronaut.context.annotation.Value;
 import io.micronaut.serde.annotation.Serdeable;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -21,22 +24,19 @@ public class DiskSetupService {
 
     private static final Logger LOG = LoggerFactory.getLogger(DiskSetupService.class);
 
-    private final ShellExecutor shell;
     private final HostAgentClient hostAgent;
     private final StorageDeviceRepository storageDeviceRepository;
     private final jakarta.inject.Provider<AppContextService> appContextServiceProvider;
     /** Path on the HOST where the drive is mounted — used by host agent. */
     private final String hostMountPath;
-    /** Path inside THIS container where the bind-mount lands — used for df, findmnt, etc. */
+    /** Path inside THIS container where the bind-mount lands. */
     private final String containerMountPath;
 
-    public DiskSetupService(ShellExecutor shell,
-                            HostAgentClient hostAgent,
+    public DiskSetupService(HostAgentClient hostAgent,
                             StorageDeviceRepository storageDeviceRepository,
                             jakarta.inject.Provider<AppContextService> appContextServiceProvider,
                             @Value("${app.external-drive-path-host}") String hostMountPath,
                             @Value("${app.external-drive-path}") String containerMountPath) {
-        this.shell = shell;
         this.hostAgent = hostAgent;
         this.storageDeviceRepository = storageDeviceRepository;
         this.appContextServiceProvider = appContextServiceProvider;
@@ -59,9 +59,6 @@ public class DiskSetupService {
     public record DiskInfo(String name, String path, String size, String type, String mountpoint, String label, String vendor, String model) {}
 
     public DriveStatus getDriveStatus() {
-        // Only report mounted=true when a StorageDevice row exists for whatever is
-        // mounted at mountPoint — i.e. the user explicitly went through mountAndRegister.
-        // A directory existing (or even an ad-hoc mount done outside the app) is not enough.
         try {
             Optional<StorageDevice> device = findMountedDevice();
             if (device.isEmpty()) {
@@ -98,11 +95,30 @@ public class DiskSetupService {
         }
     }
 
+    /**
+     * Returns the device currently mounted at {@code mountPath} by reading /proc/mounts,
+     * or {@code null} if nothing is mounted there.
+     */
+    private static String deviceAtMountPoint(String mountPath) {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(Files.newInputStream(java.nio.file.Path.of("/proc/mounts"))))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split("\\s+");
+                if (parts.length >= 2 && parts[1].equals(mountPath)) {
+                    return parts[0];
+                }
+            }
+        } catch (IOException e) {
+            LOG.warn("Could not read /proc/mounts: {}", e.getMessage());
+        }
+        return null;
+    }
+
     private boolean isDeviceMountedAt(String device, String mountPath) {
-        ShellExecutor.ShellResult r = shell.execute("bash", "-c",
-                "findmnt -n -o SOURCE " + mountPath + " 2>/dev/null");
-        if (!r.isSuccess() || r.stdout().isBlank()) return false;
-        String current = r.stdout().trim();
+        String current = deviceAtMountPoint(mountPath);
+        if (current == null) return false;
+        // Strip bind-mount notation like /dev/sdc[/some/path]
         int bracket = current.indexOf('[');
         if (bracket >= 0) current = current.substring(0, bracket).trim();
         return current.equals(device);
@@ -187,13 +203,11 @@ public class DiskSetupService {
     }
 
     public Optional<StorageDevice> findMountedDevice() {
-        ShellExecutor.ShellResult result = shell.execute("bash", "-c",
-                "findmnt -n -o SOURCE " + containerMountPath + " 2>/dev/null");
-        if (!result.isSuccess() || result.stdout().isBlank()) {
+        String device = deviceAtMountPoint(containerMountPath);
+        if (device == null || device.isBlank()) {
             return Optional.empty();
         }
-        String device = result.stdout().trim();
-        // findmnt may return bind-mount notation like /dev/sdc[/mnt/external-drive] — strip the bracket part
+        // Strip bind-mount notation like /dev/sdc[/mnt/external-drive]
         int bracketIdx = device.indexOf('[');
         if (bracketIdx >= 0) {
             device = device.substring(0, bracketIdx).trim();
