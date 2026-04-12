@@ -167,7 +167,7 @@ public class DiskSetupService {
             storageDeviceRepository.update(storageDevice);
         }
 
-        Long freeBytes = queryFreeBytes(containerMountPath);
+        Long freeBytes = queryFreeBytes();
         return new DriveStatus(true, containerMountPath, hostMountPath, freeBytes, storageDevice.getId(), label);
     }
 
