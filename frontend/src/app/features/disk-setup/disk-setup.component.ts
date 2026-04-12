@@ -31,7 +31,7 @@ type SetupState = 'loading' | 'no-disk' | 'disks-available' | 'mounted' | 'path-
           <div class="state-block success">
             <div class="status-icon">&#10003;</div>
             <p class="status-title">Dysk zamontowany: "{{ driveStatus()!.label || 'dysk zewnętrzny' }}"</p>
-            <p class="status-sub">{{ driveStatus()!.drivePath }}</p>
+            <p class="status-sub">{{ driveStatus()!.drivePathHost ?? driveStatus()!.drivePath }}</p>
             @if (driveStatus()!.freeBytes !== null) {
               <p class="status-sub">Wolne miejsce: {{ formatBytes(driveStatus()!.freeBytes!) }}</p>
             }

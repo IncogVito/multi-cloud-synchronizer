@@ -260,7 +260,8 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
   driveLabel = computed<string>(() => {
     const d = this.driveStatus();
     if (!d || !d.mounted) return '—';
-    return (d.label || 'dysk zewnętrzny') + (d.drivePath ? ` (${d.drivePath})` : '');
+    const path = d.drivePathHost ?? d.drivePath;
+    return (d.label || 'dysk zewnętrzny') + (path ? ` (${path})` : '');
   });
 
   sourceLabel = computed<string>(() => {

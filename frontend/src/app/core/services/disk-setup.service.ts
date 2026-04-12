@@ -6,6 +6,7 @@ import { environment } from '../../../environments/environment';
 export interface DriveStatus {
   mounted: boolean;
   drivePath: string | null;
+  drivePathHost: string | null;
   freeBytes: number | null;
   deviceId: string | null;
   label: string | null;

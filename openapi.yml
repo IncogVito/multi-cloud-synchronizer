@@ -1012,6 +1012,9 @@ components:
           type: boolean
         drivePath:
           type: string
+        drivePathHost:
+          type: string
+          nullable: true
         freeBytes:
           type: integer
           format: int64

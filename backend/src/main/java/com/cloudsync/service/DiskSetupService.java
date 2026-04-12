@@ -49,7 +49,7 @@ public class DiskSetupService {
     }
 
     @Serdeable
-    public record DriveStatus(boolean mounted, String drivePath, Long freeBytes, String deviceId, String label) {}
+    public record DriveStatus(boolean mounted, String drivePath, String drivePathHost, Long freeBytes, String deviceId, String label) {}
 
     @Serdeable
     public record DiskInfo(String name, String path, String size, String type, String mountpoint, String label, String vendor, String model) {}
@@ -61,14 +61,14 @@ public class DiskSetupService {
         try {
             Optional<StorageDevice> device = findMountedDevice();
             if (device.isEmpty()) {
-                return new DriveStatus(false, null, null, null, null);
+                return new DriveStatus(false, null, null, null, null, null);
             }
             StorageDevice d = device.get();
             Long freeBytes = queryFreeBytes(containerMountPath);
-            return new DriveStatus(true, containerMountPath, freeBytes, d.getId(), d.getLabel());
+            return new DriveStatus(true, containerMountPath, hostMountPath, freeBytes, d.getId(), d.getLabel());
         } catch (Exception e) {
             LOG.warn("getDriveStatus failed, reporting unmounted: {}", e.getMessage());
-            return new DriveStatus(false, null, null, null, null);
+            return new DriveStatus(false, null, null, null, null, null);
         }
     }
 
@@ -138,7 +138,9 @@ public class DiskSetupService {
         Long sizeBytes = querySizeBytes(containerMountPath);
 
         String finalUuid = uuid;
-        StorageDevice storageDevice = storageDeviceRepository.findByFilesystemUuid(uuid).orElseGet(() -> {
+        Optional<StorageDevice> existing = storageDeviceRepository.findByFilesystemUuid(uuid);
+        boolean isNew = existing.isEmpty();
+        StorageDevice storageDevice = existing.orElseGet(() -> {
             StorageDevice d = new StorageDevice();
             d.setId(UUID.randomUUID().toString());
             d.setFilesystemUuid(finalUuid);
@@ -151,10 +153,14 @@ public class DiskSetupService {
         storageDevice.setLabel(label);
         storageDevice.setSizeBytes(sizeBytes);
         storageDevice.setLastSeenAt(Instant.now());
-        storageDeviceRepository.save(storageDevice);
+        if (isNew) {
+            storageDeviceRepository.save(storageDevice);
+        } else {
+            storageDeviceRepository.update(storageDevice);
+        }
 
         Long freeBytes = queryFreeBytes(containerMountPath);
-        return new DriveStatus(true, containerMountPath, freeBytes, storageDevice.getId(), label);
+        return new DriveStatus(true, containerMountPath, hostMountPath, freeBytes, storageDevice.getId(), label);
     }
 
     public void unmount() {

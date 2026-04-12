@@ -16,7 +16,7 @@ import { DiskSetupService, DriveStatus } from '../../../core/services/disk-setup
           <div class="disk-icon">&#128190;</div>
           <div class="disk-info">
             <p class="disk-label">"{{ status()!.label || 'Dysk zewnętrzny' }}"</p>
-            <p class="disk-path">{{ status()!.drivePath }}</p>
+            <p class="disk-path">{{ status()!.drivePathHost ?? status()!.drivePath }}</p>
             @if (status()!.freeBytes !== null) {
               <p class="disk-free">Wolne miejsce: {{ formatBytes(status()!.freeBytes!) }}</p>
             }
