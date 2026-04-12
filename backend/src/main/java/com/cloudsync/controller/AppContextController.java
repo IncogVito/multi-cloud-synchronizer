@@ -92,7 +92,7 @@ public class AppContextController {
         if (mountedDevice.isEmpty()) {
             return HttpResponse.badRequest(Map.of("error", "NO_DRIVE_MOUNTED"));
         }
-        String mountPoint = mountedDevice.get().getMountPoint();
+        String mountPoint = diskSetupService.getContainerMountPath();
         Path mountPath = Paths.get(mountPoint).toAbsolutePath().normalize();
 
         Path target;
@@ -153,7 +153,7 @@ public class AppContextController {
         if (mountedDevice.isEmpty()) {
             return HttpResponse.badRequest(Map.of("error", "NO_DRIVE_MOUNTED"));
         }
-        Path mountPath = Paths.get(mountedDevice.get().getMountPoint()).toAbsolutePath().normalize();
+        Path mountPath = Paths.get(diskSetupService.getContainerMountPath()).toAbsolutePath().normalize();
         Path parentPath = Paths.get(parent).toAbsolutePath().normalize();
         if (!parentPath.startsWith(mountPath)) {
             return HttpResponse.badRequest(Map.of("error", "INVALID_PATH"));

@@ -48,6 +48,10 @@ public class DiskSetupService {
         return hostMountPath;
     }
 
+    public String getContainerMountPath() {
+        return containerMountPath;
+    }
+
     @Serdeable
     public record DriveStatus(boolean mounted, String drivePath, String drivePathHost, Long freeBytes, String deviceId, String label) {}
 
@@ -112,9 +116,14 @@ public class DiskSetupService {
             try {
                 hostAgent.mountDrive(device, hostMountPath);
             } catch (HostAgentException e) {
-                LOG.warn("Mount failed for {} via host agent: {}", device, e.getMessage());
-                throw new IllegalStateException(
-                        "device=" + device + ", host_mount_path=" + hostMountPath + ", reason: " + e.getMessage());
+                String msg = e.getMessage() != null ? e.getMessage() : "";
+                if (msg.contains("already mounted")) {
+                    LOG.info("Device {} already mounted (reported by host agent), continuing registration", device);
+                } else {
+                    LOG.warn("Mount failed for {} via host agent: {}", device, e.getMessage());
+                    throw new IllegalStateException(
+                            "device=" + device + ", host_mount_path=" + hostMountPath + ", reason: " + e.getMessage());
+                }
             }
         }
 
