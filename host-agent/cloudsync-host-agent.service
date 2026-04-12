@@ -1,0 +1,18 @@
+[Unit]
+Description=CloudSync Host Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /opt/cloudsync-host-agent/agent.py
+Restart=on-failure
+RestartSec=5
+RuntimeDirectory=cloudsync-host-agent
+RuntimeDirectoryMode=0755
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cloudsync-host-agent
+
+[Install]
+WantedBy=multi-user.target

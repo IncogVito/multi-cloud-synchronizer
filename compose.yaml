@@ -19,11 +19,13 @@ services:
       - IPHONE_MOUNT_PATH_CONTAINER=${IPHONE_MOUNT_PATH_CONTAINER}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-001}
-      - BRIDGE_PIPE_DIR=/bridge
-      - SCRIPTS_DIR=/scripts
-      - HOST_SCRIPTS_PATH=${HOST_SCRIPTS_PATH}
+      - HOST_AGENT_SOCKET=${HOST_AGENT_SOCKET:-/run/cloudsync-host-agent/agent.sock}
     volumes:
-      - db-data:/data
+      - type: bind
+        source: ${DB_PATH_HOST}
+        target: /data
+        bind:
+          create_host_path: true
       - type: bind
         source: ${EXTERNAL_DRIVE_PATH_HOST}
         target: ${EXTERNAL_DRIVE_PATH_CONTAINER}
@@ -36,8 +38,7 @@ services:
         bind:
           create_host_path: true
           propagation: rshared
-      - ${SCRIPTS_BRIDGE_PATH_HOST}:/scripts:ro
-      - ${BRIDGE_PIPE_DIR_HOST:-/var/run/cloudsync-bridge}:/bridge
+      - /run/cloudsync-host-agent:/run/cloudsync-host-agent:ro
     networks:
       - cloud-sync-net
     depends_on:
@@ -86,5 +87,3 @@ networks:
   cloud-sync-net:
     driver: bridge
 
-volumes:
-  db-data:

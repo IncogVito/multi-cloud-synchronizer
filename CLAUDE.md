@@ -54,7 +54,9 @@ pytest tests/test_foo.py::test_bar              # single test
 
 **External drive bind-mount with `rshared` propagation.** `compose.dev.yaml` bind-mounts `/mnt/external-drive` with `propagation: rshared` so that when the backend triggers a host mount via `/api/setup/mount`, the new filesystem becomes visible inside the container. Be careful when changing mount-related code or compose files — losing `rshared` breaks the disk-setup flow silently.
 
-**Shell scripts at `scripts/`** are mounted read-only into the backend at `/scripts` (`SCRIPTS_DIR` env var). The backend shells out to them for host-level operations: `detect-iphone.sh`, `mount-drive.sh`, `check-drive.sh`, plus `iphone-list-devices.sh` / `iphone-get-info.sh` / `iphone-check-trust.sh`. Several are still stubs — `libimobiledevice` integration is incomplete.
+**Host Agent (`host-agent/`)** — Python asyncio daemon (`agent.py`) installed on the host machine at `/opt/cloudsync-host-agent/`, listening on Unix Domain Socket `/run/cloudsync-host-agent/agent.sock`. Replaces the old named-FIFO bridge (`pipe-daemon.sh`). The backend communicates with it via `HostAgentClient` (Java, `com.cloudsync.client`). Install with `sudo host-agent/install.sh`. Socket is bind-mounted read-only into the backend container at `/run/cloudsync-host-agent`. For WSL2 dev, override `HOST_AGENT_SOCKET` env var.
+
+**Shell scripts at `scripts/host/`** remain as reference/backup. The `scripts/bridge/` directory (pipe-based bridge) is superseded by the host agent and can be removed after migration is validated.
 
 **SQLite location.** The `cloud-sync.db` file lives on the external drive (`EXTERNAL_DRIVE_PATH`, default `/mnt/external-drive` in containers, `./dev-drive` for local non-docker dev). Thumbnails go to `THUMBNAIL_DIR` (default `${EXTERNAL_DRIVE_PATH}/thumbnails`). Flyway migrations under `backend/src/main/resources/db/`.
 
@@ -70,3 +72,4 @@ Key env vars (set in `.env` at repo root for compose, or directly for local runs
 | `OPENROUTER_API_KEY` | Empty → heuristic fallback agent; set → real LLM |
 | `OPENROUTER_MODEL` | Override default model |
 | `MICRONAUT_ENVIRONMENTS` | `dev` for local SQLite file, `docker` inside containers |
+| `HOST_AGENT_SOCKET` | Path to host agent socket (default `/run/cloudsync-host-agent/agent.sock`) |

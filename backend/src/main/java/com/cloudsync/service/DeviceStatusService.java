@@ -1,6 +1,8 @@
 package com.cloudsync.service;
 
+import com.cloudsync.client.HostAgentClient;
 import com.cloudsync.client.ICloudServiceClient;
+import com.cloudsync.exception.HostAgentException;
 import com.cloudsync.model.dto.AgentStepEvent;
 import com.cloudsync.model.dto.DeviceCheckEvent;
 import com.cloudsync.model.dto.DeviceStatusResponse;
@@ -14,7 +16,6 @@ import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.nio.file.Files;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+
 @Singleton
 public class DeviceStatusService {
 
@@ -33,24 +35,24 @@ public class DeviceStatusService {
 
     private final DeviceStatusRepository deviceStatusRepository;
     private final ShellExecutor shellExecutor;
+    private final HostAgentClient hostAgent;
     private final DiskDetectionAgent diskDetectionAgent;
     private final ICloudServiceClient iCloudServiceClient;
 
     @Value("${app.external-drive-path}")
     private String externalDrivePath;
 
-    @Value("${app.scripts-dir:/scripts}")
-    private String scriptsDir;
-
     @Value("${app.iphone-mount-path:/mnt/iphone}")
     private String iphoneMountPath;
 
     public DeviceStatusService(DeviceStatusRepository deviceStatusRepository,
                                ShellExecutor shellExecutor,
+                               HostAgentClient hostAgent,
                                DiskDetectionAgent diskDetectionAgent,
                                ICloudServiceClient iCloudServiceClient) {
         this.deviceStatusRepository = deviceStatusRepository;
         this.shellExecutor = shellExecutor;
+        this.hostAgent = hostAgent;
         this.diskDetectionAgent = diskDetectionAgent;
         this.iCloudServiceClient = iCloudServiceClient;
     }
@@ -71,19 +73,28 @@ public class DeviceStatusService {
                     false
             );
 
-            ShellExecutor.ShellResult driveCheck = shellExecutor.execute(
-                    "bash", scriptsDir + "/check-drive.sh", externalDrivePath);
-            boolean available = driveCheck.isSuccess() && driveCheck.stdout().contains("\"available\": true");
+            boolean available;
+            String driveDetails;
+            try {
+                var driveStatus = hostAgent.checkDrive(externalDrivePath);
+                available = driveStatus.available();
+                driveDetails = available
+                        ? "{\"available\": true, \"path\": \"" + driveStatus.path() + "\", \"free_bytes\": " + driveStatus.freeBytes() + "}"
+                        : "{\"available\": false, \"path\": null, \"free_bytes\": null}";
+            } catch (HostAgentException e) {
+                available = false;
+                driveDetails = "{\"available\": false, \"error\": \"" + e.getMessage() + "\"}";
+            }
 
             if (available) {
                 DeviceCheckEvent finalEvent = new DeviceCheckEvent(
                         DeviceType.EXTERNAL_DRIVE.name(),
                         DeviceCheckStatus.CONNECTED.name(),
                         "Dysk dostępny pod " + externalDrivePath + ".",
-                        driveCheck.stdout(),
+                        driveDetails,
                         true
                 );
-                persistStatus(DeviceType.EXTERNAL_DRIVE.name(), DeviceCheckStatus.CONNECTED, driveCheck.stdout());
+                persistStatus(DeviceType.EXTERNAL_DRIVE.name(), DeviceCheckStatus.CONNECTED, driveDetails);
                 return Flux.just(checkingEvent, finalEvent);
             }
 
@@ -91,7 +102,7 @@ public class DeviceStatusService {
                     DeviceType.EXTERNAL_DRIVE.name(),
                     DeviceCheckStatus.CHECKING.name(),
                     "Dysk nie wykryty pod " + externalDrivePath + ". Uruchamiam agenta wykrywania...",
-                    driveCheck.stdout(),
+                    driveDetails,
                     false
             );
 
@@ -100,9 +111,15 @@ public class DeviceStatusService {
                     .doOnNext(evt -> {
                         if (evt.terminal()) {
                             if (DeviceCheckStatus.CONNECTED.name().equals(evt.status())) {
-                                ShellExecutor.ShellResult verify = shellExecutor.execute(
-                                        "bash", scriptsDir + "/check-drive.sh", externalDrivePath);
-                                String details = verify.isSuccess() ? verify.stdout() : evt.details();
+                                String details;
+                                try {
+                                    var verify = hostAgent.checkDrive(externalDrivePath);
+                                    details = verify.available()
+                                            ? "{\"available\": true, \"path\": \"" + verify.path() + "\", \"free_bytes\": " + verify.freeBytes() + "}"
+                                            : evt.details();
+                                } catch (HostAgentException ex) {
+                                    details = evt.details();
+                                }
                                 persistStatus(DeviceType.EXTERNAL_DRIVE.name(), DeviceCheckStatus.CONNECTED, details);
                             } else {
                                 persistStatus(DeviceType.EXTERNAL_DRIVE.name(), DeviceCheckStatus.MOUNT_FAILED, evt.details());
@@ -134,14 +151,14 @@ public class DeviceStatusService {
             DeviceCheckEvent checkingEvent = new DeviceCheckEvent(
                     DeviceType.IPHONE.name(),
                     DeviceCheckStatus.CHECKING.name(),
-                    "Uruchamiam skrypt wykrywania iPhone'a...",
+                    "Uruchamiam wykrywanie iPhone'a...",
                     null,
                     false
             );
 
-            ShellExecutor.ShellResult result = shellExecutor.executeScript(scriptsDir, "detect-iphone.sh");
+            var detectResult = hostAgent.detectIphone();
 
-            if (result.isSuccess() && result.stdout().contains("\"connected\": true")) {
+            if (detectResult.connected()) {
                 DeviceCheckEvent trustCheckEvent = new DeviceCheckEvent(
                         DeviceType.IPHONE.name(),
                         DeviceCheckStatus.CHECKING.name(),
@@ -150,7 +167,7 @@ public class DeviceStatusService {
                         false
                 );
 
-                shellExecutor.executeScript(scriptsDir, "iphone-check-trust.sh");
+                hostAgent.iphoneCheckTrust(detectResult.udid());
 
                 DeviceCheckEvent mountingEvent = new DeviceCheckEvent(
                         DeviceType.IPHONE.name(),
@@ -160,24 +177,25 @@ public class DeviceStatusService {
                         false
                 );
 
-                ShellExecutor.ShellResult mountResult = shellExecutor.executeScript(scriptsDir, "iphone-mount.sh");
-                String details = result.stdout();
-                String deviceName = extractJsonField(result.stdout(), "device_name");
+                var mountResult = hostAgent.iphoneMount(iphoneMountPath);
+                String details = "connected=true, device_name=" + detectResult.deviceName() + ", udid=" + detectResult.udid();
 
-                if (!mountResult.isSuccess() || !mountResult.stdout().contains("\"mounted\": true")) {
-                    LOG.warn("iPhone detected but mount failed: {}", mountResult.stdout());
+                if (!mountResult.mounted()) {
+                    LOG.warn("iPhone detected but mount failed: {}", mountResult.error());
+                    String mountDetails = "mount_failed, error=" + mountResult.error();
                     DeviceCheckEvent failedEvent = new DeviceCheckEvent(
                             DeviceType.IPHONE.name(),
                             DeviceCheckStatus.MOUNT_FAILED.name(),
                             "iPhone wykryty, ale montowanie nie powiodło się.",
-                            mountResult.stdout(),
+                            mountDetails,
                             true
                     );
-                    persistStatus(DeviceType.IPHONE.name(), DeviceCheckStatus.MOUNT_FAILED, mountResult.stdout());
+                    persistStatus(DeviceType.IPHONE.name(), DeviceCheckStatus.MOUNT_FAILED, mountDetails);
                     return Flux.just(checkingEvent, trustCheckEvent, mountingEvent, failedEvent);
                 }
 
-                String stepDesc = "iPhone podłączony i zamontowany" + (deviceName != null ? ": " + deviceName : "");
+                String stepDesc = "iPhone podłączony i zamontowany"
+                        + (detectResult.deviceName() != null ? ": " + detectResult.deviceName() : "");
                 DeviceCheckEvent finalEvent = new DeviceCheckEvent(
                         DeviceType.IPHONE.name(),
                         DeviceCheckStatus.CONNECTED.name(),
@@ -193,10 +211,10 @@ public class DeviceStatusService {
                     DeviceType.IPHONE.name(),
                     DeviceCheckStatus.DISCONNECTED.name(),
                     "Nie wykryto iPhone'a.",
-                    result.stdout(),
+                    "connected=false",
                     true
             );
-            persistStatus(DeviceType.IPHONE.name(), DeviceCheckStatus.DISCONNECTED, result.stdout());
+            persistStatus(DeviceType.IPHONE.name(), DeviceCheckStatus.DISCONNECTED, "connected=false");
             return Flux.just(checkingEvent, finalEvent);
         })
         .subscribeOn(Schedulers.boundedElastic())
@@ -350,14 +368,13 @@ public class DeviceStatusService {
     }
 
     public Map<String, Object> unmountIPhone() {
-        ShellExecutor.ShellResult result = shellExecutor.executeScript(scriptsDir, "iphone-unmount.sh");
-        boolean unmounted = result.isSuccess() && result.stdout().contains("\"unmounted\": true");
-        if (unmounted) {
+        var result = hostAgent.iphoneUnmount(iphoneMountPath);
+        if (result.unmounted()) {
             persistStatus(DeviceType.IPHONE.name(), DeviceCheckStatus.DISCONNECTED, "Manually unmounted");
         }
         Map<String, Object> response = new HashMap<>();
-        response.put("unmounted", unmounted);
-        response.put("error", unmounted ? null : (result.stderr().isBlank() ? result.stdout() : result.stderr()));
+        response.put("unmounted", result.unmounted());
+        response.put("error", result.error());
         return response;
     }
 

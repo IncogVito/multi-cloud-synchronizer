@@ -202,6 +202,7 @@ jobs:
             ICLOUD_SERVICE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ICLOUD }}:${{ needs.build.outputs.icloud_service == 'true' && needs.build.outputs.version || 'latest' }}
             FRONTEND_PORT=${{ 3003 }}
 
+            DB_PATH_HOST=${{ secrets.DB_PATH_HOST }}
             EXTERNAL_DRIVE_PATH_HOST=${{ secrets.EXTERNAL_DRIVE_PATH_HOST }}
             IPHONE_MOUNT_PATH_HOST=${{ secrets.IPHONE_MOUNT_PATH_HOST }}
 

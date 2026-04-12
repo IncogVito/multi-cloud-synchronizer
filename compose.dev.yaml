@@ -22,13 +22,13 @@ services:
       - APP_PASSWORD=${APP_PASSWORD:-changeme}
       - ICLOUD_SERVICE_URL=http://icloud-service:8000
       - EXTERNAL_DRIVE_PATH_CONTAINER=${EXTERNAL_DRIVE_PATH_CONTAINER}
-      - SCRIPTS_DIR=${SCRIPTS_DIR}
       - IPHONE_MOUNT_PATH_CONTAINER=${IPHONE_MOUNT_PATH_CONTAINER}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.0-flash-001}
+      # WSL2: /run/ is not shared with the Windows host — override socket path if needed
+      - HOST_AGENT_SOCKET=${HOST_AGENT_SOCKET:-/run/cloudsync-host-agent/agent.sock}
       # Keep Gradle cache in the named volume even when running as root
       - GRADLE_USER_HOME=/home/gradle/.gradle
-      - HOST_SCRIPTS_PATH=${HOST_SCRIPTS_PATH:-/home/wdrozdzowski/projects/multi-cloud-synchronizer/scripts/host}
     volumes:
       - ./backend:/app                       # live source editing
       - /app/build                           # build artifacts stay in container (anonymous vol)
@@ -48,7 +48,7 @@ services:
         bind:
           create_host_path: true
           propagation: rshared
-      - ./scripts/bridge/dev:/scripts:ro
+      - /run/cloudsync-host-agent:/run/cloudsync-host-agent:ro
     networks:
       - cloud-sync-dev
     depends_on:

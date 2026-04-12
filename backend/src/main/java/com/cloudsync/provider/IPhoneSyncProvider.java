@@ -1,8 +1,9 @@
 package com.cloudsync.provider;
 
+import com.cloudsync.client.HostAgentClient;
+import com.cloudsync.exception.HostAgentException;
 import com.cloudsync.model.dto.PhotoAsset;
 import com.cloudsync.model.dto.PrefetchStatus;
-import com.cloudsync.util.ShellExecutor;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -26,22 +27,18 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
     private static final Logger LOG = LoggerFactory.getLogger(IPhoneSyncProvider.class);
 
     private static final String DCIM_SUBDIR = "DCIM";
-    private static final String SCRIPT_MOUNT = "iphone-mount.sh";
     private static final Set<String> PHOTO_EXTENSIONS = Set.of(
             "jpg", "jpeg", "heic", "png", "dng", "tiff", "mov", "mp4", "m4v"
     );
 
-    private final ShellExecutor shellExecutor;
-    private final String scriptsDir;
+    private final HostAgentClient hostAgent;
     private final String iphoneMountPath;
 
     private final ConcurrentHashMap<String, SessionState> sessions = new ConcurrentHashMap<>();
 
-    public IPhoneSyncProvider(ShellExecutor shellExecutor,
-                               @Named("scriptsDir") String scriptsDir,
+    public IPhoneSyncProvider(HostAgentClient hostAgent,
                                @Named("iphoneMountPath") String iphoneMountPath) {
-        this.shellExecutor = shellExecutor;
-        this.scriptsDir = scriptsDir;
+        this.hostAgent = hostAgent;
         this.iphoneMountPath = iphoneMountPath;
     }
 
@@ -109,13 +106,19 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
         try {
             Path dcimPath = Path.of(iphoneMountPath, DCIM_SUBDIR);
             if (!Files.isDirectory(dcimPath)) {
-                ShellExecutor.ShellResult mountResult = shellExecutor.executeScript(scriptsDir, SCRIPT_MOUNT);
-                if (!mountResult.isSuccess() || !mountResult.stdout().contains("\"mounted\": true")) {
-                    LOG.error("iPhone not mounted and re-mount failed [session={}]: {}", sessionId, mountResult.stdout());
-                    sessions.put(sessionId, SessionState.failed("iPhone not mounted: " + mountResult.stdout()));
+                try {
+                    var mountResult = hostAgent.iphoneMount(iphoneMountPath);
+                    if (!mountResult.mounted()) {
+                        LOG.error("iPhone not mounted and re-mount failed [session={}]: {}", sessionId, mountResult.error());
+                        sessions.put(sessionId, SessionState.failed("iPhone not mounted: " + mountResult.error()));
+                        return;
+                    }
+                    LOG.info("Re-mounted iPhone [session={}]", sessionId);
+                } catch (HostAgentException e) {
+                    LOG.error("iPhone re-mount via host agent failed [session={}]: {}", sessionId, e.getMessage());
+                    sessions.put(sessionId, SessionState.failed("iPhone not mounted: " + e.getMessage()));
                     return;
                 }
-                LOG.info("Re-mounted iPhone [session={}]", sessionId);
             }
 
             LOG.info("Scanning DCIM [session={}]…", sessionId);

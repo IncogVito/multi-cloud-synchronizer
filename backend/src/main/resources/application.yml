@@ -78,6 +78,7 @@ app:
   external-drive-path: ${EXTERNAL_DRIVE_PATH_CONTAINER:/mnt/external-drive}
   scripts-dir: ${SCRIPTS_DIR:/scripts}
   iphone-mount-path: ${IPHONE_MOUNT_PATH_CONTAINER:/mnt/iphone}
+  host-agent-socket: ${HOST_AGENT_SOCKET:/run/cloudsync-host-agent/agent.sock}
 
 ---
 micronaut:
