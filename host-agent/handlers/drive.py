@@ -46,7 +46,7 @@ def check_drive(params: dict) -> DriveStatus:
     mount_path = params.get("mount_path", DEFAULT_MOUNT_POINT)
     p = Path(mount_path)
 
-    if not p.is_dir():
+    if not p.is_dir() or not _is_mountpoint(mount_path):
         return DriveStatus(available=False, path=None, free_bytes=None)
 
     free_bytes = _get_free_bytes(mount_path)
@@ -146,12 +146,40 @@ def _parse_lsblk(data: dict) -> list[DiskInfo]:
 # mount_drive
 # ---------------------------------------------------------------------------
 
+def _get_device_at_mountpoint(mount_point: str) -> str | None:
+    """Return the device currently mounted at mount_point, or None."""
+    try:
+        with open("/proc/mounts") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2 and parts[1] == mount_point:
+                    return parts[0]
+    except Exception:
+        pass
+    return None
+
+
 def mount_drive(params: dict) -> MountDriveResult:
     device = params.get("device")
     if not device:
         raise HandlerError("No device specified", "MISSING_PARAM")
 
     mount_point = params.get("mount_point", DEFAULT_MOUNT_POINT)
+
+    # If the device is already mounted at the requested mount point, treat as success.
+    if _is_mountpoint(mount_point):
+        current_device = _get_device_at_mountpoint(mount_point)
+        if current_device == device:
+            return MountDriveResult(
+                mounted=True,
+                device=device,
+                mount_point=mount_point,
+                message=f"{device} already mounted at {mount_point}",
+            )
+        # Something else is mounted there — fail clearly.
+        raise HandlerError(
+            f"{mount_point} is already in use by {current_device}", "ALREADY_MOUNTED"
+        )
 
     # Create mount point
     try:

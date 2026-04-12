@@ -95,13 +95,27 @@ public class DiskSetupService {
         }
     }
 
+    private boolean isDeviceMountedAt(String device, String mountPath) {
+        ShellExecutor.ShellResult r = shell.execute("bash", "-c",
+                "findmnt -n -o SOURCE " + mountPath + " 2>/dev/null");
+        if (!r.isSuccess() || r.stdout().isBlank()) return false;
+        String current = r.stdout().trim();
+        int bracket = current.indexOf('[');
+        if (bracket >= 0) current = current.substring(0, bracket).trim();
+        return current.equals(device);
+    }
+
     public DriveStatus mountAndRegister(String device) {
-        try {
-            hostAgent.mountDrive(device, hostMountPath);
-        } catch (HostAgentException e) {
-            LOG.warn("Mount failed for {} via host agent: {}", device, e.getMessage());
-            throw new IllegalStateException(
-                    "device=" + device + ", host_mount_path=" + hostMountPath + ", reason: " + e.getMessage());
+        if (isDeviceMountedAt(device, containerMountPath)) {
+            LOG.info("Device {} already mounted at {}, skipping mount step", device, containerMountPath);
+        } else {
+            try {
+                hostAgent.mountDrive(device, hostMountPath);
+            } catch (HostAgentException e) {
+                LOG.warn("Mount failed for {} via host agent: {}", device, e.getMessage());
+                throw new IllegalStateException(
+                        "device=" + device + ", host_mount_path=" + hostMountPath + ", reason: " + e.getMessage());
+            }
         }
 
         String uuid;
