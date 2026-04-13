@@ -21,6 +21,7 @@ services:
       - APP_USERNAME=${APP_USERNAME:-admin}
       - APP_PASSWORD=${APP_PASSWORD:-changeme}
       - ICLOUD_SERVICE_URL=http://icloud-service:8000
+      - EXTERNAL_DRIVE_PATH_HOST=${EXTERNAL_DRIVE_PATH_HOST}
       - EXTERNAL_DRIVE_PATH_CONTAINER=${EXTERNAL_DRIVE_PATH_CONTAINER}
       - IPHONE_MOUNT_PATH_CONTAINER=${IPHONE_MOUNT_PATH_CONTAINER}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
@@ -36,6 +37,11 @@ services:
       # Bind-mount host /mnt/external-drive with rshared propagation so that
       # when the user mounts a physical drive on the host via /api/setup/mount
       # the new filesystem is visible inside the backend container too.
+      - type: bind
+        source: ${DB_PATH_HOST}
+        target: /data
+        bind:
+          create_host_path: true
       - type: bind
         source: ${EXTERNAL_DRIVE_PATH_HOST}
         target: ${EXTERNAL_DRIVE_PATH_CONTAINER}

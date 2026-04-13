@@ -1,2 +1,5 @@
 .env
 scripts/bridge/ssh/
+cloud-sync.db
+cloud-sync.db-shm
+cloud-sync.db-wal

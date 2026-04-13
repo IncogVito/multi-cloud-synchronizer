@@ -4,15 +4,19 @@ import com.cloudsync.agent.AgentTool;
 import com.cloudsync.client.HostAgentClient;
 import com.cloudsync.client.hostmodel.DriveStatus;
 import com.cloudsync.exception.HostAgentException;
+import io.micronaut.context.annotation.Value;
 import jakarta.inject.Singleton;
 
 @Singleton
 public class CheckDiskSpaceTool implements AgentTool {
 
     private final HostAgentClient hostAgent;
+    private final String externalDrivePath;
 
-    public CheckDiskSpaceTool(HostAgentClient hostAgent) {
+    public CheckDiskSpaceTool(HostAgentClient hostAgent,
+                              @Value("${app.external-drive-path}") String externalDrivePath) {
         this.hostAgent = hostAgent;
+        this.externalDrivePath = externalDrivePath;
     }
 
     @Override
@@ -20,13 +24,13 @@ public class CheckDiskSpaceTool implements AgentTool {
 
     @Override
     public String getDescription() {
-        return "Checks free disk space at a given path. Argument: path (e.g. /mnt/external-drive).";
+        return "Checks free disk space at a given path. Argument: path (defaults to configured external drive path).";
     }
 
     @Override
     public String execute(String path) {
         if (path == null || path.isBlank()) {
-            path = "/mnt/external-drive";
+            path = externalDrivePath;
         }
         try {
             DriveStatus status = hostAgent.checkDrive(path);

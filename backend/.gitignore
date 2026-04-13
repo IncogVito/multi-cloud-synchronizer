@@ -3,3 +3,4 @@ dev-drive
 .gradle
 .env
 cloud-sync.db
+data

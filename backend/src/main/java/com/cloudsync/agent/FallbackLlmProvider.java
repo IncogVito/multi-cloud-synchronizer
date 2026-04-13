@@ -1,5 +1,6 @@
 package com.cloudsync.agent;
 
+import io.micronaut.context.annotation.Value;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,16 +11,22 @@ import java.util.List;
  * Fallback LLM provider: simple heuristic-based agent used when OpenRouter API key is not set.
  *
  * Strategy:
- * 1. check_mount_point /mnt/external-drive → if already mounted, done
+ * 1. check_mount_point → if already mounted, done
  * 2. list_block_devices → find candidate /dev/sd* or /dev/nvme*
- * 3. mount_device found_device:/mnt/external-drive
- * 4. check_disk_space /mnt/external-drive
+ * 3. mount_device found_device:<mountPath>
+ * 4. check_disk_space <mountPath>
  * 5. Final answer
  */
 @Singleton
 public class FallbackLlmProvider implements LlmProvider {
 
     private static final Logger LOG = LoggerFactory.getLogger(FallbackLlmProvider.class);
+
+    private final String externalDrivePath;
+
+    public FallbackLlmProvider(@Value("${app.external-drive-path}") String externalDrivePath) {
+        this.externalDrivePath = externalDrivePath;
+    }
 
     @Override
     public AgentAction nextAction(String systemPrompt, List<String> history, List<AgentTool> tools) {
@@ -28,11 +35,11 @@ public class FallbackLlmProvider implements LlmProvider {
         int step = history.size() / 2;  // each step adds 2 entries (tool call + result)
 
         return switch (step) {
-            case 0 -> AgentAction.callTool("check_mount_point", "/mnt/external-drive");
+            case 0 -> AgentAction.callTool("check_mount_point", externalDrivePath);
             case 1 -> {
                 String lastResult = getLastResult(history);
                 if (lastResult.contains("\"mounted\": true")) {
-                    yield AgentAction.callTool("check_disk_space", "/mnt/external-drive");
+                    yield AgentAction.callTool("check_disk_space", externalDrivePath);
                 }
                 yield AgentAction.callTool("list_block_devices", "");
             }
@@ -40,19 +47,19 @@ public class FallbackLlmProvider implements LlmProvider {
                 String lastResult = getLastResult(history);
                 if (lastResult.contains("\"mounted\": true")) {
                     // Was already mounted at step 1
-                    yield AgentAction.finalAnswer("Drive already mounted at /mnt/external-drive.");
+                    yield AgentAction.finalAnswer("Drive already mounted at " + externalDrivePath + ".");
                 }
                 // Try to find a candidate device from lsblk output
                 String candidate = findCandidateDevice(lastResult);
                 if (candidate != null) {
-                    yield AgentAction.callTool("mount_device", candidate + ":/mnt/external-drive");
+                    yield AgentAction.callTool("mount_device", candidate + ":" + externalDrivePath);
                 }
                 yield AgentAction.finalAnswer("No suitable external drive device found.");
             }
             case 3 -> {
                 String lastResult = getLastResult(history);
                 if (lastResult.contains("\"mounted\": true")) {
-                    yield AgentAction.callTool("check_disk_space", "/mnt/external-drive");
+                    yield AgentAction.callTool("check_disk_space", externalDrivePath);
                 }
                 yield AgentAction.finalAnswer("Failed to mount drive: " + lastResult);
             }

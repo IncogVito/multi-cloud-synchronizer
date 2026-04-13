@@ -27,7 +27,7 @@ LOG = logging.getLogger(__name__)
 CONTAINER_UID = int(os.environ.get("CONTAINER_UID", "1000"))
 CONTAINER_GID = int(os.environ.get("CONTAINER_GID", "1000"))
 
-DEFAULT_MOUNT_POINT = os.environ.get("EXTERNAL_DRIVE_PATH", "/mnt/external-drive")
+DEFAULT_MOUNT_POINT = os.environ.get("EXTERNAL_DRIVE_PATH")
 
 
 class HandlerError(Exception):
@@ -43,7 +43,9 @@ class HandlerError(Exception):
 # ---------------------------------------------------------------------------
 
 def check_drive(params: dict) -> DriveStatus:
-    mount_path = params.get("mount_path", DEFAULT_MOUNT_POINT)
+    mount_path = params.get("mount_path") or DEFAULT_MOUNT_POINT
+    if not mount_path:
+        raise HandlerError("No mount_path specified and EXTERNAL_DRIVE_PATH not set", "MISSING_PARAM")
     p = Path(mount_path)
 
     if not p.is_dir() or not _is_mountpoint(mount_path):
@@ -166,7 +168,9 @@ def mount_drive(params: dict) -> MountDriveResult:
     if not device:
         raise HandlerError("No device specified", "MISSING_PARAM")
 
-    mount_point = params.get("mount_point", DEFAULT_MOUNT_POINT)
+    mount_point = params.get("mount_point") or DEFAULT_MOUNT_POINT
+    if not mount_point:
+        raise HandlerError("No mount_point specified and EXTERNAL_DRIVE_PATH not set", "MISSING_PARAM")
 
     # If the device is already mounted at the requested mount point, treat as success.
     if _is_mountpoint(mount_point):
@@ -247,7 +251,9 @@ def _run_mount(device: str, mount_point: str, opts: str | None) -> None:
 # ---------------------------------------------------------------------------
 
 def unmount_drive(params: dict) -> UnmountDriveResult:
-    mount_point = params.get("mount_point", DEFAULT_MOUNT_POINT)
+    mount_point = params.get("mount_point") or DEFAULT_MOUNT_POINT
+    if not mount_point:
+        raise HandlerError("No mount_point specified and EXTERNAL_DRIVE_PATH not set", "MISSING_PARAM")
 
     if not _is_mountpoint(mount_point):
         raise HandlerError(f"Not mounted at {mount_point}", "NOT_MOUNTED")

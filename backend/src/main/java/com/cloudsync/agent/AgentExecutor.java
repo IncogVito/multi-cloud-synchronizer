@@ -1,6 +1,7 @@
 package com.cloudsync.agent;
 
 import com.cloudsync.model.dto.AgentStepEvent;
+import io.micronaut.context.annotation.Value;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,20 +23,22 @@ public class AgentExecutor {
     private static final Logger LOG = LoggerFactory.getLogger(AgentExecutor.class);
     private static final int MAX_STEPS = 10;
 
-    private static final String SYSTEM_PROMPT = """
-            You are a disk detection agent running inside a Docker container on a Linux host.
-            Your goal is to detect and verify an external drive is mounted at /mnt/external-drive.
-            Use the available tools step by step. Stop when you confirm the drive is mounted and accessible,
-            or when you determine no suitable drive is available.
-            Be concise. Prefer /dev/sd* or /dev/nvme* devices. Do not mount any device that hosts the root filesystem, /boot, or swap.
-            """;
-
     private final LlmProvider llmProvider;
     private final List<AgentTool> tools;
+    private final String systemPrompt;
 
-    public AgentExecutor(LlmProvider llmProvider, List<AgentTool> tools) {
+    public AgentExecutor(LlmProvider llmProvider,
+                         List<AgentTool> tools,
+                         @Value("${app.external-drive-path}") String externalDrivePath) {
         this.llmProvider = llmProvider;
         this.tools = tools;
+        this.systemPrompt = """
+                You are a disk detection agent running inside a Docker container on a Linux host.
+                Your goal is to detect and verify an external drive is mounted at %s.
+                Use the available tools step by step. Stop when you confirm the drive is mounted and accessible,
+                or when you determine no suitable drive is available.
+                Be concise. Prefer /dev/sd* or /dev/nvme* devices. Do not mount any device that hosts the root filesystem, /boot, or swap.
+                """.formatted(externalDrivePath);
     }
 
     /**
@@ -52,7 +55,7 @@ public class AgentExecutor {
             try {
                 while (step < MAX_STEPS) {
                     step++;
-                    LlmProvider.AgentAction action = llmProvider.nextAction(SYSTEM_PROMPT, history, tools);
+                    LlmProvider.AgentAction action = llmProvider.nextAction(systemPrompt, history, tools);
 
                     if (action.isFinalAnswer()) {
                         sink.next(new AgentStepEvent("final", null, null, true, action.finalMessage()));
