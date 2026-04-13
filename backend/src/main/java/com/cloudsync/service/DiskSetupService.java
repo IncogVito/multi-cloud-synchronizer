@@ -129,6 +129,7 @@ public class DiskSetupService {
             LOG.info("Device {} already mounted at {}, skipping mount step", device, containerMountPath);
         } else {
             try {
+                LOG.debug("Mounting {} device with agent", device);
                 hostAgent.mountDrive(device, hostMountPath);
             } catch (HostAgentException e) {
                 String msg = e.getMessage() != null ? e.getMessage() : "";

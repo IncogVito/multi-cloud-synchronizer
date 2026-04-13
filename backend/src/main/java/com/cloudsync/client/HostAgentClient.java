@@ -118,7 +118,9 @@ public class HostAgentClient {
     // -----------------------------------------------------------------------
 
     private <T> T call(String action, Map<String, Object> params, Class<T> responseType) {
+        LOG.debug("[{}] Calling agent. params={}", action, params);
         String dataJson = callRaw(action, params);
+        LOG.debug("[{}] Agent response: {}",action, dataJson);
         try {
             return json.readValue(dataJson, responseType);
         } catch (IOException e) {

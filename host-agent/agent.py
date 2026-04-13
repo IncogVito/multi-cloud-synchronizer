@@ -38,8 +38,10 @@ REQUEST_TIMEOUT = float(os.environ.get("REQUEST_TIMEOUT", "60"))
 # Logging
 # ---------------------------------------------------------------------------
 
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=LOG_LEVEL,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     stream=sys.stdout,
 )
