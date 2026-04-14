@@ -25,3 +25,7 @@
     (accountAdded)="onAccountAdded()"
   ></app-add-account-modal>
 </div>
+
+@if (showScanningModal()) {
+  <app-disk-scanning-modal (closed)="onScanningModalClosed()"></app-disk-scanning-modal>
+}

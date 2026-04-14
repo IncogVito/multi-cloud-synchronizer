@@ -221,6 +221,56 @@ paths:
             application/json:
               schema:
                 type: object
+  /api/disk-index/events:
+    get:
+      operationId: events
+      responses:
+        "200":
+          description: events 200 response
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_DiskIndexProgressEvent_"
+  /api/disk-index/reorganize:
+    post:
+      operationId: reorganize_1
+      responses:
+        "200":
+          description: reorganize_1 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/disk-index/reorganize-preview:
+    get:
+      operationId: reorganizePreview
+      responses:
+        "200":
+          description: reorganizePreview 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/disk-index/start:
+    post:
+      operationId: startIndexing
+      responses:
+        "200":
+          description: startIndexing 200 response
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/disk-index/status:
+    get:
+      operationId: status
+      responses:
+        "200":
+          description: status 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiskIndexProgressEvent"
   /api/folders:
     get:
       tags:
@@ -808,7 +858,7 @@ paths:
                 $ref: "#/components/schemas/Event_SyncProgressEvent_"
   /api/sync/{accountId}/reorganize:
     post:
-      operationId: reorganize_1
+      operationId: reorganize_2
       parameters:
       - name: accountId
         in: path
@@ -817,7 +867,7 @@ paths:
           type: string
       responses:
         "200":
-          description: reorganize_1 200 response
+          description: reorganize_2 200 response
           content:
             application/json:
               schema:
@@ -825,7 +875,7 @@ paths:
                 additionalProperties: true
   /api/sync/{accountId}/reorganize-preview:
     get:
-      operationId: reorganizePreview
+      operationId: reorganizePreview_1
       parameters:
       - name: accountId
         in: path
@@ -834,7 +884,7 @@ paths:
           type: string
       responses:
         "200":
-          description: reorganizePreview 200 response
+          description: reorganizePreview_1 200 response
           content:
             application/json:
               schema:
@@ -971,6 +1021,22 @@ components:
           type: string
         mounted:
           type: boolean
+    DiskIndexProgressEvent:
+      type: object
+      properties:
+        phase:
+          type: string
+        scanned:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        percentComplete:
+          type: number
+          format: double
+        error:
+          type: string
     DiskSetupService.DiskInfo:
       required:
       - label
@@ -1003,6 +1069,7 @@ components:
       required:
       - deviceId
       - drivePath
+      - drivePathHost
       - freeBytes
       - label
       - mounted
@@ -1014,7 +1081,6 @@ components:
           type: string
         drivePathHost:
           type: string
-          nullable: true
         freeBytes:
           type: integer
           format: int64
@@ -1040,6 +1106,19 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/DeviceCheckEvent"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
+    Event_DiskIndexProgressEvent_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/DiskIndexProgressEvent"
         id:
           type: string
         name:

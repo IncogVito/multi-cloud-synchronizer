@@ -1,0 +1,324 @@
+package com.cloudsync.service;
+
+import com.cloudsync.model.dto.AppContext;
+import com.cloudsync.model.dto.DiskIndexProgressEvent;
+import com.cloudsync.model.entity.Photo;
+import com.cloudsync.model.enums.MediaType;
+import com.cloudsync.repository.PhotoRepository;
+import jakarta.inject.Named;
+import jakarta.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
+
+@Singleton
+public class DiskIndexingService {
+
+    private static final Logger LOG = LoggerFactory.getLogger(DiskIndexingService.class);
+
+    private static final Set<String> MEDIA_EXTENSIONS = Set.of(
+            "jpg", "jpeg", "heic", "heif", "png", "gif", "bmp", "tiff", "tif", "webp",
+            "mp4", "m4v", "mov", "avi", "mkv", "3gp"
+    );
+    private static final Set<String> VIDEO_EXTENSIONS = Set.of("mp4", "m4v", "mov", "avi", "mkv", "3gp");
+
+    private static final int BATCH_SIZE = 100;
+
+    private final PhotoRepository photoRepository;
+    private final AppContextService appContextService;
+    private final DiskIndexStateHolder stateHolder;
+    private final ExecutorService syncVirtualThreadExecutor;
+
+    private final AtomicBoolean running = new AtomicBoolean(false);
+
+    public DiskIndexingService(PhotoRepository photoRepository,
+                               AppContextService appContextService,
+                               DiskIndexStateHolder stateHolder,
+                               @Named("syncVirtualThreadExecutor") ExecutorService syncVirtualThreadExecutor) {
+        this.photoRepository = photoRepository;
+        this.appContextService = appContextService;
+        this.stateHolder = stateHolder;
+        this.syncVirtualThreadExecutor = syncVirtualThreadExecutor;
+    }
+
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    /**
+     * Start async disk indexing using the active app context.
+     * Scans the base path for media files and saves them to the DB.
+     */
+    public void startIndexing() {
+        AppContext ctx = appContextService.requireActive();
+        if (running.compareAndSet(false, true)) {
+            emitEvent("SCANNING", 0, 0, 0.0, null);
+            CompletableFuture.runAsync(
+                    () -> doIndex(ctx.basePath(), ctx.storageDeviceId()),
+                    syncVirtualThreadExecutor
+            );
+        }
+    }
+
+    private void doIndex(String folderPath, String storageDeviceId) {
+        try {
+            Path root = Path.of(folderPath);
+            if (!Files.isDirectory(root)) {
+                emitEvent("ERROR", 0, 0, 0.0, "Folder nie istnieje: " + folderPath);
+                running.set(false);
+                return;
+            }
+
+            // First pass: collect all media files
+            List<Path> mediaFiles = collectMediaFiles(root);
+            int total = mediaFiles.size();
+            LOG.info("DiskIndexing: found {} media files in {}", total, folderPath);
+
+            // Build set of already-indexed paths to skip duplicates
+            Set<String> indexedPaths = buildIndexedPathSet(storageDeviceId);
+
+            int scanned = 0;
+            List<Photo> batch = new ArrayList<>();
+
+            for (Path file : mediaFiles) {
+                String absPath = file.toAbsolutePath().toString();
+                if (indexedPaths.contains(absPath)) {
+                    scanned++;
+                    continue;
+                }
+
+                Photo photo = buildPhotoFromFile(file, storageDeviceId);
+                if (photo != null) {
+                    batch.add(photo);
+                    indexedPaths.add(absPath);
+                }
+                scanned++;
+
+                if (batch.size() >= BATCH_SIZE) {
+                    photoRepository.saveAll(batch);
+                    batch.clear();
+                }
+
+                if (scanned % 50 == 0 || scanned == total) {
+                    double pct = total > 0 ? (double) scanned / total * 100 : 100.0;
+                    emitEvent("SCANNING", scanned, total, pct, null);
+                }
+            }
+
+            if (!batch.isEmpty()) {
+                photoRepository.saveAll(batch);
+            }
+
+            LOG.info("DiskIndexing complete: {} files processed, {} new", total, scanned);
+            emitEvent("DONE", scanned, total, 100.0, null);
+        } catch (Exception e) {
+            LOG.error("DiskIndexing failed: {}", e.getMessage(), e);
+            emitEvent("ERROR", 0, 0, 0.0, e.getMessage());
+        } finally {
+            running.set(false);
+        }
+    }
+
+    private List<Path> collectMediaFiles(Path root) throws IOException {
+        List<Path> files = new ArrayList<>();
+        try (Stream<Path> walk = Files.walk(root)) {
+            walk.filter(Files::isRegularFile)
+                .filter(p -> isMediaFile(p.getFileName().toString()))
+                .forEach(files::add);
+        }
+        return files;
+    }
+
+    private Set<String> buildIndexedPathSet(String storageDeviceId) {
+        Set<String> paths = new HashSet<>();
+        try {
+            photoRepository.findByStorageDeviceIdAndSyncedToDisk(storageDeviceId, true)
+                    .forEach(p -> {
+                        if (p.getFilePath() != null) paths.add(p.getFilePath());
+                    });
+        } catch (Exception e) {
+            LOG.warn("Could not load existing indexed paths: {}", e.getMessage());
+        }
+        return paths;
+    }
+
+    private Photo buildPhotoFromFile(Path file, String storageDeviceId) {
+        try {
+            BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
+            String filename = file.getFileName().toString();
+            String absPath = file.toAbsolutePath().toString();
+            long size = attrs.size();
+
+            Instant createdDate = attrs.creationTime().toInstant();
+            // Fallback: use lastModified if creationTime equals epoch (some filesystems)
+            if (createdDate.toEpochMilli() == 0L) {
+                createdDate = attrs.lastModifiedTime().toInstant();
+            }
+
+            Photo photo = new Photo();
+            photo.setId(UUID.randomUUID().toString());
+            photo.setFilename(filename);
+            photo.setFilePath(absPath);
+            photo.setFileSize(size);
+            photo.setCreatedDate(createdDate);
+            photo.setImportedDate(Instant.now());
+            photo.setSyncedToDisk(true);
+            photo.setSourceProvider("LOCAL");
+            photo.setStorageDeviceId(storageDeviceId);
+            photo.setMediaType(detectMediaType(filename));
+            photo.setSyncStatus("SYNCED");
+            photo.setExistsOnIcloud(false);
+            return photo;
+        } catch (IOException e) {
+            LOG.warn("Could not read attributes for {}: {}", file, e.getMessage());
+            return null;
+        }
+    }
+
+    // ── Reorganize ────────────────────────────────────────────────────────────
+
+    /**
+     * Preview photos on the active device that are outside a year/month folder structure.
+     */
+    public Map<String, Object> reorganizePreview() {
+        AppContext ctx = appContextService.requireActive();
+        Path basePath = Path.of(ctx.basePath());
+        List<Photo> candidates = findUnorganized(ctx.storageDeviceId(), basePath);
+
+        List<String> samples = candidates.stream()
+                .map(p -> Path.of(p.getFilePath()).getFileName().toString())
+                .limit(5)
+                .toList();
+
+        List<String> estimatedFolders = candidates.stream()
+                .filter(p -> p.getCreatedDate() != null)
+                .map(p -> {
+                    Path dest = resolveDestDir(ctx.basePath(), p.getCreatedDate());
+                    return basePath.relativize(dest).toString();
+                })
+                .distinct()
+                .sorted()
+                .toList();
+
+        return Map.of(
+                "unorganizedCount", candidates.size(),
+                "samples", samples,
+                "estimatedFolders", estimatedFolders
+        );
+    }
+
+    /**
+     * Move unorganized photos on the active device into year/month subdirectories.
+     */
+    public Map<String, Object> reorganize() {
+        AppContext ctx = appContextService.requireActive();
+        Path basePath = Path.of(ctx.basePath());
+        List<Photo> candidates = findUnorganized(ctx.storageDeviceId(), basePath);
+
+        int moved = 0;
+        int errors = 0;
+        for (int i = 0; i < candidates.size(); i += BATCH_SIZE) {
+            List<Photo> batch = candidates.subList(i, Math.min(i + BATCH_SIZE, candidates.size()));
+            for (Photo photo : batch) {
+                try {
+                    Path currentPath = Path.of(photo.getFilePath());
+                    Path destDir = resolveDestDir(ctx.basePath(), photo.getCreatedDate());
+                    Path destPath = resolveWithoutCollision(destDir, currentPath.getFileName());
+                    Files.createDirectories(destDir);
+                    Files.move(currentPath, destPath);
+                    photo.setFilePath(destPath.toString());
+                    photoRepository.update(photo);
+                    moved++;
+                } catch (IOException e) {
+                    LOG.error("Failed to move photo {}: {}", photo.getId(), e.getMessage());
+                    errors++;
+                }
+            }
+        }
+
+        return Map.of("moved", moved, "errors", errors);
+    }
+
+    private List<Photo> findUnorganized(String storageDeviceId, Path basePath) {
+        return photoRepository.findByStorageDeviceIdAndSyncedToDisk(storageDeviceId, true)
+                .stream()
+                .filter(p -> p.getFilePath() != null)
+                .filter(p -> {
+                    Path filePath = Path.of(p.getFilePath());
+                    if (!Files.exists(filePath)) return false;
+                    Path parent = filePath.getParent();
+                    if (parent == null) return true;
+                    try {
+                        Path rel = basePath.relativize(parent);
+                        String relStr = rel.toString().replace('\\', '/');
+                        return !relStr.matches("\\d{4}/\\d{2}");
+                    } catch (IllegalArgumentException e) {
+                        return true;
+                    }
+                })
+                .toList();
+    }
+
+    private Path resolveDestDir(String basePath, Instant createdDate) {
+        if (createdDate == null) {
+            return Path.of(basePath, "unknown");
+        }
+        LocalDate date = createdDate.atZone(ZoneId.systemDefault()).toLocalDate();
+        return Path.of(basePath,
+                String.valueOf(date.getYear()),
+                String.format("%02d", date.getMonthValue()));
+    }
+
+    private Path resolveWithoutCollision(Path targetDir, Path filename) {
+        Path target = targetDir.resolve(filename);
+        if (!Files.exists(target)) return target;
+
+        String name = filename.toString();
+        int dotIdx = name.lastIndexOf('.');
+        String base = dotIdx >= 0 ? name.substring(0, dotIdx) : name;
+        String ext = dotIdx >= 0 ? name.substring(dotIdx) : "";
+
+        int i = 1;
+        while (true) {
+            Path candidate = targetDir.resolve(base + "_" + i + ext);
+            if (!Files.exists(candidate)) return candidate;
+            i++;
+        }
+    }
+
+    // ── helpers ───────────────────────────────────────────────────────────────
+
+    private boolean isMediaFile(String filename) {
+        int dot = filename.lastIndexOf('.');
+        if (dot < 0) return false;
+        String ext = filename.substring(dot + 1).toLowerCase(Locale.ROOT);
+        return MEDIA_EXTENSIONS.contains(ext);
+    }
+
+    private String detectMediaType(String filename) {
+        int dot = filename.lastIndexOf('.');
+        if (dot < 0) return MediaType.PHOTO.name();
+        String ext = filename.substring(dot + 1).toLowerCase(Locale.ROOT);
+        return VIDEO_EXTENSIONS.contains(ext) ? MediaType.VIDEO.name() : MediaType.PHOTO.name();
+    }
+
+    private void emitEvent(String phase, int scanned, int total, double pct, String error) {
+        DiskIndexProgressEvent event = new DiskIndexProgressEvent(phase);
+        event.setScanned(scanned);
+        event.setTotal(total);
+        event.setPercentComplete(pct);
+        event.setError(error);
+        stateHolder.updateAndEmit(event);
+    }
+}

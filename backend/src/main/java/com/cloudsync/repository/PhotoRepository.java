@@ -73,4 +73,8 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
 
     @Query("SELECT * FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (thumbnail_path IS NULL OR thumbnail_path = '')")
     List<Photo> findSyncedWithoutThumbnailByDevice(String storageDeviceId);
+
+    List<Photo> findByStorageDeviceIdAndSyncedToDisk(String storageDeviceId, boolean syncedToDisk);
+
+    Optional<Photo> findByFilePath(String filePath);
 }

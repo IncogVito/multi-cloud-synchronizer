@@ -2,6 +2,8 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AccountService } from '../../core/services/account.service';
+import { AppContextService } from '../../core/services/app-context.service';
+import { DiskIndexingService } from '../../core/services/disk-indexing.service';
 import { WizardState } from '../../core/models/sync-config.model';
 import { DiskConfirmStepComponent } from './steps/disk-confirm-step.component';
 import { FolderPickerStepComponent } from './steps/folder-picker-step.component';
@@ -197,6 +199,8 @@ type WizardStep = 1 | 2 | 3 | 4;
 })
 export class SetupWizardComponent implements OnInit {
   private accountService = inject(AccountService);
+  private appContextService = inject(AppContextService);
+  private diskIndexingService = inject(DiskIndexingService);
   private router = inject(Router);
 
   currentStep = signal<WizardStep>(1);
@@ -264,6 +268,21 @@ export class SetupWizardComponent implements OnInit {
   }
 
   onWizardDone(): void {
-    this.router.navigate(['/dashboard']);
+    const s = this.state();
+    if (s.deviceId && s.selectedFolder) {
+      this.appContextService.set(s.deviceId, s.selectedFolder, true).subscribe({
+        next: () => this.startIndexingAndNavigate(),
+        error: () => this.startIndexingAndNavigate(),
+      });
+    } else {
+      this.router.navigate(['/dashboard']);
+    }
+  }
+
+  private startIndexingAndNavigate(): void {
+    this.diskIndexingService.start().subscribe({
+      next: () => this.router.navigate(['/dashboard'], { queryParams: { scanning: 'true' } }),
+      error: () => this.router.navigate(['/dashboard']),
+    });
   }
 }
