@@ -150,7 +150,7 @@ jobs:
 
             DB_PATH_HOST=${{ secrets.DB_PATH_HOST }}
             EXTERNAL_DRIVE_PATH_HOST=${{ secrets.EXTERNAL_DRIVE_PATH_HOST }}
-            IPHONE_MOUNT_PATH_HOST=${{ secrets.IPHONE_MOUNT_PATH_HOST }}
+            IPHONE_HOST_MOUNT_PATH=${{ secrets.IPHONE_MOUNT_PATH_HOST }}
 
             APP_USERNAME=${{ secrets.APP_USERNAME }}
             APP_PASSWORD=${{ secrets.APP_PASSWORD }}

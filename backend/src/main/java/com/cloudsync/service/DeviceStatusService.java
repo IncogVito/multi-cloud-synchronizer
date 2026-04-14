@@ -40,8 +40,11 @@ public class DeviceStatusService {
     @Value("${app.external-drive-path}")
     private String externalDrivePath;
 
-    @Value("${app.iphone-mount-path:/mnt/iphone}")
-    private String iphoneMountPath;
+    @Value("${app.iphone-host-mount-path}")
+    private String iphoneHostMountPath;
+
+    @Value("${app.iphone-container-path}")
+    private String iphoneContainerPath;
 
     public DeviceStatusService(DeviceStatusRepository deviceStatusRepository,
                                HostAgentClient hostAgent,
@@ -173,7 +176,7 @@ public class DeviceStatusService {
                         false
                 );
 
-                var mountResult = hostAgent.iphoneMount(iphoneMountPath);
+                var mountResult = hostAgent.iphoneMount(iphoneHostMountPath);
                 String details = "connected=true, device_name=" + detectResult.deviceName() + ", udid=" + detectResult.udid();
 
                 if (!mountResult.mounted()) {
@@ -364,7 +367,7 @@ public class DeviceStatusService {
     }
 
     public Map<String, Object> unmountIPhone() {
-        var result = hostAgent.iphoneUnmount(iphoneMountPath);
+        var result = hostAgent.iphoneUnmount(iphoneHostMountPath);
         if (result.unmounted()) {
             persistStatus(DeviceType.IPHONE.name(), DeviceCheckStatus.DISCONNECTED, "Manually unmounted");
         }
@@ -377,7 +380,7 @@ public class DeviceStatusService {
     private DeviceStatusResponse toResponse(DeviceStatus status) {
         Boolean mounted = null;
         if ("IPHONE".equals(status.getDeviceType()) && status.isConnected()) {
-            mounted = Files.isDirectory(Path.of(iphoneMountPath, "DCIM"));
+            mounted = Files.isDirectory(Path.of(iphoneContainerPath, "DCIM"));
         }
         return new DeviceStatusResponse(
                 status.getId(),

@@ -32,14 +32,19 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
     );
 
     private final HostAgentClient hostAgent;
-    private final String iphoneMountPath;
+    private final String iphoneHostMountPath;
+    private final String iphoneContainerPath;
 
     private final ConcurrentHashMap<String, SessionState> sessions = new ConcurrentHashMap<>();
 
     public IPhoneSyncProvider(HostAgentClient hostAgent,
-                               @Named("iphoneMountPath") String iphoneMountPath) {
+                               @Named("iphoneHostMountPath") String iphoneHostMountPath,
+                               @Named("iphoneContainerPath") String iphoneContainerPath
+
+    ) {
         this.hostAgent = hostAgent;
-        this.iphoneMountPath = iphoneMountPath;
+        this.iphoneHostMountPath = iphoneHostMountPath;
+        this.iphoneContainerPath = iphoneContainerPath;
     }
 
     @Override
@@ -104,10 +109,10 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
      */
     private void doScan(String sessionId) {
         try {
-            Path dcimPath = Path.of(iphoneMountPath, DCIM_SUBDIR);
+            Path dcimPath = Path.of(iphoneContainerPath, DCIM_SUBDIR);
             if (!Files.isDirectory(dcimPath)) {
                 try {
-                    var mountResult = hostAgent.iphoneMount(iphoneMountPath);
+                    var mountResult = hostAgent.iphoneMount(iphoneHostMountPath);
                     if (!mountResult.mounted()) {
                         LOG.error("iPhone not mounted and re-mount failed [session={}]: {}", sessionId, mountResult.error());
                         sessions.put(sessionId, SessionState.failed("iPhone not mounted: " + mountResult.error()));
@@ -134,14 +139,14 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
     private static final int SCAN_PROGRESS_INTERVAL = 50;
 
     private List<PhotoAsset> scanDcim(String sessionId) throws IOException {
-        Path dcimPath = Path.of(iphoneMountPath, DCIM_SUBDIR);
+        Path dcimPath = Path.of(iphoneContainerPath, DCIM_SUBDIR);
         if (!Files.isDirectory(dcimPath)) {
             LOG.warn("DCIM directory not found at {}", dcimPath);
             return List.of();
         }
 
         List<PhotoAsset> photos = new ArrayList<>();
-        Path mountRoot = Path.of(iphoneMountPath);
+        Path mountRoot = Path.of(iphoneContainerPath);
         AtomicInteger counter = new AtomicInteger(0);
 
         try (Stream<Path> stream = Files.walk(dcimPath)) {
@@ -177,7 +182,7 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
      * that the result is still under the mount root (prevents path traversal).
      */
     private Path resolveAndValidatePath(String photoId) {
-        Path mountRoot = Path.of(iphoneMountPath);
+        Path mountRoot = Path.of(iphoneContainerPath);
         Path resolved = mountRoot.resolve(photoId).normalize();
         if (!resolved.startsWith(mountRoot)) {
             throw new IllegalArgumentException("Photo path escapes mount root: " + photoId);

@@ -77,7 +77,8 @@ app:
   external-drive-path-host: ${EXTERNAL_DRIVE_PATH_HOST}
   external-drive-path: ${EXTERNAL_DRIVE_PATH_CONTAINER}
   scripts-dir: ${SCRIPTS_DIR:/scripts}
-  iphone-mount-path: ${IPHONE_MOUNT_PATH_CONTAINER:/mnt/iphone}
+  iphone-host-mount-path: ${IPHONE_HOST_MOUNT_PATH}
+  iphone-container-path: ${IPHONE_CONTAINER_PATH}
   host-agent-socket: ${HOST_AGENT_SOCKET:/run/cloudsync-host-agent/agent.sock}
 
 ---

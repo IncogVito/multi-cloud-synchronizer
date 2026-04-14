@@ -38,8 +38,14 @@ public class AppConfig {
     }
 
     @Bean
-    @jakarta.inject.Named("iphoneMountPath")
-    public String iphoneMountPath(@Value("${app.iphone-mount-path:/mnt/iphone}") String path) {
+    @jakarta.inject.Named("iphoneHostMountPath")
+    public String iphoneHostMountPath(@Value("${app.iphone-host-mount-path}") String path) {
+        return path;
+    }
+
+    @Bean
+    @jakarta.inject.Named("iphoneContainerPath")
+    public String iphoneContainerPath(@Value("${app.iphone-container-path}") String path) {
         return path;
     }
 
