@@ -10,6 +10,26 @@ version: '3.8'
 # Default credentials: admin / changeme  (override via .env or env vars)
 
 services:
+  host-agent:
+    build:
+      context: ./host-agent
+      dockerfile: Dockerfile.dev
+    environment:
+      - DEV_MOCK=true
+      - EXTERNAL_DRIVE_PATH=${EXTERNAL_DRIVE_PATH_CONTAINER}
+      - SOCKET_PATH=/run/cloudsync-host-agent/agent.sock
+      - LOG_LEVEL=INFO
+    volumes:
+      - host-agent-socket:/run/cloudsync-host-agent
+      - type: bind
+        source: ./dev-drive
+        target: ${EXTERNAL_DRIVE_PATH_CONTAINER}
+        bind:
+          create_host_path: true
+    networks:
+      - cloud-sync-dev
+    restart: on-failure
+
   backend:
     build:
       context: ./backend
@@ -34,32 +54,25 @@ services:
       - ./backend:/app                       # live source editing
       - /app/build                           # build artifacts stay in container (anonymous vol)
       - gradle-cache:/home/gradle/.gradle    # Gradle dependency cache across rebuilds
-      # Bind-mount host /mnt/external-drive with rshared propagation so that
-      # when the user mounts a physical drive on the host via /api/setup/mount
-      # the new filesystem is visible inside the backend container too.
       - type: bind
         source: ${DB_PATH_HOST}
         target: /data
         bind:
           create_host_path: true
       - type: bind
-        source: ${EXTERNAL_DRIVE_PATH_HOST}
+        source: ./dev-drive
         target: ${EXTERNAL_DRIVE_PATH_CONTAINER}
         bind:
           create_host_path: true
-          propagation: rshared
-      - type: bind
-        source: ${IPHONE_MOUNT_PATH_HOST}
-        target: ${IPHONE_MOUNT_PATH_CONTAINER}
-        bind:
-          create_host_path: true
-          propagation: rshared
-      - /run/cloudsync-host-agent:/run/cloudsync-host-agent:ro
+      - dev-iphone-mount:${IPHONE_MOUNT_PATH_CONTAINER}
+      - host-agent-socket:/run/cloudsync-host-agent:ro
     networks:
       - cloud-sync-dev
     depends_on:
       icloud-service:
         condition: service_healthy
+      host-agent:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/api/health"]
       interval: 20s
@@ -114,6 +127,10 @@ volumes:
   icloud-data:
     driver: local
     name: cloud-sync-icloud-data
+  host-agent-socket:
+    driver: local
+  dev-iphone-mount:
+    driver: local
 
 networks:
   cloud-sync-dev:

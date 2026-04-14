@@ -29,6 +29,10 @@ CONTAINER_GID = int(os.environ.get("CONTAINER_GID", "1000"))
 
 DEFAULT_MOUNT_POINT = os.environ.get("EXTERNAL_DRIVE_PATH")
 
+# When DEV_MOCK=true the agent skips real mount/blkid/lsblk calls and returns
+# plausible fake responses so the stack can run without a physical drive.
+DEV_MOCK = os.environ.get("DEV_MOCK", "").lower() in ("1", "true", "yes")
+
 
 class HandlerError(Exception):
     """Expected operational failure – will be returned as {"ok": false, ...}."""
@@ -48,6 +52,17 @@ def check_drive(params: dict) -> DriveStatus:
         raise HandlerError("No mount_path specified and EXTERNAL_DRIVE_PATH not set", "MISSING_PARAM")
     p = Path(mount_path)
 
+    if DEV_MOCK:
+        if not p.is_dir():
+            return DriveStatus(available=False, path=None, free_bytes=None)
+        usage = _get_disk_usage(mount_path)
+        return DriveStatus(
+            available=True,
+            path=mount_path,
+            free_bytes=usage.free if usage else 10 * 1024 ** 3,
+            total_bytes=usage.total if usage else 50 * 1024 ** 3,
+        )
+
     if not p.is_dir() or not _is_mountpoint(mount_path):
         return DriveStatus(available=False, path=None, free_bytes=None)
 
@@ -65,6 +80,18 @@ _SYSTEM_MOUNTS = frozenset(("[SWAP]", "/", "/boot"))
 
 
 def list_disks(params: dict) -> list[DiskInfo]:  # noqa: ARG001
+    if DEV_MOCK:
+        return [DiskInfo(
+            name="sdb",
+            path="/dev/sdb",
+            size="50G",
+            type="disk",
+            mountpoint=DEFAULT_MOUNT_POINT,
+            label="DEV-MOCK-DRIVE",
+            vendor="Mock",
+            model="Virtual External Drive",
+        )]
+
     try:
         result = subprocess.run(
             ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,LABEL,VENDOR,MODEL"],
@@ -172,6 +199,15 @@ def mount_drive(params: dict) -> MountDriveResult:
     if not mount_point:
         raise HandlerError("No mount_point specified and EXTERNAL_DRIVE_PATH not set", "MISSING_PARAM")
 
+    if DEV_MOCK:
+        Path(mount_point).mkdir(parents=True, exist_ok=True)
+        return MountDriveResult(
+            mounted=True,
+            device=device,
+            mount_point=mount_point,
+            message=f"[DEV_MOCK] Simulated mount of {device} at {mount_point}",
+        )
+
     # If the device is already mounted at the requested mount point, treat as success.
     if _is_mountpoint(mount_point):
         current_device = _get_device_at_mountpoint(mount_point)
@@ -255,6 +291,9 @@ def unmount_drive(params: dict) -> UnmountDriveResult:
     if not mount_point:
         raise HandlerError("No mount_point specified and EXTERNAL_DRIVE_PATH not set", "MISSING_PARAM")
 
+    if DEV_MOCK:
+        return UnmountDriveResult(success=True, message=f"[DEV_MOCK] Simulated unmount of {mount_point}")
+
     if not _is_mountpoint(mount_point):
         raise HandlerError(f"Not mounted at {mount_point}", "NOT_MOUNTED")
 
@@ -286,6 +325,13 @@ def read_device_id(params: dict) -> DeviceIdResult:
     device = params.get("device")
     if not device:
         raise HandlerError("No device specified", "MISSING_PARAM")
+
+    if DEV_MOCK:
+        return DeviceIdResult(
+            uuid="00000000-dev-mock-0000-000000000000",
+            label="DEV-MOCK-DRIVE",
+            device=device,
+        )
 
     try:
         uuid_r = subprocess.run(

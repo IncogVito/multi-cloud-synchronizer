@@ -19,6 +19,8 @@ LOG = logging.getLogger(__name__)
 
 DEFAULT_MOUNT_PATH = os.environ.get("IPHONE_MOUNT_PATH", "/mnt/iphone")
 
+DEV_MOCK = os.environ.get("DEV_MOCK", "").lower() in ("1", "true", "yes")
+
 
 class HandlerError(Exception):
     def __init__(self, message: str, code: str = "HANDLER_ERROR"):
@@ -39,6 +41,9 @@ def _cmd_exists(name: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def detect_iphone(params: dict) -> IPhoneDetectResult:  # noqa: ARG001
+    if DEV_MOCK:
+        return IPhoneDetectResult(connected=False, device_name=None, udid=None)
+
     if _cmd_exists("idevice_id"):
         udid = _first_udid()
         if udid:
@@ -63,6 +68,9 @@ def detect_iphone(params: dict) -> IPhoneDetectResult:  # noqa: ARG001
 # ---------------------------------------------------------------------------
 
 def iphone_list_devices(params: dict) -> IPhoneListDevicesResult:  # noqa: ARG001
+    if DEV_MOCK:
+        return IPhoneListDevicesResult(devices=[])
+
     if not _cmd_exists("idevice_id"):
         raise HandlerError("libimobiledevice not installed", "MISSING_DEPENDENCY")
 
@@ -76,6 +84,9 @@ def iphone_list_devices(params: dict) -> IPhoneListDevicesResult:  # noqa: ARG00
 # ---------------------------------------------------------------------------
 
 def iphone_check_trust(params: dict) -> IPhoneTrustResult:
+    if DEV_MOCK:
+        raise HandlerError("No iOS device connected", "NO_DEVICE")
+
     if not _cmd_exists("idevicepair"):
         raise HandlerError("libimobiledevice not installed", "MISSING_DEPENDENCY")
 
@@ -96,6 +107,9 @@ def iphone_check_trust(params: dict) -> IPhoneTrustResult:
 # ---------------------------------------------------------------------------
 
 def iphone_get_info(params: dict) -> IPhoneInfoResult:
+    if DEV_MOCK:
+        raise HandlerError("No iOS device found", "NO_DEVICE")
+
     if not _cmd_exists("ideviceinfo"):
         raise HandlerError("libimobiledevice not installed", "MISSING_DEPENDENCY")
 
@@ -130,6 +144,9 @@ def iphone_get_info(params: dict) -> IPhoneInfoResult:
 def iphone_mount(params: dict) -> IPhoneMountResult:
     mount_path = params.get("mount_path", DEFAULT_MOUNT_PATH)
 
+    if DEV_MOCK:
+        raise HandlerError("No iPhone detected (DEV_MOCK mode)", "NO_DEVICE")
+
     if not _cmd_exists("ifuse"):
         raise HandlerError("ifuse not installed (apt install ifuse)", "MISSING_DEPENDENCY")
     if not _cmd_exists("idevice_id"):
@@ -160,6 +177,9 @@ def iphone_mount(params: dict) -> IPhoneMountResult:
 
 def iphone_unmount(params: dict) -> IPhoneUnmountResult:
     mount_path = params.get("mount_path", DEFAULT_MOUNT_PATH)
+
+    if DEV_MOCK:
+        return IPhoneUnmountResult(unmounted=True, error=None)
 
     # Not mounted — idempotent
     if not _is_mountpoint(mount_path):

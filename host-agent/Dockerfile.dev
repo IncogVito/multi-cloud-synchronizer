@@ -1,0 +1,8 @@
+FROM python:3.12-slim
+
+WORKDIR /opt/cloudsync-host-agent
+
+COPY models.py agent.py ./
+COPY handlers/ handlers/
+
+CMD ["python", "agent.py"]
