@@ -10,6 +10,12 @@ import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.exif.ExifIFD0Directory;
+import com.drew.metadata.exif.ExifSubIFDDirectory;
+import com.drew.metadata.mov.QuickTimeDirectory;
+
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -160,10 +166,13 @@ public class DiskIndexingService {
             String absPath = file.toAbsolutePath().toString();
             long size = attrs.size();
 
-            Instant createdDate = attrs.creationTime().toInstant();
-            // Fallback: use lastModified if creationTime equals epoch (some filesystems)
-            if (createdDate.toEpochMilli() == 0L) {
-                createdDate = attrs.lastModifiedTime().toInstant();
+            // Prefer EXIF CreationDate; fall back to filesystem times
+            Instant createdDate = readExifCreationDate(file);
+            if (createdDate == null) {
+                createdDate = attrs.creationTime().toInstant();
+                if (createdDate.toEpochMilli() == 0L) {
+                    createdDate = attrs.lastModifiedTime().toInstant();
+                }
             }
 
             Photo photo = new Photo();
@@ -184,6 +193,41 @@ public class DiskIndexingService {
             LOG.warn("Could not read attributes for {}: {}", file, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Reads the actual capture date from image/video metadata (EXIF DateTimeOriginal,
+     * then EXIF DateTime, then QuickTime creation_time). Returns null if no metadata
+     * date is available, so the caller can fall back to filesystem timestamps.
+     */
+    private Instant readExifCreationDate(Path file) {
+        try {
+            Metadata metadata = ImageMetadataReader.readMetadata(file.toFile());
+
+            // JPEG / TIFF / HEIC with embedded EXIF — most accurate tag
+            ExifSubIFDDirectory exifSub = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
+            if (exifSub != null) {
+                var date = exifSub.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
+                if (date != null) return date.toInstant();
+            }
+
+            // EXIF IFD0 DateTime (some cameras write only this tag)
+            ExifIFD0Directory exif0 = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
+            if (exif0 != null) {
+                var date = exif0.getDate(ExifIFD0Directory.TAG_DATETIME);
+                if (date != null) return date.toInstant();
+            }
+
+            // MOV / MP4 / HEIC QuickTime creation_time atom
+            QuickTimeDirectory qt = metadata.getFirstDirectoryOfType(QuickTimeDirectory.class);
+            if (qt != null) {
+                var date = qt.getDate(QuickTimeDirectory.TAG_CREATION_TIME);
+                if (date != null) return date.toInstant();
+            }
+        } catch (Exception e) {
+            LOG.debug("Could not read EXIF from {}: {}", file.getFileName(), e.getMessage());
+        }
+        return null;
     }
 
     // ── Reorganize ────────────────────────────────────────────────────────────

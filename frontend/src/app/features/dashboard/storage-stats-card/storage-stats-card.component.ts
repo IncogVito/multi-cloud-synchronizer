@@ -1,10 +1,11 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, output } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { StatsService } from '../../../core/api/generated/stats/stats.service';
 import { AppContextService } from '../../../core/services/app-context.service';
 import { SyncService } from '../../../core/services/sync.service';
+import { DiskIndexingService } from '../../../core/services/disk-indexing.service';
 import { StatsResponse } from '../../../core/api/generated/model/statsResponse';
 
 @Component({
@@ -18,9 +19,13 @@ export class StorageStatsCardComponent implements OnInit, OnDestroy {
   private statsApi = inject(StatsService);
   appContext = inject(AppContextService);
   private syncService = inject(SyncService);
+  private diskIndexingService = inject(DiskIndexingService);
+
+  reindexRequested = output<void>();
 
   stats = signal<StatsResponse | null>(null);
   loading = signal(true);
+  reindexing = signal(false);
 
   private syncSub: Subscription | null = null;
 
@@ -49,6 +54,20 @@ export class StorageStatsCardComponent implements OnInit, OnDestroy {
     this.statsApi.getOverview({ storageDeviceId: ctx.storageDeviceId }).subscribe({
       next: s => { this.stats.set(s); this.loading.set(false); },
       error: () => this.loading.set(false)
+    });
+  }
+
+  startReindex(): void {
+    if (this.reindexing()) return;
+    this.reindexing.set(true);
+    this.diskIndexingService.start().subscribe({
+      next: () => {
+        this.reindexing.set(false);
+        this.reindexRequested.emit();
+      },
+      error: () => {
+        this.reindexing.set(false);
+      }
     });
   }
 

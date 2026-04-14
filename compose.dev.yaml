@@ -22,10 +22,8 @@ services:
     volumes:
       - host-agent-socket:/run/cloudsync-host-agent
       - type: bind
-        source: ./dev-drive
+        source: ./dev/mounted-drive
         target: ${EXTERNAL_DRIVE_PATH_CONTAINER}
-        bind:
-          create_host_path: true
     networks:
       - cloud-sync-dev
     restart: on-failure
@@ -55,15 +53,11 @@ services:
       - /app/build                           # build artifacts stay in container (anonymous vol)
       - gradle-cache:/home/gradle/.gradle    # Gradle dependency cache across rebuilds
       - type: bind
-        source: ${DB_PATH_HOST}
+        source: ./dev/db-data
         target: /data
-        bind:
-          create_host_path: true
       - type: bind
-        source: ./dev-drive
+        source: ./dev/mounted-drive
         target: ${EXTERNAL_DRIVE_PATH_CONTAINER}
-        bind:
-          create_host_path: true
       - dev-iphone-mount:${IPHONE_MOUNT_PATH_CONTAINER}
       - host-agent-socket:/run/cloudsync-host-agent:ro
     networks:

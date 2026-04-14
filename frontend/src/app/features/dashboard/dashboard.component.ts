@@ -30,6 +30,7 @@ export class DashboardComponent implements OnInit {
   @ViewChild(AccountsPanelComponent) accountsPanel!: AccountsPanelComponent;
   @ViewChild(SyncSectionComponent) syncSection!: SyncSectionComponent;
   @ViewChild(DeviceStatusPanelComponent) deviceStatusPanel!: DeviceStatusPanelComponent;
+  @ViewChild(ReorganizeSectionComponent) reorganizeSection!: ReorganizeSectionComponent;
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -71,5 +72,10 @@ export class DashboardComponent implements OnInit {
 
   onScanningModalClosed(): void {
     this.showScanningModal.set(false);
+    this.reorganizeSection?.loadPreview();
+  }
+
+  onReindexRequested(): void {
+    this.showScanningModal.set(true);
   }
 }

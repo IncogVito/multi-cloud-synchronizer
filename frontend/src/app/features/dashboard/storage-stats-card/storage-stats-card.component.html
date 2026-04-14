@@ -14,6 +14,19 @@
         <div class="stat-card card">
           <div class="stat-header">
             <span class="stat-title">Dysk lokalny</span>
+            <button
+              class="reindex-btn"
+              [disabled]="reindexing()"
+              (click)="startReindex()"
+              title="Przeskanuj dysk i zaktualizuj indeks zdjęć"
+            >
+              @if (reindexing()) {
+                <span class="btn-spinner"></span>
+              } @else {
+                &#x21bb;
+              }
+              Reindeksuj
+            </button>
           </div>
           <div class="stat-primary">
             <span class="stat-count">{{ s.diskPhotoCount | number }}</span>

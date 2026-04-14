@@ -3,4 +3,6 @@ scripts/bridge/ssh/
 cloud-sync.db
 cloud-sync.db-shm
 cloud-sync.db-wal
-dev-drive/
+dev/*
+!dev/mounted-drive/.gitkeep
+!dev/db-data/.gitkeep

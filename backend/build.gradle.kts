@@ -40,6 +40,9 @@ dependencies {
     // Thumbnail generation
     implementation("net.coobird:thumbnailator:0.4.20")
 
+    // EXIF / metadata reading
+    implementation("com.drewnoakes:metadata-extractor:2.19.0")
+
     runtimeOnly("ch.qos.logback:logback-classic")
     implementation("org.xerial:sqlite-jdbc:3.45.3.0")
     runtimeOnly("org.yaml:snakeyaml")
