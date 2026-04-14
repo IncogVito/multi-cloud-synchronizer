@@ -35,6 +35,9 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
 
     long countByAccountIdAndSyncStatus(String accountId, String syncStatus);
 
+    @Query("SELECT COUNT(*) FROM photos WHERE account_id = :accountId AND sync_status = :syncStatus AND source_provider = :sourceProvider")
+    long countByAccountIdAndSyncStatusAndSourceProvider(String accountId, String syncStatus, String sourceProvider);
+
     long countBySyncedToDiskAndStorageDeviceId(boolean syncedToDisk, String storageDeviceId);
 
     @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId")

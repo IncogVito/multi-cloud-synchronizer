@@ -21,6 +21,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 @Singleton
 public class ThumbnailService {
@@ -48,10 +49,12 @@ public class ThumbnailService {
      * Check which photos in the list are missing thumbnails and generate them in parallel.
      * Runs synchronously — call from a background thread.
      * {@code onGenerated} is called after each photo (success or failure) for progress tracking.
+     * {@code isCancelled} is checked before each photo — if true, the photo is skipped.
      */
-    public void generateMissing(List<Photo> candidates, Consumer<Photo> onGenerated) {
+    public void generateMissing(List<Photo> candidates, Consumer<Photo> onGenerated, Supplier<Boolean> isCancelled) {
         List<CompletableFuture<Void>> futures = candidates.stream().map(photo ->
             CompletableFuture.runAsync(() -> {
+                if (isCancelled.get()) return;
                 try {
                     generateThumbnail(photo);
                 } catch (Exception e) {

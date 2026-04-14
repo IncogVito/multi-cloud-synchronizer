@@ -179,9 +179,11 @@ export class PhotosComponent implements OnInit, OnDestroy {
     if (!confirm(`Delete ${this.selectedIds().size} photo(s) from iCloud? This cannot be undone.`)) return;
 
     const photoIds = Array.from(this.selectedIds());
+    const firstPhoto = this.allPhotos().find(p => photoIds.includes(p.id));
+    const accountId = firstPhoto?.accountId ?? '';
     this.photosService.deleteFromICloud(
       { photoIds },
-      { accountId: '' }
+      { accountId }
     ).subscribe({
       next: () => {
         this.allPhotos.update(photos => photos.map(p =>
@@ -198,9 +200,11 @@ export class PhotosComponent implements OnInit, OnDestroy {
     if (!confirm(`Delete ${this.selectedIds().size} photo(s) from iPhone? This cannot be undone.`)) return;
 
     const photoIds = Array.from(this.selectedIds());
+    const firstPhoto = this.allPhotos().find(p => photoIds.includes(p.id));
+    const accountId = firstPhoto?.accountId ?? '';
     this.photosService.deleteFromIPhone(
       { photoIds },
-      { accountId: '' }
+      { accountId }
     ).subscribe({
       next: () => {
         this.allPhotos.update(photos => photos.map(p =>

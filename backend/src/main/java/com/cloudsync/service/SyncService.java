@@ -323,6 +323,18 @@ public class SyncService {
                 classifyAsset(asset, accountId, ctx.storageDeviceId(), provider.providerType(), existingByExternalId, toSave, toUpdate);
             }
 
+            // Mark photos that are no longer on iCloud as existsOnIcloud=false
+            if ("ICLOUD".equals(provider.providerType())) {
+                Set<String> remoteIds = remotePhotos.stream().map(PhotoAsset::id).collect(Collectors.toSet());
+                Set<String> alreadyQueued = toUpdate.stream().map(Photo::getId).collect(Collectors.toSet());
+                for (Photo p : existingByExternalId.values()) {
+                    if (p.isExistsOnIcloud() && !remoteIds.contains(p.getIcloudPhotoId()) && !alreadyQueued.contains(p.getId())) {
+                        p.setExistsOnIcloud(false);
+                        toUpdate.add(p);
+                    }
+                }
+            }
+
             if (isCancelled(accountId)) return;
 
             emitEvent(accountId, SyncPhase.PERSISTING_METADATA, e -> e.setPending(toSave.size() + toUpdate.size()));
@@ -440,8 +452,9 @@ public class SyncService {
     }
 
     private void emitAwaitingConfirmation(String accountId, int totalOnCloud) {
-        long pending = photoRepository.countByAccountIdAndSyncStatus(accountId, SyncStatus.PENDING.name());
-        long synced = photoRepository.countByAccountIdAndSyncStatus(accountId, SyncStatus.SYNCED.name());
+        String providerType = activeProviderType.getOrDefault(accountId, "ICLOUD");
+        long pending = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.PENDING.name(), providerType);
+        long synced = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.SYNCED.name(), providerType);
         emitEvent(accountId, SyncPhase.AWAITING_CONFIRMATION, e -> {
             e.setTotalOnCloud(totalOnCloud);
             e.setPending((int) pending);
@@ -469,6 +482,8 @@ public class SyncService {
                 .thenRun(() -> {
                     if (!isCancelled(accountId)) {
                         generateThumbnailsPhase(accountId);
+                    }
+                    if (!isCancelled(accountId)) {
                         emitDoneEvent(accountId);
                     }
                 });
@@ -563,10 +578,11 @@ public class SyncService {
     }
 
     private void emitDownloadProgress(String accountId) {
-        long synced = photoRepository.countByAccountIdAndSyncStatus(accountId, SyncStatus.SYNCED.name());
-        long failed = photoRepository.countByAccountIdAndSyncStatus(accountId, SyncStatus.FAILED.name());
-        long pending = photoRepository.countByAccountIdAndSyncStatus(accountId, SyncStatus.PENDING.name())
-                + photoRepository.countByAccountIdAndSyncStatus(accountId, SyncStatus.DOWNLOADING.name());
+        String providerType = activeProviderType.getOrDefault(accountId, "ICLOUD");
+        long synced = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.SYNCED.name(), providerType);
+        long failed = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.FAILED.name(), providerType);
+        long pending = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.PENDING.name(), providerType)
+                + photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.DOWNLOADING.name(), providerType);
         long total = synced + failed + pending;
         emitEvent(accountId, SyncPhase.DOWNLOADING, e -> {
             e.setSynced((int) synced);
@@ -595,12 +611,14 @@ public class SyncService {
 
         thumbnailService.generateMissing(candidates, photo -> {
             int d = done.incrementAndGet();
-            emitEvent(accountId, SyncPhase.GENERATING_THUMBNAILS, e -> {
-                e.setSynced(d);
-                e.setPending(total - d);
-                e.setPercentComplete((double) d / total * 100);
-            });
-        });
+            if (!isCancelled(accountId)) {
+                emitEvent(accountId, SyncPhase.GENERATING_THUMBNAILS, e -> {
+                    e.setSynced(d);
+                    e.setPending(total - d);
+                    e.setPercentComplete((double) d / total * 100);
+                });
+            }
+        }, () -> isCancelled(accountId));
     }
 
     private void emitDoneEvent(String accountId) {
