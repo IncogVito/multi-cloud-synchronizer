@@ -34,7 +34,7 @@ services:
           create_host_path: true
           propagation: rshared
       - type: bind
-        source: ${IPHONE_MOUNT_PATH_HOST}
+        source: ${IPHONE_HOST_MOUNT_PATH}
         target: ${IPHONE_MOUNT_PATH_CONTAINER}
         bind:
           create_host_path: true
