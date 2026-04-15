@@ -24,6 +24,7 @@ import java.util.List;
  *
  * Default model: google/gemini-2.0-flash-001 – cheap, fast, supports tool calling.
  */
+
 @Singleton
 @Primary
 @Requires(property = "openrouter.api-key", notEquals = "")
@@ -33,15 +34,15 @@ public class OpenRouterLlmProvider implements LlmProvider {
     private static final String API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
     private final String apiKey;
-    private final String model;
+    private final LlmModel model;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
     public OpenRouterLlmProvider(
             @Value("${openrouter.api-key}") String apiKey,
-            @Value("${openrouter.model:google/gemini-2.0-flash-001}") String model) {
+            @Value("${openrouter.model:google/gemini-2.0-flash-001}") String modelId) {
         this.apiKey = apiKey;
-        this.model = model;
+        this.model = new LlmModel(modelId);
         this.httpClient = HttpClient.newHttpClient();
         this.objectMapper = new ObjectMapper();
     }
@@ -79,7 +80,7 @@ public class OpenRouterLlmProvider implements LlmProvider {
 
     private String buildRequest(String systemPrompt, List<String> history, List<AgentTool> tools) throws Exception {
         ObjectNode body = objectMapper.createObjectNode();
-        body.put("model", model);
+        body.put("model", model.id());
 
         // Messages
         ArrayNode messages = body.putArray("messages");

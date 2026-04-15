@@ -1,0 +1,30 @@
+wing: multi_cloud_synchronizer
+rooms:
+- name: backend
+  description: Files from backend/
+  keywords:
+  - backend
+  - backend
+- name: host_agent
+  description: Files from host-agent/
+  keywords:
+  - host_agent
+  - host-agent
+- name: frontend
+  description: Files from frontend/
+  keywords:
+  - frontend
+  - frontend
+- name: icloud_service
+  description: Files from icloud-service/
+  keywords:
+  - icloud_service
+  - icloud-service
+- name: phases
+  description: Files from phases/
+  keywords:
+  - phases
+  - phases
+- name: general
+  description: Files that don't fit other rooms
+  keywords: []

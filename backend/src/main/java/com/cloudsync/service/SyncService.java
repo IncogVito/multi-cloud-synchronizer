@@ -49,6 +49,9 @@ public class SyncService {
     private static final int BATCH_SIZE = 100;
     private static final int EMIT_EVERY_N = 5;
     private static final Duration EMIT_MAX_INTERVAL = Duration.ofSeconds(3);
+    private static final String FETCH_STATUS_READY = "ready";
+    private static final String FETCH_STATUS_ERROR = "error";
+    private static final String MSG_FETCHING_LIST = "Pobieranie listy...";
 
     private final PhotoRepository photoRepository;
     private final AccountRepository accountRepository;
@@ -65,6 +68,7 @@ public class SyncService {
     private final ConcurrentHashMap<String, AtomicInteger> downloadedSinceEmit = new ConcurrentHashMap<>();
     /** Tracks which provider is active for the current metadata-fetch phase per accountId. */
     private final ConcurrentHashMap<String, String> activeProviderType = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> downloadTotalCache = new ConcurrentHashMap<>();
 
     public SyncService(PhotoRepository photoRepository,
                        AccountRepository accountRepository,
@@ -96,7 +100,10 @@ public class SyncService {
     public SyncStartResponse startSync(String accountId, String providerType) {
         AppContext ctx = appContextService.requireActive();
         ICloudAccount account = requireAccount(accountId);
-        requireValidSession(account);
+
+        if ("ICLOUD".equalsIgnoreCase(providerType)) {
+            requireValidSession(account);
+        }
 
         PhotoSyncProvider provider = resolveProvider(providerType);
         activeProviderType.put(accountId, provider.providerType());
@@ -108,7 +115,7 @@ public class SyncService {
                 () -> pollMetadataAndContinue(accountId, account, ctx, provider),
                 syncVirtualThreadExecutor);
 
-        return new SyncStartResponse(accountId, SyncPhase.FETCHING_METADATA, "Pobieranie listy...", Instant.now());
+        return new SyncStartResponse(accountId, SyncPhase.FETCHING_METADATA, MSG_FETCHING_LIST, Instant.now());
     }
 
     /**
@@ -255,9 +262,9 @@ public class SyncService {
 
     private void resetDownloadingToPending(String accountId) {
         List<Photo> downloading = photoRepository.findByAccountIdAndSyncStatus(accountId, SyncStatus.DOWNLOADING.name());
-        for (Photo p : downloading) {
-            p.setSyncStatus(SyncStatus.PENDING.name());
-            photoRepository.update(p);
+        for (Photo photoInDownloadingState : downloading) {
+            photoInDownloadingState.setSyncStatus(SyncStatus.PENDING.name());
+            photoRepository.update(photoInDownloadingState);
         }
     }
 
@@ -274,11 +281,13 @@ public class SyncService {
 
                 emitMetadataProgress(accountId, status);
 
-                if ("ready".equals(status.status())) {
-                    if (!isCancelled(accountId)) compareAndPersist(accountId, account, ctx, provider);
+                if (FETCH_STATUS_READY.equals(status.status())) {
+                    if (!isCancelled(accountId)) {
+                        compareAndPersist(accountId, account, ctx, provider);
+                    }
                     return;
                 }
-                if ("error".equals(status.status())) {
+                if (FETCH_STATUS_ERROR.equals(status.status())) {
                     emitError(accountId);
                     return;
                 }
@@ -301,39 +310,29 @@ public class SyncService {
 
     // ── compare & persist ─────────────────────────────────────────────────────
 
-    private void compareAndPersist(String accountId, ICloudAccount account, AppContext ctx, PhotoSyncProvider provider) {
+    private void compareAndPersist(String accountId, ICloudAccount account, AppContext appContext, PhotoSyncProvider provider) {
         try {
             List<PhotoAsset> remotePhotos = provider.listAllPhotos(account.getSessionId());
             if (isCancelled(accountId)) return;
 
-            Path destDir = Path.of(ctx.basePath());
+            Path destDir = Path.of(appContext.basePath());
             Map<String, Long> diskFiles = scanDiskFiles(destDir);
-            Map<String, Photo> existingByExternalId = loadExistingPhotosAsMap(accountId, provider.providerType());
-            Map<String, Photo> syncedByFilename = loadSyncedPhotosByFilename(accountId);
+            Map<String, Photo> externalIdToExistingPhoto = loadExistingPhotosAsMap(accountId, provider.providerType());
+            Map<String, Photo> filenameToSyncedPhoto = loadSyncedPhotosByFilename(accountId);
 
             List<Photo> toSave = new ArrayList<>();
             List<Photo> toUpdate = new ArrayList<>();
 
             for (PhotoAsset asset : remotePhotos) {
-                if (isAlreadySynced(existingByExternalId, asset)) continue;
+                if (checkSyncedAndUpdateMetadata(externalIdToExistingPhoto, asset, toUpdate)) continue;
                 if (isAlreadyOnDisk(diskFiles, asset)) {
-                    updateCrossProviderFlag(syncedByFilename, asset, provider.providerType(), toUpdate);
+                    updateCrossProviderFlag(filenameToSyncedPhoto, asset, provider.providerType(), toUpdate);
                     continue;
                 }
-                classifyAsset(asset, accountId, ctx.storageDeviceId(), provider.providerType(), existingByExternalId, toSave, toUpdate);
+                classifyAsset(asset, accountId, appContext.storageDeviceId(), provider.providerType(), externalIdToExistingPhoto, toSave, toUpdate);
             }
 
-            // Mark photos that are no longer on iCloud as existsOnIcloud=false
-            if ("ICLOUD".equals(provider.providerType())) {
-                Set<String> remoteIds = remotePhotos.stream().map(PhotoAsset::id).collect(Collectors.toSet());
-                Set<String> alreadyQueued = toUpdate.stream().map(Photo::getId).collect(Collectors.toSet());
-                for (Photo p : existingByExternalId.values()) {
-                    if (p.isExistsOnIcloud() && !remoteIds.contains(p.getIcloudPhotoId()) && !alreadyQueued.contains(p.getId())) {
-                        p.setExistsOnIcloud(false);
-                        toUpdate.add(p);
-                    }
-                }
-            }
+            markPhotosDeletedFromCloud(provider.providerType(), remotePhotos, externalIdToExistingPhoto, toUpdate);
 
             if (isCancelled(accountId)) return;
 
@@ -392,8 +391,13 @@ public class SyncService {
         Photo existing = syncedByFilename.get(sanitized);
         if (existing == null) return;
         // Guard against size mismatch (shouldn't happen — isAlreadyOnDisk already verified it, but be safe)
-        if (existing.getFileSize() != null && asset.size() != null && !existing.getFileSize().equals(asset.size())) return;
+        if (existing.getFileSize() != null && asset.size() != null && !existing.getFileSize().equals(asset.size())) {
+            return;
+        }
 
+        /**
+         * Use enums. Extract to method. And do switch on providerType.
+         */
         boolean changed = false;
         if ("IPHONE".equals(providerType) && !Boolean.TRUE.equals(existing.getExistsOnIphone())) {
             existing.setExistsOnIphone(true);
@@ -412,9 +416,31 @@ public class SyncService {
                 .collect(Collectors.toMap(Photo::getIcloudPhotoId, p -> p));
     }
 
-    private boolean isAlreadySynced(Map<String, Photo> existingByExternalId, PhotoAsset asset) {
+    private boolean checkSyncedAndUpdateMetadata(Map<String, Photo> existingByExternalId, PhotoAsset asset, List<Photo> toUpdate) {
         Photo existing = existingByExternalId.get(asset.id());
-        return existing != null && SyncStatus.SYNCED.name().equals(existing.getSyncStatus());
+        if (existing == null || !SyncStatus.SYNCED.name().equals(existing.getSyncStatus())) {
+            return false;
+        }
+        if (!existing.isExistsOnIcloud()) {
+            existing.setExistsOnIcloud(true);
+            if (!toUpdate.contains(existing)) {
+                toUpdate.add(existing);
+            }
+        }
+        return true;
+    }
+
+    private void markPhotosDeletedFromCloud(String providerType, List<PhotoAsset> remotePhotos,
+                                             Map<String, Photo> existingByExternalId, List<Photo> toUpdate) {
+        if (!"ICLOUD".equals(providerType)) return;
+        Set<String> remoteIds = remotePhotos.stream().map(PhotoAsset::id).collect(Collectors.toSet());
+        Set<String> alreadyQueued = toUpdate.stream().map(Photo::getId).collect(Collectors.toSet());
+        for (Photo photo : existingByExternalId.values()) {
+            if (photo.isExistsOnIcloud() && !remoteIds.contains(photo.getIcloudPhotoId()) && !alreadyQueued.contains(photo.getId())) {
+                photo.setExistsOnIcloud(false);
+                toUpdate.add(photo);
+            }
+        }
     }
 
     private boolean isAlreadyOnDisk(Map<String, Long> diskFiles, PhotoAsset asset) {
@@ -471,6 +497,9 @@ public class SyncService {
                 .stream()
                 .filter(p -> providerType.equals(p.getSourceProvider()))
                 .toList();
+        long alreadySynced = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(
+                accountId, SyncStatus.SYNCED.name(), providerType);
+        downloadTotalCache.put(accountId, pending.size() + alreadySynced);
 
         List<CompletableFuture<Void>> futures = pending.stream()
                 .map(photo -> CompletableFuture.runAsync(
@@ -583,7 +612,7 @@ public class SyncService {
         long failed = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.FAILED.name(), providerType);
         long pending = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.PENDING.name(), providerType)
                 + photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.DOWNLOADING.name(), providerType);
-        long total = synced + failed + pending;
+        long total = downloadTotalCache.getOrDefault(accountId, synced + failed + pending);
         emitEvent(accountId, SyncPhase.DOWNLOADING, e -> {
             e.setSynced((int) synced);
             e.setFailed((int) failed);

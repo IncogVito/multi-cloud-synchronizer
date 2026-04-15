@@ -32,13 +32,28 @@ public class AgentExecutor {
                          @Value("${app.external-drive-path}") String externalDrivePath) {
         this.llmProvider = llmProvider;
         this.tools = tools;
-        this.systemPrompt = """
+
+        this.systemPrompt = buildSystemPrompt(externalDrivePath, tools);
+    }
+
+    private static String buildSystemPrompt(String externalDrivePath, List<AgentTool> tools) {
+        String toolList = tools.stream()
+                .map(t -> "- " + t.getName() + ": " + t.getDescription())
+                .collect(Collectors.joining("\n"));
+        return """
                 You are a disk detection agent running inside a Docker container on a Linux host.
                 Your goal is to detect and verify an external drive is mounted at %s.
-                Use the available tools step by step. Stop when you confirm the drive is mounted and accessible,
+
+                Available tools:
+                %s
+
+                Use tools step by step. If the expected mount point is missing or inaccessible, try unmounting \
+                and remounting the device — this often resolves stale mount state.
+                Stop when you confirm the drive is mounted and accessible, \
                 or when you determine no suitable drive is available.
-                Be concise. Prefer /dev/sd* or /dev/nvme* devices. Do not mount any device that hosts the root filesystem, /boot, or swap.
-                """.formatted(externalDrivePath);
+                Be concise. Prefer /dev/sd* or /dev/nvme* devices. \
+                Do not mount any device that hosts the root filesystem, /boot, or swap.
+                """.formatted(externalDrivePath, toolList);
     }
 
     /**

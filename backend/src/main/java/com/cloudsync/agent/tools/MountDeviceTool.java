@@ -4,6 +4,7 @@ import com.cloudsync.agent.AgentTool;
 import com.cloudsync.client.HostAgentClient;
 import com.cloudsync.client.hostmodel.MountDriveResult;
 import com.cloudsync.exception.HostAgentException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.inject.Singleton;
 
 /**
@@ -14,9 +15,11 @@ import jakarta.inject.Singleton;
 public class MountDeviceTool implements AgentTool {
 
     private final HostAgentClient hostAgent;
+    private final ObjectMapper objectMapper;
 
-    public MountDeviceTool(HostAgentClient hostAgent) {
+    public MountDeviceTool(HostAgentClient hostAgent, ObjectMapper objectMapper) {
         this.hostAgent = hostAgent;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -38,11 +41,17 @@ public class MountDeviceTool implements AgentTool {
 
         try {
             MountDriveResult result = hostAgent.mountDrive(device, mountPoint);
-            return String.format("{\"mounted\": %s, \"device\": \"%s\", \"mountPoint\": \"%s\", \"message\": \"%s\"}",
-                    result.mounted(), result.device(), result.mountPoint(),
-                    result.message().replace("\"", "'"));
+            MountDeviceResponse response = new MountDeviceResponse(
+                    result.mounted(), result.device(), result.mountPoint(), result.message(), null);
+            return objectMapper.writeValueAsString(response);
         } catch (HostAgentException e) {
-            return String.format("{\"mounted\": false, \"error\": \"%s\"}", e.getMessage().replace("\"", "'"));
+            try {
+                return objectMapper.writeValueAsString(new MountDeviceResponse(false, null, null, null, e.getMessage()));
+            } catch (Exception jsonEx) {
+                return "{\"mounted\": false, \"error\": \"serialization failed\"}";
+            }
+        } catch (Exception e) {
+            return "{\"mounted\": false, \"error\": \"unexpected error\"}";
         }
     }
 }

@@ -2,6 +2,7 @@ package com.cloudsync.controller;
 
 import com.cloudsync.model.dto.SyncProgressEvent;
 import com.cloudsync.model.dto.SyncStartResponse;
+import com.cloudsync.model.enums.ProviderType;
 import com.cloudsync.service.SyncService;
 import com.cloudsync.service.SyncStateHolder;
 import io.micronaut.http.MediaType;
@@ -34,8 +35,8 @@ public class SyncController {
     @ExecuteOn(TaskExecutors.BLOCKING)
     @Produces(MediaType.APPLICATION_JSON)
     public SyncStartResponse startSync(@PathVariable String accountId,
-                                       @QueryValue(defaultValue = "ICLOUD") String provider) {
-        return syncService.startSync(accountId, provider);
+                                       @QueryValue(defaultValue = "ICLOUD") ProviderType provider) {
+        return syncService.startSync(accountId, provider.name());
     }
 
     @Get(value = "/{accountId}/events", produces = MediaType.TEXT_EVENT_STREAM)
