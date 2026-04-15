@@ -39,7 +39,7 @@ class ICloudPhotoDtoDeserializationTest {
                   "id": "abc123",
                   "filename": "IMG_0001.jpg",
                   "size": 4096000,
-                  "created_date": "2023-06-15T12:00:00Z",
+                  "created_date": 1686830400000,
                   "dimensions": {"width": 4032, "height": 3024},
                   "asset_token": "tok-xyz"
                 }
@@ -58,7 +58,7 @@ class ICloudPhotoDtoDeserializationTest {
                   "id": "abc123",
                   "filename": "IMG_0001.jpg",
                   "size": 4096000,
-                  "created_date": "2023-06-15T12:00:00Z",
+                  "created_date": 1686830400000,
                   "dimensions": {"width": 4032, "height": 3024},
                   "asset_token": "tok-xyz"
                 }
@@ -80,7 +80,7 @@ class ICloudPhotoDtoDeserializationTest {
                   "id": "abc123",
                   "filename": "IMG_0001.jpg",
                   "size": 4096000,
-                  "created_date": "2023-06-15T12:00:00Z",
+                  "created_date": 1686830400000,
                   "dimensions": {"width": 4032, "height": 3024},
                   "asset_token": "tok-xyz"
                 }
@@ -105,7 +105,7 @@ class ICloudPhotoDtoDeserializationTest {
                   "id": "abc123",
                   "filename": "IMG_0001.jpg",
                   "size": 4096000,
-                  "created_date": "2023-06-15T12:00:00Z",
+                  "created_date": 1686830400000,
                   "dimensions": {"width": 4032, "height": 3024},
                   "asset_token": "tok-xyz"
                 }
@@ -126,7 +126,7 @@ class ICloudPhotoDtoDeserializationTest {
                   "id": "photo-id-42",
                   "filename": "DSCN0042.jpg",
                   "size": 8388608,
-                  "created_date": "2022-01-01T00:00:00Z",
+                  "created_date": 1640995200000,
                   "dimensions": {"width": 3840, "height": 2160},
                   "asset_token": "token-42"
                 }
@@ -179,7 +179,7 @@ class ICloudPhotoDtoDeserializationTest {
                       "id": "p1",
                       "filename": "IMG_0001.jpg",
                       "size": 1024,
-                      "created_date": "2023-01-01T00:00:00Z",
+                      "created_date": 1672531200000,
                       "dimensions": {"width": 1920, "height": 1080},
                       "asset_token": "t1"
                     },
@@ -187,7 +187,7 @@ class ICloudPhotoDtoDeserializationTest {
                       "id": "p2",
                       "filename": "IMG_0002.jpg",
                       "size": 2048,
-                      "created_date": "2023-01-02T00:00:00Z",
+                      "created_date": 1672617600000,
                       "dimensions": {"width": 1280, "height": 720},
                       "asset_token": "t2"
                     }

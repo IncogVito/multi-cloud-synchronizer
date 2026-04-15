@@ -1,0 +1,21 @@
+datasources:
+  default:
+    url: jdbc:sqlite::memory:?journal_mode=WAL
+    driverClassName: org.sqlite.JDBC
+    connectionTestQuery: SELECT 1
+    maximumPoolSize: 1
+
+flyway:
+  datasources:
+    default:
+      enabled: true
+
+app:
+  username: admin
+  password: changeme
+  external-drive-path-host: /tmp/test-drive
+  external-drive-path: /tmp/test-drive
+  scripts-dir: /tmp/test-scripts
+  iphone-host-mount-path: /tmp/test-iphone
+  iphone-container-path: /tmp/test-iphone
+  host-agent-socket: /tmp/test-agent.sock
