@@ -429,7 +429,8 @@ paths:
       tags:
       - Photos
       summary: List photos
-      description: Returns paginated photos with optional filters
+      description: Returns paginated photos with optional filters. Use yearMonth (YYYY-MM)
+        or year (YYYY) to scope to a specific time range.
       operationId: listPhotos
       parameters:
       - name: accountId
@@ -443,6 +444,16 @@ paths:
         schema:
           type: string
       - name: storageDeviceId
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: yearMonth
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: year
         in: query
         required: true
         schema:
@@ -551,6 +562,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MissingThumbnailsCount"
+  /api/photos/months-summary:
+    get:
+      tags:
+      - Photos
+      summary: Photos grouped by month
+      description: "Returns photo counts and size totals per calendar month, sorted\
+        \ newest-first"
+      operationId: getMonthsSummary
+      parameters:
+      - name: storageDeviceId
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: accountId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Month summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MonthSummaryResponse"
   /api/photos/{id}:
     get:
       tags:
@@ -808,8 +847,7 @@ paths:
         in: query
         required: true
         schema:
-          type: string
-          default: ICLOUD
+          $ref: "#/components/schemas/ProviderType"
       responses:
         "200":
           description: startSync 200 response
@@ -1230,6 +1268,34 @@ components:
         count:
           type: integer
           format: int64
+    MonthSummaryResponse:
+      required:
+      - earliestDate
+      - label
+      - latestDate
+      - photoCount
+      - totalSizeBytes
+      - yearMonth
+      type: object
+      properties:
+        yearMonth:
+          type: string
+        label:
+          type: string
+        photoCount:
+          type: integer
+          format: int64
+        totalSizeBytes:
+          type: integer
+          format: int64
+        earliestDate:
+          type: string
+          format: date-time
+        latestDate:
+          type: string
+          format: date-time
+      description: Summary of photos for a single calendar month. Used by the month-based
+        browsing UI to build the TOC sidebar.
     PhotoListResponse:
       required:
       - page
@@ -1308,6 +1374,11 @@ components:
           type: boolean
         mediaType:
           type: string
+    ProviderType:
+      type: string
+      enum:
+      - ICLOUD
+      - IPHONE
     StatsResponse:
       required:
       - diskCapacityBytes

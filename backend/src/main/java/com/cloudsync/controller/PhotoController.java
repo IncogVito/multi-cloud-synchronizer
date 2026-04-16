@@ -3,6 +3,7 @@ package com.cloudsync.controller;
 import com.cloudsync.model.dto.BatchPhotoRequest;
 import com.cloudsync.model.dto.GenerateThumbnailsRequest;
 import com.cloudsync.model.dto.MissingThumbnailsCount;
+import com.cloudsync.model.dto.MonthSummaryResponse;
 import com.cloudsync.model.dto.PhotoListResponse;
 import com.cloudsync.model.dto.PhotoResponse;
 import com.cloudsync.model.dto.ThumbnailProgress;
@@ -24,6 +25,7 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.util.List;
 
 @Tag(name = "Photos")
 @Controller("/api/photos")
@@ -41,7 +43,7 @@ public class PhotoController {
         this.thumbnailService = thumbnailService;
     }
 
-    @Operation(summary = "List photos", description = "Returns paginated photos with optional filters")
+    @Operation(summary = "List photos", description = "Returns paginated photos with optional filters. Use yearMonth (YYYY-MM) or year (YYYY) to scope to a specific time range.")
     @ApiResponse(responseCode = "200", description = "Photo list")
     @Get
     @Produces(MediaType.APPLICATION_JSON)
@@ -49,13 +51,29 @@ public class PhotoController {
             @QueryValue(defaultValue = "") String accountId,
             @QueryValue(defaultValue = "") String synced,
             @QueryValue(defaultValue = "") String storageDeviceId,
+            @QueryValue(defaultValue = "") String yearMonth,
+            @QueryValue(defaultValue = "") String year,
             @QueryValue(defaultValue = "0") int page,
             @QueryValue(defaultValue = "20") int size) {
 
         String accountIdParam = accountId.isBlank() ? null : accountId;
         Boolean syncedParam = synced.isBlank() ? null : Boolean.parseBoolean(synced);
         String deviceIdParam = storageDeviceId.isBlank() ? null : storageDeviceId;
-        return photoService.listPhotos(accountIdParam, syncedParam, deviceIdParam, page, size);
+        String yearMonthParam = yearMonth.isBlank() ? null : yearMonth;
+        String yearParam = year.isBlank() ? null : year;
+        return photoService.listPhotos(accountIdParam, syncedParam, deviceIdParam, yearMonthParam, yearParam, page, size);
+    }
+
+    @Operation(summary = "Photos grouped by month", description = "Returns photo counts and size totals per calendar month, sorted newest-first")
+    @ApiResponse(responseCode = "200", description = "Month summaries")
+    @Get("/months-summary")
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<MonthSummaryResponse> getMonthsSummary(
+            @QueryValue String storageDeviceId,
+            @QueryValue(defaultValue = "") String accountId) {
+
+        String accountIdParam = accountId.isBlank() ? null : accountId;
+        return photoService.getMonthsSummary(storageDeviceId, accountIdParam);
     }
 
     @Operation(summary = "Count photos missing thumbnails")

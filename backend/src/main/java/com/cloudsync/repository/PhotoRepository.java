@@ -8,6 +8,7 @@ import io.micronaut.data.model.Pageable;
 import io.micronaut.data.model.query.builder.sql.Dialect;
 import io.micronaut.data.repository.PageableRepository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -78,6 +79,17 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
     List<Photo> findSyncedWithoutThumbnailByDevice(String storageDeviceId);
 
     List<Photo> findByStorageDeviceIdAndSyncedToDisk(String storageDeviceId, boolean syncedToDisk);
+
+    /**
+     * Returns a page of synced photos for a device whose createdDate falls within [startInclusive, endExclusive).
+     * Use this for month-scoped and year-scoped photo browsing.
+     */
+    Page<Photo> findBySyncedToDiskAndStorageDeviceIdAndCreatedDateBetween(
+            boolean syncedToDisk,
+            String storageDeviceId,
+            Instant startInclusive,
+            Instant endExclusive,
+            Pageable pageable);
 
     Optional<Photo> findByFilePath(String filePath);
 }

@@ -2,12 +2,12 @@ import { Component, OnInit, OnDestroy, inject, signal, computed, effect } from '
 import { DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { StatusService } from '../../../core/api/generated/status/status.service';
-import { AccountService } from '../../../core/services/account.service';
+import { Store } from '@ngxs/store';
 import { SyncService } from '../../../core/services/sync.service';
 import { DiskSetupService, DriveStatus } from '../../../core/services/disk-setup.service';
 import { SyncProgressEvent } from '../../../core/models/sync-progress.model';
-import { DeviceStatusResponse } from '../../../core/api/generated/model/deviceStatusResponse';
+import { DevicesState } from '../../../state/devices/devices.state';
+import { AccountsState } from '../../../state/accounts/accounts.state';
 import { AccountResponse } from '../../../core/api/generated/model/accountResponse';
 
 interface DeviceReadiness {
@@ -194,19 +194,20 @@ interface DeviceReadiness {
   `]
 })
 export class SyncSectionComponent implements OnInit, OnDestroy {
-  private statusService = inject(StatusService);
-  private accountService = inject(AccountService);
+  private store = inject(Store);
   private syncService = inject(SyncService);
   private diskSetupService = inject(DiskSetupService);
 
   loading = signal(false);
   starting = signal(false);
   confirming = signal(false);
-  statuses = signal<DeviceStatusResponse[]>([]);
-  accounts = signal<AccountResponse[]>([]);
   driveStatus = signal<DriveStatus | null>(null);
   activeProgress = signal<SyncProgressEvent | null>(null);
   selectedProvider = signal<'ICLOUD' | 'IPHONE'>('ICLOUD');
+
+  /** Device statuses and accounts come from global stores — no local fetching. */
+  statuses = this.store.selectSignal(DevicesState.devices);
+  accounts = this.store.selectSignal(AccountsState.accounts);
 
   private syncStartTime: number | null = null;
   private progressSub?: Subscription;
@@ -310,20 +311,24 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     this.progressSub?.unsubscribe();
   }
 
+  /**
+   * Loads drive status. Device statuses and accounts are managed by
+   * DevicesState and AccountsState respectively — no direct fetching here.
+   *
+   * TODO: Test that removing statusService/accountService calls here doesn't
+   * regress the sync readiness display when the dashboard first loads.
+   */
   refresh(): void {
     this.loading.set(true);
-    this.statusService.getDeviceStatuses().subscribe({
-      next: (s) => this.statuses.set(s),
-      error: () => this.statuses.set([]),
-      complete: () => this.loading.set(false)
-    });
-    this.accountService.listAccounts().subscribe({
-      next: (a) => this.accounts.set(a),
-      error: () => this.accounts.set([])
-    });
     this.diskSetupService.getStatus().subscribe({
-      next: (d) => this.driveStatus.set(d),
-      error: () => this.driveStatus.set(null)
+      next: (d) => {
+        this.driveStatus.set(d);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.driveStatus.set(null);
+        this.loading.set(false);
+      },
     });
   }
 

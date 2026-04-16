@@ -1,5 +1,6 @@
-import { Component, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Store } from '@ngxs/store';
 import { DeviceStatusPanelComponent } from './device-status-panel/device-status-panel.component';
 import { AccountsPanelComponent } from './accounts-panel/accounts-panel.component';
 import { AddAccountModalComponent } from './add-account-modal/add-account-modal.component';
@@ -9,6 +10,8 @@ import { ActiveContextCardComponent } from './active-context-card/active-context
 import { StorageStatsCardComponent } from './storage-stats-card/storage-stats-card.component';
 import { DiskScanningModalComponent } from './disk-scanning-modal/disk-scanning-modal.component';
 import { AccountResponse } from '../../core/api/generated/model/accountResponse';
+import { StartPolling, StopPolling } from '../../state/devices/devices.actions';
+import { LoadAccounts } from '../../state/accounts/accounts.actions';
 
 @Component({
   selector: 'app-dashboard',
@@ -26,14 +29,14 @@ import { AccountResponse } from '../../core/api/generated/model/accountResponse'
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   @ViewChild(AccountsPanelComponent) accountsPanel!: AccountsPanelComponent;
   @ViewChild(SyncSectionComponent) syncSection!: SyncSectionComponent;
-  @ViewChild(DeviceStatusPanelComponent) deviceStatusPanel!: DeviceStatusPanelComponent;
   @ViewChild(ReorganizeSectionComponent) reorganizeSection!: ReorganizeSectionComponent;
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private store = inject(Store);
 
   showModal = signal(false);
   showScanningModal = signal(false);
@@ -45,6 +48,15 @@ export class DashboardComponent implements OnInit {
       this.showScanningModal.set(true);
       this.router.navigate([], { replaceUrl: true, queryParams: {} });
     }
+
+    // Start device polling and prefetch accounts for child components
+    this.store.dispatch(new StartPolling());
+    this.store.dispatch(new LoadAccounts());
+  }
+
+  ngOnDestroy(): void {
+    // Stop polling when the user navigates away from the dashboard
+    this.store.dispatch(new StopPolling());
   }
 
   onAddAccountRequested(): void {
@@ -65,9 +77,10 @@ export class DashboardComponent implements OnInit {
   onAccountAdded(): void {
     this.showModal.set(false);
     this.reconnectAccount.set(null);
-    this.accountsPanel.loadAccounts();
+    // Dispatch to store — all subscribed components update automatically
+    this.store.dispatch(new LoadAccounts());
     this.syncSection.refresh();
-    this.deviceStatusPanel.loadStatuses();
+    // Device status re-polling is already running; no manual reload needed
   }
 
   onScanningModalClosed(): void {

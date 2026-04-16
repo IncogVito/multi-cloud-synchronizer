@@ -1,5 +1,6 @@
 package com.cloudsync.service;
 
+import com.cloudsync.model.dto.MonthSummaryResponse;
 import com.cloudsync.model.dto.PhotoListResponse;
 import com.cloudsync.model.dto.PhotoResponse;
 import com.cloudsync.model.entity.Photo;
@@ -11,10 +12,18 @@ import jakarta.inject.Singleton;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Singleton
 public class PhotoService {
@@ -27,11 +36,99 @@ public class PhotoService {
         this.appContextService = appContextService;
     }
 
-    public PhotoListResponse listPhotos(String accountId, Boolean synced, String storageDeviceId, int page, int size) {
+    /**
+     * Groups synced photos by calendar month and returns a summary for each.
+     * Results are sorted newest-month-first.
+     *
+     * @param storageDeviceId required — only photos on this device are included
+     * @param accountId       optional — when non-null only photos from this account are included
+     */
+    public List<MonthSummaryResponse> getMonthsSummary(String storageDeviceId, String accountId) {
+        appContextService.requireActive();
+
+        List<Photo> syncedPhotos = photoRepository.findByStorageDeviceIdAndSyncedToDisk(storageDeviceId, true);
+
+        List<Photo> filteredPhotos = accountId != null
+                ? syncedPhotos.stream().filter(p -> accountId.equals(p.getAccountId())).toList()
+                : syncedPhotos;
+
+        Map<String, List<Photo>> photosByYearMonth = filteredPhotos.stream()
+                .filter(p -> p.getCreatedDate() != null)
+                .collect(Collectors.groupingBy(p -> formatYearMonth(p.getCreatedDate())));
+
+        DateTimeFormatter labelFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
+
+        return photosByYearMonth.entrySet().stream()
+                .map(entry -> buildMonthSummary(entry.getKey(), entry.getValue(), labelFormatter))
+                .sorted(Comparator.comparing(MonthSummaryResponse::yearMonth).reversed())
+                .toList();
+    }
+
+    private MonthSummaryResponse buildMonthSummary(
+            String yearMonth,
+            List<Photo> monthPhotos,
+            DateTimeFormatter labelFormatter) {
+
+        long totalSizeBytes = monthPhotos.stream()
+                .mapToLong(p -> p.getFileSize() != null ? p.getFileSize() : 0L)
+                .sum();
+        Instant earliestDate = monthPhotos.stream()
+                .map(Photo::getCreatedDate)
+                .filter(Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+        Instant latestDate = monthPhotos.stream()
+                .map(Photo::getCreatedDate)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(null);
+
+        String label = YearMonth.parse(yearMonth)
+                .atDay(1)
+                .format(labelFormatter);
+
+        return new MonthSummaryResponse(yearMonth, label, monthPhotos.size(), totalSizeBytes, earliestDate, latestDate);
+    }
+
+    private String formatYearMonth(Instant instant) {
+        return instant.atZone(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyy-MM"));
+    }
+
+    /**
+     * Lists photos with optional filters.
+     * When both storageDeviceId and a date range (from yearMonth or year) are provided,
+     * the date range takes priority and is applied alongside the device filter.
+     *
+     * @param accountId       filter by account (optional)
+     * @param synced          filter by disk-sync status (optional)
+     * @param storageDeviceId filter by storage device (optional)
+     * @param yearMonth       restrict to a single month, format "YYYY-MM" (optional)
+     * @param year            restrict to a full year, format "YYYY" (optional, ignored when yearMonth is set)
+     * @param page            zero-based page index
+     * @param size            page size
+     */
+    public PhotoListResponse listPhotos(
+            String accountId,
+            Boolean synced,
+            String storageDeviceId,
+            String yearMonth,
+            String year,
+            int page,
+            int size) {
+
         appContextService.requireActive();
         Pageable pageable = Pageable.from(page, size);
-        Page<Photo> result;
 
+        DateRange dateRange = resolveDateRange(yearMonth, year);
+
+        if (dateRange != null && storageDeviceId != null) {
+            boolean syncedFlag = synced != null ? synced : true;
+            Page<Photo> result = photoRepository.findBySyncedToDiskAndStorageDeviceIdAndCreatedDateBetween(
+                    syncedFlag, storageDeviceId, dateRange.startInclusive(), dateRange.endExclusive(), pageable);
+            return toPhotoListResponse(result, page, size);
+        }
+
+        Page<Photo> result;
         if (accountId != null && synced != null) {
             List<Photo> photos = photoRepository.findByAccountIdAndSyncedToDisk(accountId, synced);
             return new PhotoListResponse(photos.stream().map(this::toResponse).toList(), photos.size(), page, size);
@@ -45,11 +142,34 @@ public class PhotoService {
             result = photoRepository.findAll(pageable);
         }
 
+        return toPhotoListResponse(result, page, size);
+    }
+
+    /** Computes date range from a yearMonth ("YYYY-MM") or year ("YYYY") filter string. Returns null when neither is set. */
+    private DateRange resolveDateRange(String yearMonth, String year) {
+        if (yearMonth != null && !yearMonth.isBlank()) {
+            YearMonth ym = YearMonth.parse(yearMonth);
+            Instant startOfMonth = ym.atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+            Instant startOfNextMonth = ym.plusMonths(1).atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+            return new DateRange(startOfMonth, startOfNextMonth);
+        }
+        if (year != null && !year.isBlank()) {
+            int yearInt = Integer.parseInt(year);
+            Instant startOfYear = java.time.LocalDate.of(yearInt, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
+            Instant startOfNextYear = java.time.LocalDate.of(yearInt + 1, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
+            return new DateRange(startOfYear, startOfNextYear);
+        }
+        return null;
+    }
+
+    private record DateRange(Instant startInclusive, Instant endExclusive) {}
+
+    private PhotoListResponse toPhotoListResponse(Page<Photo> page, int pageIndex, int pageSize) {
         return new PhotoListResponse(
-                result.getContent().stream().map(this::toResponse).toList(),
-                result.getTotalSize(),
-                page,
-                size
+                page.getContent().stream().map(this::toResponse).toList(),
+                page.getTotalSize(),
+                pageIndex,
+                pageSize
         );
     }
 

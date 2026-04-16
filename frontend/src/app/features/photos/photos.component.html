@@ -14,20 +14,47 @@
     (thumbnailsGenerated)="onThumbnailsGenerated()"
   ></app-missing-thumbnails-banner>
 
-  <app-photo-timeline
-    [groups]="groups()"
-    [selectedIds]="selectedIds()"
-    [thumbnailUrls]="thumbnailUrls()"
-    [loading]="loading()"
-    [loadingMore]="loadingMore()"
-    [hasMore]="hasMore()"
-    [loadError]="loadError()"
-    (photoClicked)="onPhotoClicked($event)"
-    (selectionChanged)="onSelectionChanged($event)"
-    (loadMoreRequested)="onLoadMoreRequested()"
-    (scrolled)="onScrolled()"
-    (thumbnailNeeded)="onThumbnailNeeded($event)"
-  ></app-photo-timeline>
+  <div class="photos-layout">
+    @if (monthsSummary().length > 0) {
+      <nav class="months-toc" aria-label="Browse by month">
+        <div class="months-toc__header">By month</div>
+        <button
+          class="months-toc__item"
+          [class.months-toc__item--active]="activeMonth() === null"
+          (click)="onMonthSelected(null)"
+        >
+          <span class="months-toc__label">All photos</span>
+        </button>
+        @for (month of monthsSummary(); track month.yearMonth) {
+          <button
+            class="months-toc__item"
+            [class.months-toc__item--active]="activeMonth() === month.yearMonth"
+            (click)="onMonthSelected(month.yearMonth)"
+          >
+            <span class="months-toc__label">{{ month.label }}</span>
+            <span class="months-toc__count">{{ month.photoCount }}</span>
+          </button>
+        }
+      </nav>
+    }
+
+    <div class="photos-main">
+      <app-photo-timeline
+        [groups]="groups()"
+        [selectedIds]="selectedIds()"
+        [thumbnailUrls]="thumbnailUrls()"
+        [loading]="loading()"
+        [loadingMore]="loadingMore()"
+        [hasMore]="hasMore()"
+        [loadError]="loadError() ?? ''"
+        (photoClicked)="onPhotoClicked($event)"
+        (selectionChanged)="onSelectionChanged($event)"
+        (loadMoreRequested)="onLoadMoreRequested()"
+        (scrolled)="onScrolled()"
+        (thumbnailNeeded)="onThumbnailNeeded($event)"
+      ></app-photo-timeline>
+    </div>
+  </div>
 
   <app-batch-actions-bar
     [selectedCount]="selectedIds().size"
