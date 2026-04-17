@@ -20,6 +20,10 @@ public record MonthSummaryResponse(
         /** Earliest createdDate among photos in this month. Null if month has no photos. */
         Instant earliestDate,
         /** Latest createdDate among photos in this month. Null if month has no photos. */
-        Instant latestDate
+        Instant latestDate,
+        /** Photos that exist on iCloud but not on iPhone. */
+        long icloudOnlyCount,
+        /** Photos that exist on iPhone but not on iCloud. */
+        long iphoneOnlyCount
 ) {
 }

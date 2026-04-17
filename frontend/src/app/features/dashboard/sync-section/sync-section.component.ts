@@ -104,6 +104,9 @@ interface DeviceReadiness {
               <li>Zdjęcia w iCloud: <strong>{{ activeProgress()!.totalOnCloud }}</strong></li>
               <li>Już zsynchronizowane: <strong>{{ activeProgress()!.synced }}</strong></li>
               <li>Do pobrania: <strong>{{ activeProgress()!.pending }}</strong></li>
+              @if ((activeProgress()!.newlyDeleted ?? 0) > 0) {
+                <li class="deleted-notice">Usunięte od ostatniej synchronizacji: <strong>{{ activeProgress()!.newlyDeleted }}</strong></li>
+              }
             </ul>
             <div class="actions">
               <button class="btn btn-primary" [disabled]="confirming()" (click)="confirmSync()">
@@ -192,6 +195,7 @@ interface DeviceReadiness {
     .progress-pct { font-size: 0.8rem; color: #374151; min-width: 3em; text-align: right; }
     .stats { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; color: #374151; }
     .stats .err { color: #dc2626; }
+    .stats .deleted-notice { color: #d97706; }
     .sync-title--error { color: #dc2626; }
     .sync-title--cancelled { color: #6b7280; }
     .sync-card:has(.sync-title--error) { border-color: #fca5a5; background: #fff5f5; }

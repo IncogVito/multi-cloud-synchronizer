@@ -1,6 +1,6 @@
 @if (selectedCount() > 0) {
   <div class="batch-bar">
-    <span class="batch-count">{{ selectedCount() }} selected</span>
+    <span class="batch-count">{{ selectedCount() }} selected &middot; {{ formatBytes(selectedSize()) }}</span>
     <div class="batch-actions">
       <button
         class="btn btn-danger"

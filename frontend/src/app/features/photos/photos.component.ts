@@ -1,9 +1,10 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed, effect, ViewChild, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { Store } from '@ngxs/store';
 import { PhotosService } from '../../core/api/generated/photos/photos.service';
 import { PhotoResponse } from '../../core/api/generated/model/photoResponse';
-import { PhotosToolbarComponent } from './photos-toolbar/photos-toolbar.component';
+import { PhotosToolbarComponent, SourceFilter } from './photos-toolbar/photos-toolbar.component';
 import { PhotoTimelineComponent } from './photo-timeline/photo-timeline.component';
 import { PhotoGroup } from './photo-timeline/photo-timeline.component';
 import { BatchActionsBarComponent } from './batch-actions-bar/batch-actions-bar.component';
@@ -11,12 +12,14 @@ import { PhotoDetailModalComponent } from './photo-detail-modal/photo-detail-mod
 import { SyncProgressComponent } from './sync-progress/sync-progress.component';
 import { MissingThumbnailsBannerComponent } from './missing-thumbnails-banner/missing-thumbnails-banner.component';
 import { SyncService } from '../../core/services/sync.service';
+import { DiskIndexingService } from '../../core/services/disk-indexing.service';
 import { AppContextService } from '../../core/services/app-context.service';
 import { SyncProgressEvent } from '../../core/models/sync-progress.model';
 import { PhotosState } from '../../state/photos/photos.state';
 import { LoadPhotos, LoadMorePhotos, LoadMonthsSummary, SetActiveMonth } from '../../state/photos/photos.actions';
 import { MonthSummaryResponse } from '../../core/api/generated/model/monthSummaryResponse';
 import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 
 type Granularity = 'year' | 'month';
 
@@ -41,10 +44,13 @@ export class PhotosComponent implements OnInit, OnDestroy {
   private photosService = inject(PhotosService);
   private http = inject(HttpClient);
   private syncService = inject(SyncService);
+  private diskIndexingService = inject(DiskIndexingService);
   private appContextService = inject(AppContextService);
+  private destroyRef = inject(DestroyRef);
 
   storageDeviceId = computed(() => this.appContextService.context()?.storageDeviceId ?? '');
   granularity = signal<Granularity>('year');
+  sourceFilter = signal<SourceFilter>('all');
 
   // Derived from store — single source of truth for photos and pagination
   allPhotos = this.store.selectSignal(PhotosState.photos);
@@ -55,7 +61,22 @@ export class PhotosComponent implements OnInit, OnDestroy {
   monthsSummary = this.store.selectSignal(PhotosState.monthsSummary);
   activeMonth = this.store.selectSignal(PhotosState.activeMonth);
 
-  groups = computed<PhotoGroup[]>(() => this.buildGroupsFromPhotos(this.allPhotos(), this.granularity()));
+  filteredPhotos = computed(() => {
+    const f = this.sourceFilter();
+    const photos = this.allPhotos();
+    if (f === 'icloud') return photos.filter(p => p.existsOnIcloud && !p.existsOnIphone);
+    if (f === 'iphone') return photos.filter(p => p.existsOnIphone && !p.existsOnIcloud);
+    return photos;
+  });
+
+  groups = computed<PhotoGroup[]>(() => this.buildGroupsFromPhotos(this.filteredPhotos(), this.granularity()));
+
+  selectedSize = computed(() => {
+    const ids = this.selectedIds();
+    return this.allPhotos()
+      .filter(p => ids.has(p.id))
+      .reduce((sum, p) => sum + (p.fileSize ?? 0), 0);
+  });
 
   syncing = signal(false);
   syncProgress = signal<SyncProgressEvent | null>(null);
@@ -106,7 +127,6 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.syncing.set(false);
         const deviceId = this.storageDeviceId();
         if (deviceId) {
-          // Reload photos and summary after sync completes so new photos appear
           this.store.dispatch(new LoadPhotos(deviceId, this.activeMonth() ?? undefined));
           this.store.dispatch(new LoadMonthsSummary(deviceId));
         }
@@ -114,6 +134,19 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.syncing.set(false);
       }
     });
+
+    this.diskIndexingService.progress$
+      .pipe(
+        filter(p => p?.phase === 'DONE'),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        const deviceId = this.storageDeviceId();
+        if (deviceId) {
+          this.store.dispatch(new LoadPhotos(deviceId, this.activeMonth() ?? undefined));
+          this.store.dispatch(new LoadMonthsSummary(deviceId));
+        }
+      });
   }
 
   ngOnDestroy(): void {
@@ -132,6 +165,11 @@ export class PhotosComponent implements OnInit, OnDestroy {
 
   onGranularityChanged(g: Granularity): void {
     this.granularity.set(g);
+  }
+
+  onSourceFilterChanged(f: SourceFilter): void {
+    this.sourceFilter.set(f);
+    this.selectedIds.set(new Set());
   }
 
   onSyncRequested(): void {

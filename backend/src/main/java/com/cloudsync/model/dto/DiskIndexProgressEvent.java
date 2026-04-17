@@ -10,6 +10,7 @@ public class DiskIndexProgressEvent {
     private int total;
     private double percentComplete;
     private String error;
+    private int newlyDeleted;
 
     public DiskIndexProgressEvent() {}
 
@@ -31,4 +32,7 @@ public class DiskIndexProgressEvent {
 
     public String getError() { return error; }
     public void setError(String error) { this.error = error; }
+
+    public int getNewlyDeleted() { return newlyDeleted; }
+    public void setNewlyDeleted(int newlyDeleted) { this.newlyDeleted = newlyDeleted; }
 }

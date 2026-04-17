@@ -82,12 +82,18 @@ public class PhotoService {
                 .filter(Objects::nonNull)
                 .max(Comparator.naturalOrder())
                 .orElse(null);
+        long icloudOnlyCount = monthPhotos.stream()
+                .filter(p -> p.isExistsOnIcloud() && !Boolean.TRUE.equals(p.getExistsOnIphone()))
+                .count();
+        long iphoneOnlyCount = monthPhotos.stream()
+                .filter(p -> Boolean.TRUE.equals(p.getExistsOnIphone()) && !p.isExistsOnIcloud())
+                .count();
 
         String label = YearMonth.parse(yearMonth)
                 .atDay(1)
                 .format(labelFormatter);
 
-        return new MonthSummaryResponse(yearMonth, label, monthPhotos.size(), totalSizeBytes, earliestDate, latestDate);
+        return new MonthSummaryResponse(yearMonth, label, monthPhotos.size(), totalSizeBytes, earliestDate, latestDate, icloudOnlyCount, iphoneOnlyCount);
     }
 
     private String formatYearMonth(Instant instant) {

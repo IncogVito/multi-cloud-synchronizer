@@ -1075,6 +1075,9 @@ components:
           format: double
         error:
           type: string
+        newlyDeleted:
+          type: integer
+          format: int32
     DiskSetupService.DiskInfo:
       required:
       - label
@@ -1271,6 +1274,8 @@ components:
     MonthSummaryResponse:
       required:
       - earliestDate
+      - icloudOnlyCount
+      - iphoneOnlyCount
       - label
       - latestDate
       - photoCount
@@ -1294,6 +1299,12 @@ components:
         latestDate:
           type: string
           format: date-time
+        icloudOnlyCount:
+          type: integer
+          format: int64
+        iphoneOnlyCount:
+          type: integer
+          format: int64
       description: Summary of photos for a single calendar month. Used by the month-based
         browsing UI to build the TOC sidebar.
     PhotoListResponse:
@@ -1479,6 +1490,15 @@ components:
         timestamp:
           type: string
           format: date-time
+        diskFreeBytes:
+          type: integer
+          format: int64
+        diskPhotoCount:
+          type: integer
+          format: int64
+        newlyDeleted:
+          type: integer
+          format: int32
     SyncStartResponse:
       required:
       - accountId

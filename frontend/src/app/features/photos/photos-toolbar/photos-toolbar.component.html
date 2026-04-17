@@ -11,7 +11,24 @@
         [class.active]="granularity() === 'month'"
         (click)="setGranularity('month')"
       >Month</button>
-    </div> 
+    </div>
+    <div class="toggle-group">
+      <button
+        class="toggle-btn"
+        [class.active]="sourceFilter() === 'all'"
+        (click)="setSourceFilter('all')"
+      >All</button>
+      <button
+        class="toggle-btn"
+        [class.active]="sourceFilter() === 'icloud'"
+        (click)="setSourceFilter('icloud')"
+      >iCloud only</button>
+      <button
+        class="toggle-btn"
+        [class.active]="sourceFilter() === 'iphone'"
+        (click)="setSourceFilter('iphone')"
+      >iPhone only</button>
+    </div>
   </div>
 
 </div>

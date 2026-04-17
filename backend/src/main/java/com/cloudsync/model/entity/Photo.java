@@ -33,6 +33,8 @@ public class Photo {
     private String assetToken;
     /** Which provider this photo was synced from: "ICLOUD" or "IPHONE". */
     private String sourceProvider;
+    private boolean deleted;
+    private Instant deletedDate;
 
     public Photo() {
         this.syncedToDisk = false;
@@ -100,4 +102,10 @@ public class Photo {
 
     public String getSourceProvider() { return sourceProvider; }
     public void setSourceProvider(String sourceProvider) { this.sourceProvider = sourceProvider; }
+
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+
+    public Instant getDeletedDate() { return deletedDate; }
+    public void setDeletedDate(Instant deletedDate) { this.deletedDate = deletedDate; }
 }

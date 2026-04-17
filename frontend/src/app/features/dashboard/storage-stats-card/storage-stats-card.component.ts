@@ -1,6 +1,6 @@
-import { Component, OnInit, OnDestroy, inject, signal, computed, output } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject, signal, computed, output } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
-import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { StatsService } from '../../../core/api/generated/stats/stats.service';
 import { AppContextService } from '../../../core/services/app-context.service';
@@ -15,19 +15,18 @@ import { StatsResponse } from '../../../core/api/generated/model/statsResponse';
   templateUrl: './storage-stats-card.component.html',
   styleUrl: './storage-stats-card.component.scss'
 })
-export class StorageStatsCardComponent implements OnInit, OnDestroy {
+export class StorageStatsCardComponent implements OnInit {
   private statsApi = inject(StatsService);
   appContext = inject(AppContextService);
   private syncService = inject(SyncService);
   private diskIndexingService = inject(DiskIndexingService);
+  private destroyRef = inject(DestroyRef);
 
   reindexRequested = output<void>();
 
   stats = signal<StatsResponse | null>(null);
   loading = signal(true);
   reindexing = signal(false);
-
-  private syncSub: Subscription | null = null;
 
   diskUsedPercent = computed(() => {
     const s = this.stats();
@@ -37,13 +36,12 @@ export class StorageStatsCardComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.load();
-    this.syncSub = this.syncService.syncProgress$
-      .pipe(filter(p => p?.phase === 'DONE'))
+    this.syncService.syncProgress$
+      .pipe(filter(p => p?.phase === 'DONE'), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.load());
-  }
-
-  ngOnDestroy(): void {
-    this.syncSub?.unsubscribe();
+    this.diskIndexingService.progress$
+      .pipe(filter(p => p?.phase === 'DONE'), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.load());
   }
 
   private load(): void {

@@ -3,8 +3,10 @@
     [granularity]="granularity()"
     [syncing]="syncing()"
     [canSync]="!!storageDeviceId()"
+    [sourceFilter]="sourceFilter()"
     (granularityChanged)="onGranularityChanged($event)"
     (syncRequested)="onSyncRequested()"
+    (sourceFilterChanged)="onSourceFilterChanged($event)"
   ></app-photos-toolbar>
 
   <app-sync-progress [event]="syncProgress()"></app-sync-progress>
@@ -32,7 +34,18 @@
             (click)="onMonthSelected(month.yearMonth)"
           >
             <span class="months-toc__label">{{ month.label }}</span>
-            <span class="months-toc__count">{{ month.photoCount }}</span>
+            @if (sourceFilter() === 'icloud') {
+              <span class="months-toc__count">{{ month.icloudOnlyCount }}</span>
+            } @else if (sourceFilter() === 'iphone') {
+              <span class="months-toc__count">{{ month.iphoneOnlyCount }}</span>
+            } @else {
+              <span class="months-toc__count">
+                {{ month.photoCount }}
+                @if (month.icloudOnlyCount > 0 || month.iphoneOnlyCount > 0) {
+                  <span class="months-toc__breakdown">☁ {{ month.icloudOnlyCount }} · &#x1F4F1;&#xFE0E; {{ month.iphoneOnlyCount }}</span>
+                }
+              </span>
+            }
           </button>
         }
       </nav>
@@ -58,6 +71,7 @@
 
   <app-batch-actions-bar
     [selectedCount]="selectedIds().size"
+    [selectedSize]="selectedSize()"
     [canDelete]="canDeleteSelected()"
     (deleteFromICloud)="onDeleteFromICloud()"
     (deleteFromIPhone)="onDeleteFromIPhone()"

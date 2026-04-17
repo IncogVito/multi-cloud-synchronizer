@@ -17,6 +17,11 @@ import { Subscription } from 'rxjs';
             <p class="done-sub">
               Zindeksowano <strong>{{ progress()!.scanned }}</strong> plików.
             </p>
+            @if ((progress()!.newlyDeleted ?? 0) > 0) {
+              <p class="done-sub deleted-notice">
+                Oznaczono jako usunięte: <strong>{{ progress()!.newlyDeleted }}</strong> zdjęć (pliki zniknęły z dysku od ostatniego skanowania).
+              </p>
+            }
             <button class="btn btn-primary" (click)="close()">Przejdź do dashboardu</button>
           </div>
         } @else if (progress()?.phase === 'ERROR') {
@@ -166,6 +171,7 @@ import { Subscription } from 'rxjs';
     }
 
     .error-text { color: #dc2626; }
+    .deleted-notice { color: #d97706; }
 
     .btn {
       padding: 0.6rem 1.5rem;

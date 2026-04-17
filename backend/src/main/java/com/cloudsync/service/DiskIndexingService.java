@@ -69,7 +69,7 @@ public class DiskIndexingService {
     public void startIndexing() {
         AppContext ctx = appContextService.requireActive();
         if (running.compareAndSet(false, true)) {
-            emitEvent("SCANNING", 0, 0, 0.0, null);
+            emitEvent("SCANNING", 0, 0, 0.0, null, 0);
             CompletableFuture.runAsync(
                     () -> doIndex(ctx.basePath(), ctx.storageDeviceId()),
                     syncVirtualThreadExecutor
@@ -81,7 +81,7 @@ public class DiskIndexingService {
         try {
             Path root = Path.of(folderPath);
             if (!Files.isDirectory(root)) {
-                emitEvent("ERROR", 0, 0, 0.0, "Folder nie istnieje: " + folderPath);
+                emitEvent("ERROR", 0, 0, 0.0, "Folder nie istnieje: " + folderPath, 0);
                 running.set(false);
                 return;
             }
@@ -118,7 +118,7 @@ public class DiskIndexingService {
 
                 if (scanned % 50 == 0 || scanned == total) {
                     double pct = total > 0 ? (double) scanned / total * 100 : 100.0;
-                    emitEvent("SCANNING", scanned, total, pct, null);
+                    emitEvent("SCANNING", scanned, total, pct, null, 0);
                 }
             }
 
@@ -126,14 +126,32 @@ public class DiskIndexingService {
                 photoRepository.saveAll(batch);
             }
 
-            LOG.info("DiskIndexing complete: {} files processed, {} new", total, scanned);
-            emitEvent("DONE", scanned, total, 100.0, null);
+            int newlyDeleted = markMissingPhotosAsDeleted(storageDeviceId);
+            LOG.info("DiskIndexing complete: {} files processed, {} marked deleted", total, newlyDeleted);
+            emitDoneEvent(scanned, total, newlyDeleted);
         } catch (Exception e) {
             LOG.error("DiskIndexing failed: {}", e.getMessage(), e);
-            emitEvent("ERROR", 0, 0, 0.0, e.getMessage());
+            emitEvent("ERROR", 0, 0, 0.0, e.getMessage(), 0);
         } finally {
             running.set(false);
         }
+    }
+
+    private int markMissingPhotosAsDeleted(String storageDeviceId) {
+        List<Photo> synced = photoRepository.findByStorageDeviceIdAndSyncedToDisk(storageDeviceId, true);
+        List<Photo> toUpdate = new ArrayList<>();
+        Instant now = Instant.now();
+        for (Photo photo : synced) {
+            if (photo.getFilePath() != null && !Files.exists(Path.of(photo.getFilePath()))) {
+                photo.setDeleted(true);
+                photo.setDeletedDate(now);
+                toUpdate.add(photo);
+            }
+        }
+        for (int i = 0; i < toUpdate.size(); i += BATCH_SIZE) {
+            photoRepository.updateAll(toUpdate.subList(i, Math.min(i + BATCH_SIZE, toUpdate.size())));
+        }
+        return toUpdate.size();
     }
 
     private List<Path> collectMediaFiles(Path root) throws IOException {
@@ -149,7 +167,7 @@ public class DiskIndexingService {
     private Set<String> buildIndexedPathSet(String storageDeviceId) {
         Set<String> paths = new HashSet<>();
         try {
-            photoRepository.findByStorageDeviceIdAndSyncedToDisk(storageDeviceId, true)
+            photoRepository.findAllByStorageDeviceIdAndSyncedToDiskIncludeDeleted(storageDeviceId)
                     .forEach(p -> {
                         if (p.getFilePath() != null) paths.add(p.getFilePath());
                     });
@@ -357,12 +375,22 @@ public class DiskIndexingService {
         return VIDEO_EXTENSIONS.contains(ext) ? MediaType.VIDEO.name() : MediaType.PHOTO.name();
     }
 
-    private void emitEvent(String phase, int scanned, int total, double pct, String error) {
+    private void emitDoneEvent(int scanned, int total, int newlyDeleted) {
+        DiskIndexProgressEvent event = new DiskIndexProgressEvent("DONE");
+        event.setScanned(scanned);
+        event.setTotal(total);
+        event.setPercentComplete(100.0);
+        event.setNewlyDeleted(newlyDeleted);
+        stateHolder.updateAndEmit(event);
+    }
+
+    private void emitEvent(String phase, int scanned, int total, double pct, String error, int newlyDeleted) {
         DiskIndexProgressEvent event = new DiskIndexProgressEvent(phase);
         event.setScanned(scanned);
         event.setTotal(total);
         event.setPercentComplete(pct);
         event.setError(error);
+        event.setNewlyDeleted(newlyDeleted);
         stateHolder.updateAndEmit(event);
     }
 }

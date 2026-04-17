@@ -9,6 +9,7 @@ export interface DiskIndexProgress {
   total: number;
   percentComplete: number;
   error?: string;
+  newlyDeleted?: number;
 }
 
 export interface ReorganizePreview {

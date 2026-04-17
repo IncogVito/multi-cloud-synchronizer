@@ -18,6 +18,7 @@ public class SyncProgressEvent {
     private Instant timestamp;
     private Long diskFreeBytes;
     private Long diskPhotoCount;
+    private int newlyDeleted;
 
     public SyncProgressEvent() {}
 
@@ -51,4 +52,7 @@ public class SyncProgressEvent {
     public void setDiskFreeBytes(Long diskFreeBytes) { this.diskFreeBytes = diskFreeBytes; }
     public Long getDiskPhotoCount() { return diskPhotoCount; }
     public void setDiskPhotoCount(Long diskPhotoCount) { this.diskPhotoCount = diskPhotoCount; }
+
+    public int getNewlyDeleted() { return newlyDeleted; }
+    public void setNewlyDeleted(int newlyDeleted) { this.newlyDeleted = newlyDeleted; }
 }

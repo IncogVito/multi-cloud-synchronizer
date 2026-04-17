@@ -9,9 +9,17 @@ import { Component, input, output } from '@angular/core';
 })
 export class BatchActionsBarComponent {
   selectedCount = input(0);
+  selectedSize = input(0);
   canDelete = input(false);
 
   deleteFromICloud = output<void>();
   deleteFromIPhone = output<void>();
   clearSelection = output<void>();
+
+  formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+  }
 }

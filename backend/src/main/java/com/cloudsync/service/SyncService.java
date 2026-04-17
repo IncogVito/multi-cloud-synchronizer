@@ -332,7 +332,7 @@ public class SyncService {
                 classifyAsset(asset, accountId, appContext.storageDeviceId(), provider.providerType(), externalIdToExistingPhoto, toSave, toUpdate);
             }
 
-            markPhotosDeletedFromCloud(provider.providerType(), remotePhotos, externalIdToExistingPhoto, toUpdate);
+            int newlyDeleted = markPhotosDeletedFromCloud(provider.providerType(), remotePhotos, externalIdToExistingPhoto, toUpdate);
 
             if (isCancelled(accountId)) return;
 
@@ -341,7 +341,7 @@ public class SyncService {
             updateInBatches(toUpdate);
 
             if (!isCancelled(accountId)) {
-                emitAwaitingConfirmation(accountId, remotePhotos.size());
+                emitAwaitingConfirmation(accountId, remotePhotos.size(), newlyDeleted);
             }
         } catch (Exception e) {
             LOG.error("compareAndPersist failed for {}: {}", accountId, e.getMessage());
@@ -430,17 +430,26 @@ public class SyncService {
         return true;
     }
 
-    private void markPhotosDeletedFromCloud(String providerType, List<PhotoAsset> remotePhotos,
-                                             Map<String, Photo> existingByExternalId, List<Photo> toUpdate) {
-        if (!"ICLOUD".equals(providerType)) return;
+    private int markPhotosDeletedFromCloud(String providerType, List<PhotoAsset> remotePhotos,
+                                            Map<String, Photo> existingByExternalId, List<Photo> toUpdate) {
+        if (!"ICLOUD".equals(providerType)) return 0;
         Set<String> remoteIds = remotePhotos.stream().map(PhotoAsset::id).collect(Collectors.toSet());
         Set<String> alreadyQueued = toUpdate.stream().map(Photo::getId).collect(Collectors.toSet());
+        int count = 0;
+        Instant now = Instant.now();
         for (Photo photo : existingByExternalId.values()) {
-            if (photo.isExistsOnIcloud() && !remoteIds.contains(photo.getIcloudPhotoId()) && !alreadyQueued.contains(photo.getId())) {
+            if (!photo.isDeleted() && photo.isExistsOnIcloud()
+                    && !remoteIds.contains(photo.getIcloudPhotoId())
+                    && !alreadyQueued.contains(photo.getId())) {
                 photo.setExistsOnIcloud(false);
+                photo.setDeleted(true);
+                photo.setDeletedDate(now);
                 toUpdate.add(photo);
+                count++;
             }
         }
+        if (count > 0) LOG.info("Marked {} photos as deleted (no longer on iCloud) for account", count);
+        return count;
     }
 
     private boolean isAlreadyOnDisk(Map<String, Long> diskFiles, PhotoAsset asset) {
@@ -477,7 +486,7 @@ public class SyncService {
         }
     }
 
-    private void emitAwaitingConfirmation(String accountId, int totalOnCloud) {
+    private void emitAwaitingConfirmation(String accountId, int totalOnCloud, int newlyDeleted) {
         String providerType = activeProviderType.getOrDefault(accountId, "ICLOUD");
         long pending = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.PENDING.name(), providerType);
         long synced = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.SYNCED.name(), providerType);
@@ -485,6 +494,7 @@ public class SyncService {
             e.setTotalOnCloud(totalOnCloud);
             e.setPending((int) pending);
             e.setSynced((int) synced);
+            e.setNewlyDeleted(newlyDeleted);
         });
     }
 
@@ -496,6 +506,7 @@ public class SyncService {
         List<Photo> pending = photoRepository.findByAccountIdAndSyncStatus(accountId, SyncStatus.PENDING.name())
                 .stream()
                 .filter(p -> providerType.equals(p.getSourceProvider()))
+                .filter(p -> !p.isDeleted())
                 .toList();
         long alreadySynced = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(
                 accountId, SyncStatus.SYNCED.name(), providerType);

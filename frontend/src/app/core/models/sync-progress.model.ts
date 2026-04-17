@@ -22,6 +22,7 @@ export interface SyncProgressEvent {
   timestamp: string;
   diskFreeBytes?: number;
   diskPhotoCount?: number;
+  newlyDeleted?: number;
 }
 
 export interface SyncStartResponse {
