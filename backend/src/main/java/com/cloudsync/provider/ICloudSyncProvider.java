@@ -1,5 +1,6 @@
 package com.cloudsync.provider;
 
+import com.cloudsync.client.ICloudDownloadRetryClient;
 import com.cloudsync.client.ICloudServiceClient;
 import com.cloudsync.model.dto.ICloudPhotoAsset;
 import com.cloudsync.model.dto.ICloudPhotoListResponse;
@@ -9,6 +10,8 @@ import com.cloudsync.model.dto.PrefetchStatus;
 import io.micronaut.http.HttpResponse;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,12 +21,16 @@ import java.util.List;
 @Named("ICLOUD")
 public class ICloudSyncProvider implements PhotoSyncProvider {
 
+    private static final Logger LOG = LoggerFactory.getLogger(ICloudSyncProvider.class);
     private static final int PAGE_SIZE = 200;
+    private static final int MAX_DOWNLOAD_ATTEMPTS = 2;
 
     private final ICloudServiceClient client;
+    private final ICloudDownloadRetryClient retryClient;
 
-    public ICloudSyncProvider(ICloudServiceClient client) {
+    public ICloudSyncProvider(ICloudServiceClient client, ICloudDownloadRetryClient retryClient) {
         this.client = client;
+        this.retryClient = retryClient;
     }
 
     @Override
@@ -63,10 +70,24 @@ public class ICloudSyncProvider implements PhotoSyncProvider {
 
     @Override
     public byte[] downloadPhoto(String photoId, String sessionId) throws IOException {
-        HttpResponse<byte[]> response = client.downloadPhoto(photoId, sessionId);
-        byte[] data = response.body();
-        if (data == null) throw new IOException("Empty response for photo " + photoId);
-        return data;
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_DOWNLOAD_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<byte[]> response = attempt == 1
+                        ? client.downloadPhoto(photoId, sessionId)
+                        : retryClient.downloadPhoto(photoId, sessionId);
+                byte[] data = response.body();
+                if (data == null) throw new IOException("Empty response for photo " + photoId);
+                if (attempt > 1) {
+                    LOG.info("Download succeeded on attempt {} for photo {}", attempt, photoId);
+                }
+                return data;
+            } catch (Exception e) {
+                lastException = e;
+                LOG.warn("Download attempt {}/{} failed for photo {}: {}", attempt, MAX_DOWNLOAD_ATTEMPTS, photoId, e.getMessage());
+            }
+        }
+        throw new IOException("Download failed after " + MAX_DOWNLOAD_ATTEMPTS + " attempts for photo " + photoId, lastException);
     }
 
     @Override

@@ -22,11 +22,16 @@ FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
 # Tools needed by disk/mount scripts and the healthcheck
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN sed -i 's|URIs: http://|URIs: https://|g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null; \
+    sed -i 's|^deb http://|deb https://|g' /etc/apt/sources.list 2>/dev/null; \
+    sed -i '/^Components:/ { /universe/! s/$/ universe/ }' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null; \
+    sed -i 's/^\(deb https:\/\/.*\) main$/\1 main universe/' /etc/apt/sources.list 2>/dev/null; \
+    true
+RUN apt-get update -o Acquire::Retries=3 && apt-get install -y --no-install-recommends \
     wget \
     util-linux \
     mount \
-    imagemagick \
+    libvips-tools \
     libheif1 \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*

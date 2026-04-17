@@ -15,7 +15,9 @@ from pathlib import Path
 
 from models import (
     DeviceIdResult,
+    DiskDetailsResult,
     DiskInfo,
+    DiskPartition,
     DriveStatus,
     MountDriveResult,
     UnmountDriveResult,
@@ -362,3 +364,68 @@ def _get_disk_usage(path: str):
         return shutil.disk_usage(path)
     except Exception:
         return None
+
+
+# ---------------------------------------------------------------------------
+# get_disk_details
+# ---------------------------------------------------------------------------
+
+def get_disk_details(params: dict) -> DiskDetailsResult:
+    """Return detailed info for a specific block device: fstype, UUID, label, partitions."""
+    device = params.get("device")
+    if not device:
+        raise HandlerError("No device specified", "MISSING_PARAM")
+
+    # Strip /dev/ prefix to get name for lsblk lookup
+    name = device.lstrip("/").split("/")[-1]
+
+    if DEV_MOCK:
+        return DiskDetailsResult(
+            device=device,
+            size="50G",
+            fstype="ext4",
+            uuid="00000000-dev-mock-0000-000000000000",
+            label="DEV-MOCK-DRIVE",
+            mountpoint=DEFAULT_MOUNT_POINT,
+            partitions=[],
+        )
+
+    try:
+        result = subprocess.run(
+            ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,LABEL,UUID", device],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            raise HandlerError(f"lsblk failed: {result.stderr.strip()}", "LSBLK_FAILED")
+        data = json.loads(result.stdout)
+    except HandlerError:
+        raise
+    except Exception as exc:
+        raise HandlerError(f"lsblk failed: {exc}", "LSBLK_FAILED") from exc
+
+    devices = data.get("blockdevices") or []
+    if not devices:
+        raise HandlerError(f"Device {device} not found", "DEVICE_NOT_FOUND")
+
+    dev = devices[0]
+    partitions = []
+    for child in dev.get("children") or []:
+        partitions.append(DiskPartition(
+            name=child.get("name", ""),
+            path="/dev/" + child.get("name", ""),
+            size=child.get("size", ""),
+            fstype=child.get("fstype"),
+            mountpoint=child.get("mountpoint"),
+            uuid=child.get("uuid"),
+            label=child.get("label"),
+        ))
+
+    return DiskDetailsResult(
+        device=device,
+        size=dev.get("size", ""),
+        fstype=dev.get("fstype"),
+        uuid=dev.get("uuid"),
+        label=dev.get("label"),
+        mountpoint=dev.get("mountpoint"),
+        partitions=[vars(p) for p in partitions],
+    )

@@ -57,6 +57,7 @@ DISPATCH: dict[str, callable] = {
     "mount_drive":          drive_handlers.mount_drive,
     "unmount_drive":        drive_handlers.unmount_drive,
     "read_device_id":       drive_handlers.read_device_id,
+    "get_disk_details":     drive_handlers.get_disk_details,
     "detect_iphone":        iphone_handlers.detect_iphone,
     "iphone_list_devices":  iphone_handlers.iphone_list_devices,
     "iphone_check_trust":   iphone_handlers.iphone_check_trust,

@@ -6,7 +6,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { StatusService } from '../../../core/api/generated/status/status.service';
 import { DeviceStatusResponse } from '../../../core/api/generated/model/deviceStatusResponse';
 import { DevicesState } from '../../../state/devices/devices.state';
-import { UpdateDevice } from '../../../state/devices/devices.actions';
+import { LoadDevices, UpdateDevice } from '../../../state/devices/devices.actions';
 
 export interface DeviceCard {
   deviceType: string;
@@ -45,6 +45,8 @@ export class DeviceStatusPanelComponent implements OnInit {
   private statusService = inject(StatusService);
   private authService = inject(AuthService);
 
+  loadingStatuses = signal(false);
+
   /** Device statuses come from the global DevicesState, which is polled automatically. */
   private storeDevices = this.store.selectSignal(DevicesState.devices);
 
@@ -69,7 +71,14 @@ export class DeviceStatusPanelComponent implements OnInit {
 
   ngOnInit(): void {
     // DevicesState polling is started by DashboardComponent on init.
-    // loadStatuses() is intentionally removed — store handles refresh.
+  }
+
+  loadStatuses(): void {
+    this.loadingStatuses.set(true);
+    this.store.dispatch(new LoadDevices()).subscribe({
+      next: () => this.loadingStatuses.set(false),
+      error: () => this.loadingStatuses.set(false),
+    });
   }
 
   statusBadgeClass(connected: boolean): string {

@@ -37,9 +37,6 @@ dependencies {
 
     implementation("io.micronaut.openapi:micronaut-openapi-annotations")
 
-    // Thumbnail generation
-    implementation("net.coobird:thumbnailator:0.4.20")
-
     // EXIF / metadata reading
     implementation("com.drewnoakes:metadata-extractor:2.19.0")
 
@@ -51,6 +48,9 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
     testRuntimeOnly("org.xerial:sqlite-jdbc:3.45.3.0")
+    testImplementation("org.mockito:mockito-core:5.11.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.11.0")
+    testImplementation("org.assertj:assertj-core:3.25.3")
 }
 
 application {

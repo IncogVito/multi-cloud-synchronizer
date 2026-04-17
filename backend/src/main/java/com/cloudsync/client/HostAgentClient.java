@@ -77,6 +77,10 @@ public class HostAgentClient {
         return call("read_device_id", Map.of("device", device), DeviceIdResult.class);
     }
 
+    public DiskDetailsResult getDiskDetails(String device) {
+        return call("get_disk_details", Map.of("device", device), DiskDetailsResult.class);
+    }
+
     // -----------------------------------------------------------------------
     // iPhone
     // -----------------------------------------------------------------------

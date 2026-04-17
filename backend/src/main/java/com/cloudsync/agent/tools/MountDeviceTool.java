@@ -4,7 +4,7 @@ import com.cloudsync.agent.AgentTool;
 import com.cloudsync.client.HostAgentClient;
 import com.cloudsync.client.hostmodel.MountDriveResult;
 import com.cloudsync.exception.HostAgentException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micronaut.serde.ObjectMapper;
 import jakarta.inject.Singleton;
 
 /**

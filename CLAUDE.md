@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Bug-fix workflow:** See [FIX_AGENT_INSTRUCTIONS.md](./FIX_AGENT_INSTRUCTIONS.md) —
+> write a failing test **first**, then implement the fix.
+
 ## Repository layout
 
 Three independently buildable services orchestrated via Docker Compose:

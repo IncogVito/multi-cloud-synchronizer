@@ -1,7 +1,7 @@
 package com.cloudsync.agent.tools;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+import io.micronaut.serde.annotation.Serdeable;
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
+@Serdeable
 public record MountDeviceResponse(boolean mounted, String device, String mountPoint, String message, String error) {
 }

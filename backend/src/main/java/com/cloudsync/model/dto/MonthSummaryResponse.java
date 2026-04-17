@@ -1,11 +1,13 @@
 package com.cloudsync.model.dto;
 
+import io.micronaut.serde.annotation.Serdeable;
 import java.time.Instant;
 
 /**
  * Summary of photos for a single calendar month.
  * Used by the month-based browsing UI to build the TOC sidebar.
  */
+@Serdeable
 public record MonthSummaryResponse(
         /** ISO year-month key, e.g. "2024-03". Used as stable identifier. */
         String yearMonth,

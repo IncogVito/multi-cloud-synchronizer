@@ -86,3 +86,25 @@ class IPhoneMountResult:
 class IPhoneUnmountResult:
     unmounted: bool
     error: str | None
+
+
+@dataclass
+class DiskPartition:
+    name: str
+    path: str
+    size: str
+    fstype: str | None
+    mountpoint: str | None
+    uuid: str | None
+    label: str | None
+
+
+@dataclass
+class DiskDetailsResult:
+    device: str
+    size: str
+    fstype: str | None
+    uuid: str | None
+    label: str | None
+    mountpoint: str | None
+    partitions: list

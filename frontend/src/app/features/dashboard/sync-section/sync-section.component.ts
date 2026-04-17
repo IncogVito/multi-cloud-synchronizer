@@ -141,6 +141,16 @@ interface DeviceReadiness {
                 <li>Pozostały czas: <strong>{{ etaText() }}</strong></li>
               }
             </ul>
+            @if (activeProgress()!.phase === 'DOWNLOADING' && (activeProgress()!.diskFreeBytes != null || activeProgress()!.diskPhotoCount != null)) {
+              <ul class="stats disk-stats">
+                @if (activeProgress()!.diskPhotoCount != null) {
+                  <li>Zdjęcia na dysku: <strong>{{ activeProgress()!.diskPhotoCount }}</strong></li>
+                }
+                @if (activeProgress()!.diskFreeBytes != null) {
+                  <li>Wolne miejsce: <strong>{{ formatBytes(activeProgress()!.diskFreeBytes!) }}</strong></li>
+                }
+              </ul>
+            }
             @if (isActivelySyncing()) {
               <div class="actions">
                 <button class="btn btn-ghost btn-danger" (click)="cancelSync()">Przerwij synchronizację</button>
@@ -187,6 +197,7 @@ interface DeviceReadiness {
     .sync-card:has(.sync-title--error) { border-color: #fca5a5; background: #fff5f5; }
     .btn-danger { border-color: #fca5a5; color: #dc2626; }
     .btn-danger:hover { background: #fff5f5; }
+    .disk-stats { border-top: 1px dashed #e5e7eb; padding-top: 0.5rem; margin-top: 0.5rem; color: #6b7280; }
     .provider-tabs { display: flex; gap: 0; margin: 0.5rem 0 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; width: fit-content; }
     .provider-tab { padding: 0.375rem 1rem; font-size: 0.8rem; font-weight: 500; border: none; background: transparent; color: #6b7280; cursor: pointer; }
     .provider-tab.active { background: #3b82f6; color: #fff; }
@@ -382,6 +393,13 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
       case 'CANCELLED': return 'Anulowano';
       default: return phase;
     }
+  }
+
+  formatBytes(bytes: number): string {
+    if (bytes >= 1_073_741_824) return (bytes / 1_073_741_824).toFixed(1) + ' GB';
+    if (bytes >= 1_048_576) return (bytes / 1_048_576).toFixed(1) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return bytes + ' B';
   }
 
   private formatDuration(ms: number): string {

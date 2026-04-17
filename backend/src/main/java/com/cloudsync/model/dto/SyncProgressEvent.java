@@ -16,6 +16,8 @@ public class SyncProgressEvent {
     private double percentComplete;
     private String currentFile;
     private Instant timestamp;
+    private Long diskFreeBytes;
+    private Long diskPhotoCount;
 
     public SyncProgressEvent() {}
 
@@ -45,4 +47,8 @@ public class SyncProgressEvent {
     public void setCurrentFile(String currentFile) { this.currentFile = currentFile; }
     public Instant getTimestamp() { return timestamp; }
     public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
+    public Long getDiskFreeBytes() { return diskFreeBytes; }
+    public void setDiskFreeBytes(Long diskFreeBytes) { this.diskFreeBytes = diskFreeBytes; }
+    public Long getDiskPhotoCount() { return diskPhotoCount; }
+    public void setDiskPhotoCount(Long diskPhotoCount) { this.diskPhotoCount = diskPhotoCount; }
 }

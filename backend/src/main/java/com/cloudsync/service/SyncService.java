@@ -613,12 +613,29 @@ public class SyncService {
         long pending = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.PENDING.name(), providerType)
                 + photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.DOWNLOADING.name(), providerType);
         long total = downloadTotalCache.getOrDefault(accountId, synced + failed + pending);
+
+        // Disk stats — read from AppContext (no extra I/O cost, uses cached value)
+        Long diskFreeBytes = null;
+        Long diskPhotoCount = null;
+        try {
+            var ctx = appContextService.getActive();
+            if (ctx.isPresent()) {
+                diskFreeBytes = ctx.get().freeBytes();
+                diskPhotoCount = photoRepository.countBySyncedToDiskAndStorageDeviceId(true, ctx.get().storageDeviceId());
+            }
+        } catch (Exception ignored) {}
+
+        final Long finalDiskFreeBytes = diskFreeBytes;
+        final Long finalDiskPhotoCount = diskPhotoCount;
+
         emitEvent(accountId, SyncPhase.DOWNLOADING, e -> {
             e.setSynced((int) synced);
             e.setFailed((int) failed);
             e.setPending((int) pending);
             e.setTotalOnCloud((int) total);
             e.setPercentComplete(total > 0 ? (double) (synced + failed) / total * 100 : 0);
+            e.setDiskFreeBytes(finalDiskFreeBytes);
+            e.setDiskPhotoCount(finalDiskPhotoCount);
         });
     }
 

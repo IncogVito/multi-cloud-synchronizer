@@ -8,6 +8,10 @@ micronaut:
       max-content-length: 524288000  # 500 MB
       read-timeout: 30s
       connect-timeout: 10s
+    services:
+      icloud-retry:
+        read-timeout: 90s
+        connect-timeout: 10s
   router:
     static-resources:
       swagger:

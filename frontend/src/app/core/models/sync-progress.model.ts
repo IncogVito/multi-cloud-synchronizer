@@ -20,6 +20,8 @@ export interface SyncProgressEvent {
   percentComplete: number;
   currentFile?: string;
   timestamp: string;
+  diskFreeBytes?: number;
+  diskPhotoCount?: number;
 }
 
 export interface SyncStartResponse {

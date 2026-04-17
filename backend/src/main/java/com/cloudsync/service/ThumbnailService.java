@@ -5,7 +5,6 @@ import com.cloudsync.model.entity.Photo;
 import com.cloudsync.repository.PhotoRepository;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
-import net.coobird.thumbnailator.Thumbnails;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -31,7 +30,6 @@ public class ThumbnailService {
     private static final float THUMBNAIL_QUALITY = 0.8f;
 
     private static final Set<String> VIDEO_EXTENSIONS = Set.of("mov", "mp4", "m4v", "avi", "mkv");
-    private static final Set<String> HEIC_EXTENSIONS = Set.of("heic", "heif");
 
     private final PhotoRepository photoRepository;
     private final ExecutorService thumbnailExecutor;
@@ -145,32 +143,23 @@ public class ThumbnailService {
         Files.createDirectories(thumbDir);
         Path thumbFile = thumbDir.resolve(photo.getId() + ".jpg");
 
-        if (HEIC_EXTENSIONS.contains(ext)) {
-            generateHeicThumbnail(sourceFile, thumbFile);
-        } else {
-            Thumbnails.of(sourceFile.toFile())
-                    .size(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
-                    .outputFormat("jpg")
-                    .outputQuality(THUMBNAIL_QUALITY)
-                    .toFile(thumbFile.toFile());
-        }
+        generateVipsThumbnail(sourceFile, thumbFile);
 
         photo.setThumbnailPath(thumbFile.toString());
         photoRepository.update(photo);
         LOG.debug("Thumbnail generated for photo {}: {}", photo.getId(), thumbFile);
     }
 
-    private void generateHeicThumbnail(Path source, Path thumbFile) throws IOException {
-        // Single ImageMagick command: convert + resize in one pass, no temp file needed.
-        // [0] selects first frame (HEIC can be multi-frame), -thumbnail is faster than -resize.
+    private void generateVipsThumbnail(Path source, Path thumbFile) throws IOException {
+        // vipsthumbnail: streaming pipeline, SIMD-optimised, handles JPEG/PNG/HEIC/WEBP in one path.
+        // --crop centre preserves aspect ratio and fills the square.
+        String outputArg = thumbFile.toAbsolutePath() + "[Q=" + (int) (THUMBNAIL_QUALITY * 100) + "]";
         ProcessBuilder pb = new ProcessBuilder(
-                "convert",
-                source.toAbsolutePath() + "[0]",
-                "-thumbnail", THUMBNAIL_SIZE + "x" + THUMBNAIL_SIZE + "^",
-                "-gravity", "Center",
-                "-extent", THUMBNAIL_SIZE + "x" + THUMBNAIL_SIZE,
-                "-quality", String.valueOf((int) (THUMBNAIL_QUALITY * 100)),
-                thumbFile.toAbsolutePath().toString()
+                "vipsthumbnail",
+                source.toAbsolutePath().toString(),
+                "-s", THUMBNAIL_SIZE + "x" + THUMBNAIL_SIZE,
+                "--crop",
+                "-o", outputArg
         );
         pb.redirectErrorStream(true);
         Process process = pb.start();
@@ -179,11 +168,11 @@ public class ThumbnailService {
             exitCode = process.waitFor();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("HEIC conversion interrupted", e);
+            throw new IOException("vipsthumbnail interrupted", e);
         }
         if (exitCode != 0) {
             String output = new String(process.getInputStream().readAllBytes());
-            throw new IOException("ImageMagick convert failed (exit " + exitCode + "): " + output);
+            throw new IOException("vipsthumbnail failed (exit " + exitCode + "): " + output);
         }
     }
 

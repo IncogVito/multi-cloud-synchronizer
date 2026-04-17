@@ -82,23 +82,29 @@
 
         @if (device.sseLog.length > 0) {
           <div class="sse-log">
-            <button
-              class="sse-toggle"
-              (click)="toggleSseExpanded(device.deviceType)"
-            >
-              <svg
-                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                [style.transform]="device.sseExpanded ? 'rotate(90deg)' : 'rotate(0)'"
-                style="transition: transform 0.2s ease"
+            <div class="sse-last-entry">
+              <span class="sse-last-label">Ostatnia akcja:</span>
+              {{ device.sseLog[device.sseLog.length - 1] }}
+            </div>
+            @if (device.sseLog.length > 1) {
+              <button
+                class="sse-toggle"
+                (click)="toggleSseExpanded(device.deviceType)"
               >
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
-              Check log ({{ device.sseLog.length }} steps)
-            </button>
+                <svg
+                  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  [style.transform]="device.sseExpanded ? 'rotate(90deg)' : 'rotate(0)'"
+                  style="transition: transform 0.2s ease"
+                >
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+                {{ device.sseExpanded ? 'Ukryj' : 'Pokaż' }} wszystkie kroki ({{ device.sseLog.length }})
+              </button>
+            }
             @if (device.sseExpanded) {
               <ul class="sse-entries">
                 @for (entry of device.sseLog; track $index) {
-                  <li class="sse-entry">{{ entry }}</li>
+                  <li class="sse-entry" [class.sse-entry--last]="$last">{{ entry }}</li>
                 }
               </ul>
             }
