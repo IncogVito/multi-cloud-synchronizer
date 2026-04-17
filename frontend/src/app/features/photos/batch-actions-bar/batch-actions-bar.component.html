@@ -2,6 +2,11 @@
   <div class="batch-bar">
     <span class="batch-count">{{ selectedCount() }} selected &middot; {{ formatBytes(selectedSize()) }}</span>
     <div class="batch-actions">
+      @if (missingThumbnailCount() > 0) {
+        <button class="btn btn-secondary" (click)="generateThumbnails.emit()">
+          Generate previews ({{ missingThumbnailCount() }})
+        </button>
+      }
       <button
         class="btn btn-danger"
         (click)="deleteFromICloud.emit()"

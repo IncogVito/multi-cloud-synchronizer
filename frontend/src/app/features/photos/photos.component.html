@@ -13,6 +13,8 @@
 
   <app-missing-thumbnails-banner
     [storageDeviceId]="storageDeviceId()"
+    [selectedPhotoIds]="selectedMissingThumbnailIds()"
+    [deleteStatus]="operationStatus()"
     (thumbnailsGenerated)="onThumbnailsGenerated()"
   ></app-missing-thumbnails-banner>
 
@@ -20,34 +22,12 @@
     @if (monthsSummary().length > 0) {
       <nav class="months-toc" aria-label="Browse by month">
         <div class="months-toc__header">By month</div>
-        <button
-          class="months-toc__item"
-          [class.months-toc__item--active]="activeMonth() === null"
-          (click)="onMonthSelected(null)"
-        >
-          <span class="months-toc__label">All photos</span>
-        </button>
-        @for (month of monthsSummary(); track month.yearMonth) {
-          <button
-            class="months-toc__item"
-            [class.months-toc__item--active]="activeMonth() === month.yearMonth"
-            (click)="onMonthSelected(month.yearMonth)"
-          >
-            <span class="months-toc__label">{{ month.label }}</span>
-            @if (sourceFilter() === 'icloud') {
-              <span class="months-toc__count">{{ month.icloudOnlyCount }}</span>
-            } @else if (sourceFilter() === 'iphone') {
-              <span class="months-toc__count">{{ month.iphoneOnlyCount }}</span>
-            } @else {
-              <span class="months-toc__count">
-                {{ month.photoCount }}
-                @if (month.icloudOnlyCount > 0 || month.iphoneOnlyCount > 0) {
-                  <span class="months-toc__breakdown">☁ {{ month.icloudOnlyCount }} · &#x1F4F1;&#xFE0E; {{ month.iphoneOnlyCount }}</span>
-                }
-              </span>
-            }
-          </button>
-        }
+        <app-months-nav
+          [monthsSummary]="monthsSummary()"
+          [activeMonth]="activeMonth()"
+          [sourceFilter]="sourceFilter()"
+          (monthSelected)="onMonthSelected($event)"
+        ></app-months-nav>
       </nav>
     }
 
@@ -73,8 +53,10 @@
     [selectedCount]="selectedIds().size"
     [selectedSize]="selectedSize()"
     [canDelete]="canDeleteSelected()"
+    [missingThumbnailCount]="selectedMissingThumbnailIds().length"
     (deleteFromICloud)="onDeleteFromICloud()"
     (deleteFromIPhone)="onDeleteFromIPhone()"
+    (generateThumbnails)="onGenerateThumbnailsForSelected()"
     (clearSelection)="clearSelection()"
   ></app-batch-actions-bar>
 

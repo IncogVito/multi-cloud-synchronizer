@@ -241,11 +241,17 @@ public class SyncService {
      * Delete photos from iPhone (marks existsOnIphone=false; physical deletion via USB not yet implemented).
      */
     public void deleteFromIPhone(String accountId, List<String> photoIds) {
+        ICloudAccount account = requireAccount(accountId);
+        PhotoSyncProvider iPhoneProvider = resolveProvider("IPHONE");
         for (String photoId : photoIds) {
             Photo photo = requirePhoto(photoId);
             requireSyncedToDisk(photo);
             photo.setExistsOnIphone(false);
             photoRepository.update(photo);
+
+            if (photo.getIphoneLocation() == null)
+                throw new IllegalStateException("iPhone photo missing location: " + photo.getId());
+            iPhoneProvider.deletePhoto(photo.getIphoneLocation(), account.getSessionId());
         }
     }
 
@@ -324,7 +330,7 @@ public class SyncService {
             List<Photo> toUpdate = new ArrayList<>();
 
             for (PhotoAsset asset : remotePhotos) {
-                if (checkSyncedAndUpdateMetadata(externalIdToExistingPhoto, asset, toUpdate)) continue;
+                if (checkSyncedAndUpdateMetadata(externalIdToExistingPhoto, asset, provider.providerType(), toUpdate)) continue;
                 if (isAlreadyOnDisk(diskFiles, asset)) {
                     updateCrossProviderFlag(filenameToSyncedPhoto, asset, provider.providerType(), toUpdate);
                     continue;
@@ -399,9 +405,15 @@ public class SyncService {
          * Use enums. Extract to method. And do switch on providerType.
          */
         boolean changed = false;
-        if ("IPHONE".equals(providerType) && !Boolean.TRUE.equals(existing.getExistsOnIphone())) {
-            existing.setExistsOnIphone(true);
-            changed = true;
+        if ("IPHONE".equals(providerType)) {
+            if (!Boolean.TRUE.equals(existing.getExistsOnIphone())) {
+                existing.setExistsOnIphone(true);
+                changed = true;
+            }
+            if (!asset.id().equals(existing.getIphoneLocation())) {
+                existing.setIphoneLocation(asset.id());
+                changed = true;
+            }
         } else if ("ICLOUD".equals(providerType) && !existing.isExistsOnIcloud()) {
             existing.setExistsOnIcloud(true);
             changed = true;
@@ -416,16 +428,23 @@ public class SyncService {
                 .collect(Collectors.toMap(Photo::getIcloudPhotoId, p -> p));
     }
 
-    private boolean checkSyncedAndUpdateMetadata(Map<String, Photo> existingByExternalId, PhotoAsset asset, List<Photo> toUpdate) {
+    private boolean checkSyncedAndUpdateMetadata(Map<String, Photo> existingByExternalId, PhotoAsset asset,
+                                                  String providerType, List<Photo> toUpdate) {
         Photo existing = existingByExternalId.get(asset.id());
         if (existing == null || !SyncStatus.SYNCED.name().equals(existing.getSyncStatus())) {
             return false;
         }
-        if (!existing.isExistsOnIcloud()) {
+        boolean changed = false;
+        if (!existing.isExistsOnIcloud() && "ICLOUD".equals(providerType)) {
             existing.setExistsOnIcloud(true);
-            if (!toUpdate.contains(existing)) {
-                toUpdate.add(existing);
-            }
+            changed = true;
+        }
+        if ("IPHONE".equals(providerType) && !asset.id().equals(existing.getIphoneLocation())) {
+            existing.setIphoneLocation(asset.id());
+            changed = true;
+        }
+        if (changed && !toUpdate.contains(existing)) {
+            toUpdate.add(existing);
         }
         return true;
     }
@@ -464,6 +483,9 @@ public class SyncService {
         Photo existing = existingByExternalId.get(asset.id());
         if (existing != null) {
             existing.setSyncStatus(SyncStatus.PENDING.name());
+            if ("IPHONE".equals(providerType)) {
+                existing.setIphoneLocation(asset.id());
+            }
             toUpdate.add(existing);
         } else {
             toSave.add(buildPhoto(asset, accountId, storageDeviceId, providerType));
@@ -549,8 +571,15 @@ public class SyncService {
         try {
             markDownloading(photo);
 
-            String photoId = photo.getIcloudPhotoId() != null ? photo.getIcloudPhotoId() : photo.getId();
             PhotoSyncProvider provider = resolveProvider(photo.getSourceProvider());
+            String photoId;
+            if ("IPHONE".equals(photo.getSourceProvider())) {
+                if (photo.getIphoneLocation() == null)
+                    throw new IllegalStateException("iPhone photo missing location: " + photo.getId());
+                photoId = photo.getIphoneLocation();
+            } else {
+                photoId = photo.getIcloudPhotoId() != null ? photo.getIcloudPhotoId() : photo.getId();
+            }
             byte[] data = provider.downloadPhoto(photoId, account.getSessionId());
 
             if (isCancelled(accountId)) {
@@ -757,6 +786,7 @@ public class SyncService {
         p.setExistsOnIcloud("ICLOUD".equals(providerType));
         p.setExistsOnIphone("IPHONE".equals(providerType) ? Boolean.TRUE : null);
         p.setSourceProvider(providerType);
+        if ("IPHONE".equals(providerType)) p.setIphoneLocation(asset.id());
         p.setMediaType(detectMediaType(asset.filename()));
         if (storageDeviceId != null) p.setStorageDeviceId(storageDeviceId);
         return p;

@@ -1,4 +1,4 @@
-import { Component, inject, input, OnInit, output, signal, computed } from '@angular/core';
+import { Component, computed, effect, inject, input, OnDestroy, output, signal } from '@angular/core';
 import { PhotosService } from '../../../core/api/generated/photos/photos.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ThumbnailProgress } from '../../../core/api/generated/model/thumbnailProgress';
@@ -10,11 +10,13 @@ import { ThumbnailProgress } from '../../../core/api/generated/model/thumbnailPr
   templateUrl: './missing-thumbnails-banner.component.html',
   styleUrl: './missing-thumbnails-banner.component.scss'
 })
-export class MissingThumbnailsBannerComponent implements OnInit {
+export class MissingThumbnailsBannerComponent implements OnDestroy {
   private photosService = inject(PhotosService);
   private authService = inject(AuthService);
 
   storageDeviceId = input('');
+  selectedPhotoIds = input<string[]>([]);
+  deleteStatus = input<string | null>(null);
 
   thumbnailsGenerated = output<void>();
 
@@ -24,31 +26,43 @@ export class MissingThumbnailsBannerComponent implements OnInit {
 
   progressPercent = computed(() => {
     const p = this.progress();
-    if (!p || p.total === 0) return 0;
-    return Math.round((p.processed / p.total) * 100);
+    if (!p || !p.total) return 0;
+    return Math.round((p.processed! / p.total) * 100);
   });
 
   private abortController: AbortController | null = null;
 
-  ngOnInit(): void {
-    this.fetchMissingCount();
+  constructor() {
+    effect(() => {
+      const deviceId = this.storageDeviceId();
+      if (deviceId) this.fetchMissingCount();
+    });
   }
 
-  private fetchMissingCount(): void {
+  fetchMissingCount(): void {
     this.photosService.countMissingThumbnails({ storageDeviceId: this.storageDeviceId() }).subscribe({
       next: (result) => this.missingCount.set(result.count),
       error: () => this.missingCount.set(0)
     });
   }
 
-  generateThumbnails(): void {
+  generateAll(): void {
     if (this.generating()) return;
-    this.generating.set(true);
-    this.progress.set(null);
-    this.streamGenerationProgress();
+    this.startGeneration(this.storageDeviceId(), null);
   }
 
-  private streamGenerationProgress(): void {
+  generateForSelected(): void {
+    if (this.generating()) return;
+    this.startGeneration(null, this.selectedPhotoIds());
+  }
+
+  private startGeneration(storageDeviceId: string | null, photoIds: string[] | null): void {
+    this.generating.set(true);
+    this.progress.set(null);
+    this.streamProgress(storageDeviceId, photoIds);
+  }
+
+  private streamProgress(storageDeviceId: string | null, photoIds: string[] | null): void {
     this.abortController?.abort();
     this.abortController = new AbortController();
 
@@ -59,7 +73,10 @@ export class MissingThumbnailsBannerComponent implements OnInit {
     };
     if (creds) headers['Authorization'] = `Basic ${creds.encoded}`;
 
-    const body = JSON.stringify({ storageDeviceId: this.storageDeviceId() || null });
+    const body = JSON.stringify({
+      storageDeviceId: storageDeviceId || null,
+      photoIds: photoIds?.length ? photoIds : null
+    });
 
     fetch('/api/photos/generate-thumbnails', {
       method: 'POST',

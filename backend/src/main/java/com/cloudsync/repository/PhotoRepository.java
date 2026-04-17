@@ -104,4 +104,7 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
             Pageable pageable);
 
     Optional<Photo> findByFilePath(String filePath);
+
+    @Query("SELECT * FROM photos WHERE id IN (:ids)")
+    List<Photo> findByIdIn(List<String> ids);
 }

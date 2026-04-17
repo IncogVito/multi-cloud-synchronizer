@@ -1,17 +1,35 @@
-@if (missingCount() > 0) {
-  <div class="missing-thumbnails-banner">
+@if (deleteStatus() || generating() || missingCount() > 0 || selectedPhotoIds().length > 0) {
+  <div class="status-area">
+
+    @if (deleteStatus()) {
+      <div class="status-band status-band--op">
+        <span class="status-band__text">{{ deleteStatus() }}</span>
+      </div>
+    }
+
     @if (generating()) {
-      <span class="banner-text">
-        Generating previews... {{ progress()?.processed ?? 0 }}/{{ progress()?.total ?? missingCount() }}
-      </span>
-      <div class="progress-bar-track">
-        <div class="progress-bar-fill" [style.width.%]="progressPercent()"></div>
+      <div class="status-band status-band--progress">
+        <span class="status-band__text">
+          Generating previews... {{ progress()?.processed ?? 0 }}/{{ progress()?.total ?? missingCount() }}
+        </span>
+        <div class="progress-track">
+          <div class="progress-fill" [style.width.%]="progressPercent()"></div>
+        </div>
       </div>
     } @else {
-      <span class="banner-text">{{ missingCount() }} photos have no preview</span>
-      <button class="btn btn-accent" (click)="generateThumbnails()">
-        Generate missing previews
-      </button>
+      @if (selectedPhotoIds().length > 0) {
+        <div class="status-band">
+          <span class="status-band__text">{{ selectedPhotoIds().length }} selected without preview</span>
+          <button class="btn btn-accent btn-sm" (click)="generateForSelected()">Generate for selected</button>
+        </div>
+      }
+      @if (missingCount() > 0) {
+        <div class="status-band">
+          <span class="status-band__text">{{ missingCount() }} photos have no preview</span>
+          <button class="btn btn-accent btn-sm" (click)="generateAll()">Generate all missing</button>
+        </div>
+      }
     }
+
   </div>
 }

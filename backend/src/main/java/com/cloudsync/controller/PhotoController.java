@@ -89,11 +89,14 @@ public class PhotoController {
         return new MissingThumbnailsCount(count);
     }
 
-    @Operation(summary = "Generate missing thumbnails", description = "Async SSE stream with progress events")
+    @Operation(summary = "Generate thumbnails (SSE)", description = "Pass photoIds to generate for specific photos, or storageDeviceId for all missing on device")
     @ApiResponse(responseCode = "200", description = "SSE progress stream")
     @Post(value = "/generate-thumbnails", produces = MediaType.TEXT_EVENT_STREAM)
     @Consumes(MediaType.APPLICATION_JSON)
     public Publisher<Event<ThumbnailProgress>> generateThumbnails(@Body GenerateThumbnailsRequest request) {
+        if (request != null && request.photoIds() != null && !request.photoIds().isEmpty()) {
+            return Flux.from(thumbnailService.generateForPhotoIds(request.photoIds())).map(Event::of);
+        }
         String deviceId = request != null ? request.storageDeviceId() : null;
         return Flux.from(thumbnailService.generateMissingForDevice(deviceId)).map(Event::of);
     }

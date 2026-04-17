@@ -35,6 +35,8 @@ public class Photo {
     private String sourceProvider;
     private boolean deleted;
     private Instant deletedDate;
+    /** Relative path of this photo on the mounted iPhone (e.g. "DCIM/100APPLE/IMG_1234.jpg"). */
+    private String iphoneLocation;
 
     public Photo() {
         this.syncedToDisk = false;
@@ -108,4 +110,7 @@ public class Photo {
 
     public Instant getDeletedDate() { return deletedDate; }
     public void setDeletedDate(Instant deletedDate) { this.deletedDate = deletedDate; }
+
+    public String getIphoneLocation() { return iphoneLocation; }
+    public void setIphoneLocation(String iphoneLocation) { this.iphoneLocation = iphoneLocation; }
 }

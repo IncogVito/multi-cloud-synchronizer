@@ -11,9 +11,11 @@ export class BatchActionsBarComponent {
   selectedCount = input(0);
   selectedSize = input(0);
   canDelete = input(false);
+  missingThumbnailCount = input(0);
 
   deleteFromICloud = output<void>();
   deleteFromIPhone = output<void>();
+  generateThumbnails = output<void>();
   clearSelection = output<void>();
 
   formatBytes(bytes: number): string {

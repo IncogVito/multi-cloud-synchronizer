@@ -12,7 +12,7 @@ import {
   SetActiveMonth,
 } from './photos.actions';
 
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 2000;
 
 export interface PhotosStateModel {
   /** Flat list of loaded photos, accumulated across pages. */

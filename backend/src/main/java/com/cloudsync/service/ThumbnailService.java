@@ -66,18 +66,25 @@ public class ThumbnailService {
     }
 
     /**
-     * Returns a Flux that generates missing thumbnails for the given device (or all devices if null)
-     * and emits progress events. Completes with a final event where {@code done=true}.
+     * Returns a Flux emitting progress for missing thumbnails on a device (or all if null).
      */
     public Flux<ThumbnailProgress> generateMissingForDevice(String storageDeviceId) {
         return Flux.create(sink -> {
-            Thread.ofVirtual().start(() -> runGeneration(storageDeviceId, sink));
+            Thread.ofVirtual().start(() -> runGenerationForCandidates(findCandidates(storageDeviceId), sink));
         }, FluxSink.OverflowStrategy.BUFFER);
     }
 
-    private void runGeneration(String storageDeviceId, FluxSink<ThumbnailProgress> sink) {
+    /**
+     * Returns a Flux emitting progress for a specific set of photo IDs.
+     */
+    public Flux<ThumbnailProgress> generateForPhotoIds(List<String> photoIds) {
+        return Flux.create(sink -> {
+            Thread.ofVirtual().start(() -> runGenerationForCandidates(photoRepository.findByIdIn(photoIds), sink));
+        }, FluxSink.OverflowStrategy.BUFFER);
+    }
+
+    private void runGenerationForCandidates(List<Photo> candidates, FluxSink<ThumbnailProgress> sink) {
         try {
-            List<Photo> candidates = findCandidates(storageDeviceId);
             int total = candidates.size();
             AtomicInteger processed = new AtomicInteger(0);
             AtomicInteger errors = new AtomicInteger(0);
