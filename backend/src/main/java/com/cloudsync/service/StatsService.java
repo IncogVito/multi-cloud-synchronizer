@@ -7,12 +7,17 @@ import com.cloudsync.repository.AccountRepository;
 import com.cloudsync.repository.PhotoRepository;
 import com.cloudsync.repository.StorageDeviceRepository;
 import jakarta.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 @Singleton
 public class StatsService {
+
+    private static final Logger LOG = LoggerFactory.getLogger(StatsService.class);
 
     private final PhotoRepository photoRepository;
     private final AccountRepository accountRepository;
@@ -45,7 +50,7 @@ public class StatsService {
 
         Instant icloudLastSync = accounts.stream()
                 .map(ICloudAccount::getLastSyncAt)
-                .filter(t -> t != null)
+                .filter(Objects::nonNull)
                 .max(Instant::compareTo)
                 .orElse(null);
 

@@ -57,6 +57,10 @@ application {
     mainClass.set("com.cloudsync.Application")
 }
 
+tasks.named<JavaExec>("run") {
+    jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005")
+}
+
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21

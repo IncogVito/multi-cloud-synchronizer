@@ -1,13 +1,14 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { AuthService } from './auth.service';
 import { SyncProgressEvent, SyncStartResponse } from '../models/sync-progress.model';
+import { DefaultService } from '../api/generated/default/default.service';
+import { ReorganizePreview, ReorganizeResult } from './disk-indexing.service';
 
 @Injectable({ providedIn: 'root' })
 export class SyncService {
-  private http = inject(HttpClient);
+  private apiService = inject(DefaultService);
   private authService = inject(AuthService);
 
   private _progress = new BehaviorSubject<SyncProgressEvent | null>(null);
@@ -16,7 +17,7 @@ export class SyncService {
   private abortController: AbortController | null = null;
 
   startSync(accountId: string, provider: 'ICLOUD' | 'IPHONE' = 'ICLOUD'): Observable<SyncStartResponse> {
-    return this.http.post<SyncStartResponse>(`/api/sync/${accountId}?provider=${provider}`, {}).pipe(
+    return this.apiService.startSync<SyncStartResponse>(accountId, { provider }).pipe(
       tap(() => this.subscribeToEvents(accountId))
     );
   }
@@ -50,8 +51,6 @@ export class SyncService {
               this._progress.next(event);
               if (event.phase === 'DONE' || event.phase === 'ERROR' || event.phase === 'CANCELLED') {
                 this.closeEvents();
-              } else if (event.phase === 'AWAITING_CONFIRMATION') {
-                // Keep SSE open — user must confirm before download starts
               }
             } catch { /* ignore parse errors */ }
           }
@@ -70,36 +69,25 @@ export class SyncService {
   }
 
   confirmSync(accountId: string): Observable<void> {
-    return this.http.post<void>(`/api/sync/${accountId}/confirm`, {}).pipe(
+    return this.apiService.confirmSync<void>(accountId).pipe(
       tap(() => this.subscribeToEvents(accountId))
     );
   }
 
   cancelSync(accountId: string): Observable<void> {
-    return this.http.delete<void>(`/api/sync/${accountId}`);
+    return this.apiService.cancelSync<void>(accountId);
   }
 
   reorganizePreview(accountId: string): Observable<ReorganizePreview> {
-    return this.http.get<ReorganizePreview>(`/api/sync/${accountId}/reorganize-preview`);
+    return this.apiService.reorganizePreview1<ReorganizePreview>(accountId);
   }
 
   reorganize(accountId: string): Observable<ReorganizeResult> {
-    return this.http.post<ReorganizeResult>(`/api/sync/${accountId}/reorganize`, {});
+    return this.apiService.reorganize2<ReorganizeResult>(accountId);
   }
 
   reset(): void {
     this.closeEvents();
     this._progress.next(null);
   }
-}
-
-export interface ReorganizePreview {
-  unorganizedCount: number;
-  samples: string[];
-  estimatedFolders: string[];
-}
-
-export interface ReorganizeResult {
-  moved: number;
-  errors: number;
 }

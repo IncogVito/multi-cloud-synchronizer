@@ -13,12 +13,16 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.reactivestreams.Publisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 
 @Tag(name = "Agent")
 @Controller("/api/agent")
 @Secured(SecurityRule.IS_AUTHENTICATED)
 public class AgentController {
+
+    private static final Logger LOG = LoggerFactory.getLogger(AgentController.class);
 
     private final DiskDetectionAgent diskDetectionAgent;
 

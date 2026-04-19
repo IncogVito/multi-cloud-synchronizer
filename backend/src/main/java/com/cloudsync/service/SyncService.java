@@ -14,6 +14,7 @@ import com.cloudsync.model.enums.SyncStatus;
 import com.cloudsync.provider.PhotoSyncProvider;
 import com.cloudsync.repository.AccountRepository;
 import com.cloudsync.repository.PhotoRepository;
+import com.cloudsync.util.Messages;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -49,9 +50,6 @@ public class SyncService {
     private static final int BATCH_SIZE = 100;
     private static final int EMIT_EVERY_N = 5;
     private static final Duration EMIT_MAX_INTERVAL = Duration.ofSeconds(3);
-    private static final String FETCH_STATUS_READY = "ready";
-    private static final String FETCH_STATUS_ERROR = "error";
-    private static final String MSG_FETCHING_LIST = "Pobieranie listy...";
 
     private final PhotoRepository photoRepository;
     private final AccountRepository accountRepository;
@@ -101,6 +99,7 @@ public class SyncService {
         AppContext ctx = appContextService.requireActive();
         ICloudAccount account = requireAccount(accountId);
 
+        // FIXME: use enum, not stringly-typed. And validate at API boundary (e.g. controller).
         if ("ICLOUD".equalsIgnoreCase(providerType)) {
             requireValidSession(account);
         }
@@ -115,7 +114,7 @@ public class SyncService {
                 () -> pollMetadataAndContinue(accountId, account, ctx, provider),
                 syncVirtualThreadExecutor);
 
-        return new SyncStartResponse(accountId, SyncPhase.FETCHING_METADATA, MSG_FETCHING_LIST, Instant.now());
+        return new SyncStartResponse(accountId, SyncPhase.FETCHING_METADATA, Messages.MSG_FETCHING_LIST, Instant.now());
     }
 
     /**
@@ -138,7 +137,7 @@ public class SyncService {
         cancellationFlags.computeIfAbsent(accountId, k -> new AtomicBoolean(false)).set(true);
         resetDownloadingToPending(accountId);
         emitEvent(accountId, SyncPhase.CANCELLED, e -> {});
-        LOG.info("Sync cancelled for account {}", accountId);
+        LOG.info(Messages.LOG_SYNC_CANCELLED, accountId);
     }
 
     /**
@@ -193,7 +192,7 @@ public class SyncService {
                     photoRepository.update(photo);
                     moved++;
                 } catch (IOException e) {
-                    LOG.error("Failed to move photo {}: {}", photo.getId(), e.getMessage());
+                    LOG.error(Messages.LOG_DOWNLOAD_FAILED, photo.getId(), e.getMessage());
                     errors++;
                 }
             }
@@ -249,8 +248,9 @@ public class SyncService {
             photo.setExistsOnIphone(false);
             photoRepository.update(photo);
 
+            // FIX Me -rollback if unsuccesful
             if (photo.getIphoneLocation() == null)
-                throw new IllegalStateException("iPhone photo missing location: " + photo.getId());
+                throw new IllegalStateException(Messages.ERR_IPHONE_MISSING_LOCATION + photo.getId());
             iPhoneProvider.deletePhoto(photo.getIphoneLocation(), account.getSessionId());
         }
     }
@@ -287,22 +287,22 @@ public class SyncService {
 
                 emitMetadataProgress(accountId, status);
 
-                if (FETCH_STATUS_READY.equals(status.status())) {
+                if (Messages.FETCH_STATUS_READY.equals(status.status())) {
                     if (!isCancelled(accountId)) {
                         compareAndPersist(accountId, account, ctx, provider);
                     }
                     return;
                 }
-                if (FETCH_STATUS_ERROR.equals(status.status())) {
+                if (Messages.FETCH_STATUS_ERROR.equals(status.status())) {
                     emitError(accountId);
                     return;
                 }
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOG.warn("pollMetadataAndContinue interrupted for account {}", accountId);
+            LOG.warn(Messages.LOG_POLL_INTERRUPTED, accountId);
         } catch (Exception e) {
-            LOG.error("pollMetadataAndContinue failed for account {}: {}", accountId, e.getMessage());
+            LOG.error(Messages.LOG_POLL_FAILED, accountId, e.getMessage());
             emitError(accountId);
         }
     }
@@ -350,7 +350,7 @@ public class SyncService {
                 emitAwaitingConfirmation(accountId, remotePhotos.size(), newlyDeleted);
             }
         } catch (Exception e) {
-            LOG.error("compareAndPersist failed for {}: {}", accountId, e.getMessage());
+            LOG.error(Messages.LOG_COMPARE_FAILED, accountId, e.getMessage());
             emitError(accountId);
         }
     }
@@ -467,7 +467,7 @@ public class SyncService {
                 count++;
             }
         }
-        if (count > 0) LOG.info("Marked {} photos as deleted (no longer on iCloud) for account", count);
+        if (count > 0) LOG.info(Messages.LOG_PHOTOS_MARKED_DELETED, count);
         return count;
     }
 
@@ -496,7 +496,7 @@ public class SyncService {
         for (int i = 0; i < photos.size(); i += BATCH_SIZE) {
             List<Photo> batch = photos.subList(i, Math.min(i + BATCH_SIZE, photos.size()));
             photoRepository.saveAll(batch);
-            LOG.debug("Saved batch of {} new photos", batch.size());
+            LOG.debug(Messages.LOG_BATCH_SAVED, batch.size());
         }
     }
 
@@ -504,7 +504,7 @@ public class SyncService {
         for (int i = 0; i < photos.size(); i += BATCH_SIZE) {
             List<Photo> batch = photos.subList(i, Math.min(i + BATCH_SIZE, photos.size()));
             photoRepository.updateAll(batch);
-            LOG.debug("Updated batch of {} photos to PENDING", batch.size());
+            LOG.debug(Messages.LOG_BATCH_UPDATED, batch.size());
         }
     }
 
@@ -575,7 +575,7 @@ public class SyncService {
             String photoId;
             if ("IPHONE".equals(photo.getSourceProvider())) {
                 if (photo.getIphoneLocation() == null)
-                    throw new IllegalStateException("iPhone photo missing location: " + photo.getId());
+                    throw new IllegalStateException(Messages.ERR_IPHONE_MISSING_LOCATION + photo.getId());
                 photoId = photo.getIphoneLocation();
             } else {
                 photoId = photo.getIcloudPhotoId() != null ? photo.getIcloudPhotoId() : photo.getId();
@@ -600,7 +600,7 @@ public class SyncService {
                 photoRepository.update(photo);
                 return;
             }
-            LOG.error("Failed to download photo {}: {}", photo.getId(), e.getMessage());
+            LOG.error(Messages.LOG_MOVE_FAILED, photo.getId(), e.getMessage());
             markFailed(photo, accountId);
         }
     }
@@ -728,23 +728,23 @@ public class SyncService {
     private PhotoSyncProvider resolveProvider(String providerType) {
         if (providerType == null) providerType = "ICLOUD";
         PhotoSyncProvider provider = providers.get(providerType.toUpperCase());
-        if (provider == null) throw new IllegalArgumentException("Unknown sync provider: " + providerType);
+        if (provider == null) throw new IllegalArgumentException(Messages.ERR_UNKNOWN_PROVIDER + providerType);
         return provider;
     }
 
     private ICloudAccount requireAccount(String accountId) {
         return accountRepository.findById(accountId)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountId));
+                .orElseThrow(() -> new IllegalArgumentException(Messages.ERR_ACCOUNT_NOT_FOUND + accountId));
     }
 
     private Photo requirePhoto(String photoId) {
         return photoRepository.findById(photoId)
-                .orElseThrow(() -> new IllegalArgumentException("Photo not found: " + photoId));
+                .orElseThrow(() -> new IllegalArgumentException(Messages.ERR_PHOTO_NOT_FOUND + photoId));
     }
 
     private void requireValidSession(ICloudAccount account) {
         if (account.getSessionId() == null) {
-            throw new IllegalStateException("Account has no active session. Please log in first.");
+            throw new IllegalStateException(Messages.ERR_NO_ACTIVE_SESSION);
         }
     }
 

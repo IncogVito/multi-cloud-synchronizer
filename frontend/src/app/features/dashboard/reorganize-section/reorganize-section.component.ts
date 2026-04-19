@@ -4,6 +4,7 @@ import { SyncService } from '../../../core/services/sync.service';
 import { AccountService } from '../../../core/services/account.service';
 import { AccountResponse } from '../../../core/api/generated/model/accountResponse';
 
+// FIXME: Use separate html
 @Component({
   selector: 'app-reorganize-section',
   standalone: true,

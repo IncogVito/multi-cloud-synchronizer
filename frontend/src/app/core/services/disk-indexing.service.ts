@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { AuthService } from './auth.service';
+import { DefaultService } from '../api/generated/default/default.service';
 
 export interface DiskIndexProgress {
   phase: 'SCANNING' | 'DONE' | 'ERROR';
@@ -25,7 +25,7 @@ export interface ReorganizeResult {
 
 @Injectable({ providedIn: 'root' })
 export class DiskIndexingService {
-  private http = inject(HttpClient);
+  private apiService = inject(DefaultService);
   private authService = inject(AuthService);
 
   private _progress = new BehaviorSubject<DiskIndexProgress | null>(null);
@@ -34,7 +34,7 @@ export class DiskIndexingService {
   private abortController: AbortController | null = null;
 
   start(): Observable<{ status: string }> {
-    return this.http.post<{ status: string }>('/api/disk-index/start', {});
+    return this.apiService.startIndexing<{ status: string }>();
   }
 
   subscribeToEvents(): void {
@@ -89,10 +89,10 @@ export class DiskIndexingService {
   }
 
   reorganizePreview(): Observable<ReorganizePreview> {
-    return this.http.get<ReorganizePreview>('/api/disk-index/reorganize-preview');
+    return this.apiService.reorganizePreview<ReorganizePreview>();
   }
 
   reorganize(): Observable<ReorganizeResult> {
-    return this.http.post<ReorganizeResult>('/api/disk-index/reorganize', {});
+    return this.apiService.reorganize1<ReorganizeResult>();
   }
 }

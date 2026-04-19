@@ -34,6 +34,7 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "8080:8080"
+      - "8081:5005"
     environment:
       - MICRONAUT_ENVIRONMENTS=dev
       - APP_USERNAME=${APP_USERNAME:-admin}
@@ -82,6 +83,7 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "8000:8000"
+      - "8001:5678"
     environment:
       - LOG_LEVEL=debug
     volumes:
