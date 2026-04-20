@@ -1,32 +1,57 @@
-<button
-  class="months-nav__item months-nav__item--all"
-  [class.months-nav__item--active]="activeMonth() === null"
-  (click)="monthSelected.emit(null)"
->
-  <span class="months-nav__label">All photos</span>
-</button>
+@if (collapsed()) {
+  <button
+    class="months-nav__compact-all"
+    [class.months-nav__compact-all--active]="activeMonth() === null"
+    (click)="monthSelected.emit(null)"
+    title="All photos"
+  >
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+    </svg>
+  </button>
 
-@for (group of yearGroups(); track group.year) {
-  <div class="months-nav__year">{{ group.year }}</div>
-  @for (month of group.months; track month.yearMonth) {
-    <button
-      class="months-nav__item"
-      [class.months-nav__item--active]="activeMonth() === month.yearMonth"
-      (click)="monthSelected.emit(month.yearMonth)"
-    >
-      <span class="months-nav__label">{{ month.label }}</span>
-      @if (sourceFilter() === 'icloud') {
-        <span class="months-nav__count">{{ month.icloudOnlyCount }}</span>
-      } @else if (sourceFilter() === 'iphone') {
-        <span class="months-nav__count">{{ month.iphoneOnlyCount }}</span>
-      } @else {
-        <span class="months-nav__count">
-          {{ month.photoCount }}
-          @if (month.icloudOnlyCount > 0 || month.iphoneOnlyCount > 0) {
-            <span class="months-nav__breakdown">☁ {{ month.icloudOnlyCount }} · &#x1F4F1;&#xFE0E; {{ month.iphoneOnlyCount }}</span>
-          }
-        </span>
-      }
-    </button>
+  @for (group of yearGroups(); track group.year) {
+    <div class="months-nav__compact-year">{{ shortYear(group.year) }}</div>
+    @for (month of group.months; track month.yearMonth) {
+      <button
+        class="months-nav__compact-month"
+        [class.months-nav__compact-month--active]="activeMonth() === month.yearMonth"
+        (click)="monthSelected.emit(month.yearMonth)"
+        [title]="month.label + ' ' + group.year"
+      >{{ monthNumber(month.yearMonth) }}</button>
+    }
+  }
+} @else {
+  <button
+    class="months-nav__item months-nav__item--all"
+    [class.months-nav__item--active]="activeMonth() === null"
+    (click)="monthSelected.emit(null)"
+  >
+    <span class="months-nav__label">All photos</span>
+  </button>
+
+  @for (group of yearGroups(); track group.year) {
+    <div class="months-nav__year">{{ group.year }}</div>
+    @for (month of group.months; track month.yearMonth) {
+      <button
+        class="months-nav__item"
+        [class.months-nav__item--active]="activeMonth() === month.yearMonth"
+        (click)="monthSelected.emit(month.yearMonth)"
+      >
+        <span class="months-nav__label">{{ month.label }}</span>
+        @if (sourceFilter() === 'icloud') {
+          <span class="months-nav__count">{{ month.icloudOnlyCount }}</span>
+        } @else if (sourceFilter() === 'iphone') {
+          <span class="months-nav__count">{{ month.iphoneOnlyCount }}</span>
+        } @else {
+          <span class="months-nav__count">
+            {{ month.photoCount }}
+            @if (month.icloudOnlyCount > 0 || month.iphoneOnlyCount > 0) {
+              <span class="months-nav__breakdown">☁ {{ month.icloudOnlyCount }} · &#x1F4F1;&#xFE0E; {{ month.iphoneOnlyCount }}</span>
+            }
+          </span>
+        }
+      </button>
+    }
   }
 }

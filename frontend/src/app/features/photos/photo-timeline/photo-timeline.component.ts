@@ -22,6 +22,8 @@ export class PhotoTimelineComponent implements OnInit, OnDestroy {
   loadingMore = input(false);
   hasMore = input(false);
   loadError = input('');
+  showDetails = input(false);
+  columnsPerRow = input(7);
 
   @ViewChild('contentArea', { static: true }) contentAreaRef!: ElementRef<HTMLDivElement>;
 
@@ -197,5 +199,20 @@ export class PhotoTimelineComponent implements OnInit, OnDestroy {
     const startIndex = Math.min(anchorIndex, targetIndex);
     const endIndex = Math.max(anchorIndex, targetIndex);
     return new Set(allPhotos.slice(startIndex, endIndex + 1).map(p => p.id));
+  }
+
+  formatPhotoDate(dateStr: string | undefined): string {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}-${month}`;
+  }
+
+  formatFileSize(bytes: number | undefined): string {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   }
 }

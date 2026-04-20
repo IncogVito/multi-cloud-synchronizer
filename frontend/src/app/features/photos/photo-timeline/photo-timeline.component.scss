@@ -9,17 +9,17 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--spacing-8);
+  padding: var(--spacing-3);
   padding-bottom: var(--spacing-20);
   padding-top: 0;
 }
 
 .timeline {
-  margin-bottom: var(--spacing-10);
+  margin-bottom: var(--spacing-6);
 }
 
 .group-header {
-  margin-bottom: var(--spacing-4);
+  margin-bottom: var(--spacing-2);
   position: sticky;
   top: 0;
   background: var(--color-bg-secondary);
@@ -46,23 +46,19 @@
 
 .photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--spacing-2);
+  grid-template-columns: repeat(var(--columns-per-row, 7), 1fr);
+  gap: 2px;
 }
 
 .photo-thumb {
   position: relative;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: var(--radius-md);
+  border-radius: 2px;
   cursor: pointer;
   background: var(--color-bg-tertiary);
   border: 2px solid transparent;
-  transition: border-color var(--transition-fast), transform var(--transition-fast);
-
-  &:hover {
-    transform: scale(1.02);
-  }
+  transition: border-color var(--transition-fast);
 
   &.selected {
     border-color: var(--color-primary);
@@ -112,6 +108,41 @@
   height: 18px;
   cursor: pointer;
   accent-color: var(--color-primary);
+}
+
+.thumb-meta {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.65) 0%, transparent 100%);
+  padding: 5px 6px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  pointer-events: none;
+}
+
+.thumb-meta-date {
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.thumb-meta-name {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.thumb-meta-size {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.2;
 }
 
 .thumb-media-type {

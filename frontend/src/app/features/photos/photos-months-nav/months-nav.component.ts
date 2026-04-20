@@ -18,8 +18,17 @@ export class MonthsNavComponent {
   monthsSummary = input<MonthSummaryResponse[]>([]);
   activeMonth = input<string | null>(null);
   sourceFilter = input<SourceFilter>('all');
+  collapsed = input(false);
 
   monthSelected = output<string | null>();
+
+  monthNumber(yearMonth: string): number {
+    return parseInt(yearMonth.slice(5, 7), 10);
+  }
+
+  shortYear(year: number): string {
+    return String(year).slice(2);
+  }
 
   yearGroups = computed<YearGroup[]>(() => {
     const groups = new Map<number, MonthSummaryResponse[]>();

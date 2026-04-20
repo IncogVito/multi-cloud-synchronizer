@@ -31,4 +31,52 @@
     </div>
   </div>
 
+  <div class="toolbar-right">
+    <div class="view-options">
+      <button
+        class="view-options-btn"
+        [class.active]="viewOptionsOpen()"
+        (click)="toggleViewOptions($event)"
+        title="Opcje widoku"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          <path d="M4.93 4.93a10 10 0 0 0 0 14.14"/>
+          <line x1="12" y1="2" x2="12" y2="5"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+          <line x1="2" y1="12" x2="5" y2="12"/>
+          <line x1="19" y1="12" x2="22" y2="12"/>
+        </svg>
+        Widok
+        <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      @if (viewOptionsOpen()) {
+        <div class="view-options-panel">
+          <label class="view-option-item" (click)="toggleShowDetails($event)">
+            <span class="view-option-label">Wyświetl szczegóły</span>
+            <div class="toggle-switch" [class.on]="showDetails()">
+              <div class="toggle-thumb"></div>
+            </div>
+          </label>
+          <div class="view-option-divider"></div>
+          <div class="view-option-columns">
+            <span class="view-option-label">Zdjęcia w wierszu</span>
+            <div class="columns-picker">
+              @for (n of columnOptions; track n) {
+                <button
+                  class="col-btn"
+                  [class.active]="columnsPerRow() === n"
+                  (click)="setColumnsPerRow(n, $event)"
+                >{{ n }}</button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
 </div>

@@ -10,6 +10,8 @@ import {
   LoadPhotos,
   ResetPhotos,
   SetActiveMonth,
+  SetShowDetails,
+  SetColumnsPerRow,
 } from './photos.actions';
 
 const DEFAULT_PAGE_SIZE = 2000;
@@ -28,6 +30,8 @@ export interface PhotosStateModel {
   hasMore: boolean;
   currentPage: number;
   error: string | null;
+  showDetails: boolean;
+  columnsPerRow: number;
 }
 
 @State<PhotosStateModel>({
@@ -42,6 +46,8 @@ export interface PhotosStateModel {
     hasMore: false,
     currentPage: 0,
     error: null,
+    showDetails: false,
+    columnsPerRow: 7,
   },
 })
 @Injectable()
@@ -81,6 +87,16 @@ export class PhotosState {
   @Selector()
   static error(state: PhotosStateModel): string | null {
     return state.error;
+  }
+
+  @Selector()
+  static showDetails(state: PhotosStateModel): boolean {
+    return state.showDetails;
+  }
+
+  @Selector()
+  static columnsPerRow(state: PhotosStateModel): number {
+    return state.columnsPerRow;
   }
 
   /**
@@ -201,6 +217,16 @@ export class PhotosState {
       ));
     }
     return;
+  }
+
+  @Action(SetShowDetails)
+  setShowDetails(ctx: StateContext<PhotosStateModel>, action: SetShowDetails): void {
+    ctx.patchState({ showDetails: action.showDetails });
+  }
+
+  @Action(SetColumnsPerRow)
+  setColumnsPerRow(ctx: StateContext<PhotosStateModel>, action: SetColumnsPerRow): void {
+    ctx.patchState({ columnsPerRow: action.columns });
   }
 
   @Action(ResetPhotos)

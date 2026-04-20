@@ -20,12 +20,24 @@
 
   <div class="photos-layout">
     @if (monthsSummary().length > 0) {
-      <nav class="months-toc" aria-label="Browse by month">
-        <div class="months-toc__header">By month</div>
+      <nav class="months-toc" [class.months-toc--collapsed]="tocCollapsed()" aria-label="Browse by month">
+        <div class="months-toc__header">
+          <span class="months-toc__title">By month</span>
+          <button
+            class="months-toc__toggle-btn"
+            (click)="toggleToc()"
+            [title]="tocCollapsed() ? 'Expand months panel' : 'Collapse months panel'"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+        </div>
         <app-months-nav
           [monthsSummary]="monthsSummary()"
           [activeMonth]="activeMonth()"
           [sourceFilter]="sourceFilter()"
+          [collapsed]="tocCollapsed()"
           (monthSelected)="onMonthSelected($event)"
         ></app-months-nav>
       </nav>
@@ -40,6 +52,8 @@
         [loadingMore]="loadingMore()"
         [hasMore]="hasMore()"
         [loadError]="loadError() ?? ''"
+        [showDetails]="showDetails()"
+        [columnsPerRow]="columnsPerRow()"
         (photoClicked)="onPhotoClicked($event)"
         (selectionChanged)="onSelectionChanged($event)"
         (loadMoreRequested)="onLoadMoreRequested()"

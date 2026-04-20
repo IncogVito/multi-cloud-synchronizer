@@ -31,3 +31,13 @@ export class SetActiveMonth {
 export class ResetPhotos {
   static readonly type = '[Photos] Reset — clear loaded photos and pagination';
 }
+
+export class SetShowDetails {
+  static readonly type = '[Photos] Set show details';
+  constructor(public readonly showDetails: boolean) {}
+}
+
+export class SetColumnsPerRow {
+  static readonly type = '[Photos] Set columns per row';
+  constructor(public readonly columns: number) {}
+}

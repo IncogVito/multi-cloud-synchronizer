@@ -19,22 +19,65 @@
 }
 
 .months-toc {
-  width: 180px;
+  width: 200px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border-right: 1px solid var(--color-border, #e5e7eb);
   background: var(--color-sidebar-bg, #f9fafb);
+  transition: width 0.22s ease;
+
+  &--collapsed {
+    width: 40px;
+
+    .months-toc__header {
+      justify-content: center;
+      padding: 0.75rem 0;
+    }
+
+    .months-toc__title { display: none; }
+
+    .months-toc__toggle-btn svg {
+      transform: rotate(180deg);
+    }
+  }
 
   &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem 0.25rem;
+    flex-shrink: 0;
+  }
+
+  &__title {
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #9ca3af;
-    padding: 0.5rem 1rem 0.25rem;
-    flex-shrink: 0;
+    white-space: nowrap;
   }
 
+  &__toggle-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #9ca3af;
+    padding: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+
+    svg { transition: transform 0.22s ease; }
+
+    &:hover {
+      background: #e5e7eb;
+      color: #374151;
+    }
+  }
 }

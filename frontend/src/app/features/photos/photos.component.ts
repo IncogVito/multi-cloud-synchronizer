@@ -53,6 +53,13 @@ export class PhotosComponent implements OnInit, OnDestroy {
   storageDeviceId = computed(() => this.appContextService.context()?.storageDeviceId ?? '');
   granularity = signal<Granularity>('year');
   sourceFilter = signal<SourceFilter>('all');
+  tocCollapsed = signal<boolean>(localStorage.getItem('cloudsync-months-collapsed') === '1');
+
+  toggleToc(): void {
+    const next = !this.tocCollapsed();
+    this.tocCollapsed.set(next);
+    localStorage.setItem('cloudsync-months-collapsed', next ? '1' : '0');
+  }
 
   allPhotos = this.store.selectSignal(PhotosState.photos);
   loading = this.store.selectSignal(PhotosState.loading);
@@ -61,6 +68,8 @@ export class PhotosComponent implements OnInit, OnDestroy {
   loadError = this.store.selectSignal(PhotosState.error);
   monthsSummary = this.store.selectSignal(PhotosState.monthsSummary);
   activeMonth = this.store.selectSignal(PhotosState.activeMonth);
+  showDetails = this.store.selectSignal(PhotosState.showDetails);
+  columnsPerRow = this.store.selectSignal(PhotosState.columnsPerRow);
 
   filteredPhotos = computed(() => {
     const f = this.sourceFilter();
@@ -358,7 +367,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
       .map(([key, groupPhotos]) => ({
         key,
         label: granularity === 'year' ? key : groupPhotos[0]
-          ? new Date(groupPhotos[0].createdDate).toLocaleString('default', { month: 'long', year: 'numeric' })
+          ? new Date(groupPhotos[0].createdDate).toLocaleString('default', { month: 'long' })
           : key,
         photos: groupPhotos.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())
       }));
