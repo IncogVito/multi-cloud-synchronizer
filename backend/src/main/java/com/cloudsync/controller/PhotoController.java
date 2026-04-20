@@ -6,13 +6,17 @@ import com.cloudsync.model.dto.MissingThumbnailsCount;
 import com.cloudsync.model.dto.MonthSummaryResponse;
 import com.cloudsync.model.dto.PhotoListResponse;
 import com.cloudsync.model.dto.PhotoResponse;
+import com.cloudsync.model.dto.ThumbnailJobResponse;
 import com.cloudsync.model.dto.ThumbnailProgress;
 import com.cloudsync.service.PhotoService;
 import com.cloudsync.service.SyncService;
+import com.cloudsync.service.ThumbnailJobService;
 import com.cloudsync.service.ThumbnailService;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
+import io.micronaut.http.exceptions.HttpStatusException;
 import io.micronaut.http.sse.Event;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
@@ -36,11 +40,14 @@ public class PhotoController {
     private final PhotoService photoService;
     private final SyncService syncService;
     private final ThumbnailService thumbnailService;
+    private final ThumbnailJobService thumbnailJobService;
 
-    public PhotoController(PhotoService photoService, SyncService syncService, ThumbnailService thumbnailService) {
+    public PhotoController(PhotoService photoService, SyncService syncService,
+                           ThumbnailService thumbnailService, ThumbnailJobService thumbnailJobService) {
         this.photoService = photoService;
         this.syncService = syncService;
         this.thumbnailService = thumbnailService;
+        this.thumbnailJobService = thumbnailJobService;
     }
 
     @Operation(summary = "List photos", description = "Returns paginated photos with optional filters. Use yearMonth (YYYY-MM) or year (YYYY) to scope to a specific time range.")
@@ -89,16 +96,33 @@ public class PhotoController {
         return new MissingThumbnailsCount(count);
     }
 
-    @Operation(summary = "Generate thumbnails (SSE)", description = "Pass photoIds to generate for specific photos, or storageDeviceId for all missing on device")
-    @ApiResponse(responseCode = "200", description = "SSE progress stream")
-    @Post(value = "/generate-thumbnails", produces = MediaType.TEXT_EVENT_STREAM)
+    @Operation(summary = "Start thumbnail generation job", description = "Returns jobId immediately. Job runs server-side and survives page navigation.")
+    @ApiResponse(responseCode = "200", description = "Job started")
+    @Post("/thumbnail-jobs")
     @Consumes(MediaType.APPLICATION_JSON)
-    public Publisher<Event<ThumbnailProgress>> generateThumbnails(@Body GenerateThumbnailsRequest request) {
-        if (request != null && request.photoIds() != null && !request.photoIds().isEmpty()) {
-            return Flux.from(thumbnailService.generateForPhotoIds(request.photoIds())).map(Event::of);
-        }
+    @Produces(MediaType.APPLICATION_JSON)
+    public ThumbnailJobResponse startThumbnailJob(@Body GenerateThumbnailsRequest request) {
         String deviceId = request != null ? request.storageDeviceId() : null;
-        return Flux.from(thumbnailService.generateMissingForDevice(deviceId)).map(Event::of);
+        List<String> photoIds = request != null ? request.photoIds() : null;
+        return thumbnailJobService.startJob(deviceId, photoIds);
+    }
+
+    @Operation(summary = "Stream thumbnail job progress (SSE)", description = "Reconnect-safe: replays all past progress events on reconnect.")
+    @ApiResponse(responseCode = "200", description = "SSE progress stream")
+    @ApiResponse(responseCode = "404", description = "Job not found")
+    @Get(value = "/thumbnail-jobs/{jobId}/progress", produces = MediaType.TEXT_EVENT_STREAM)
+    public Publisher<Event<ThumbnailProgress>> getThumbnailJobProgress(@PathVariable String jobId) {
+        return thumbnailJobService.getJob(jobId)
+                .map(job -> (Publisher<Event<ThumbnailProgress>>) Flux.from(job.subscribe()).map(Event::of))
+                .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Job not found: " + jobId));
+    }
+
+    @Operation(summary = "Cancel thumbnail generation job")
+    @ApiResponse(responseCode = "204", description = "Cancelled")
+    @Delete("/thumbnail-jobs/{jobId}")
+    public HttpResponse<Void> cancelThumbnailJob(@PathVariable String jobId) {
+        thumbnailJobService.cancelJob(jobId);
+        return HttpResponse.noContent();
     }
 
     @Operation(summary = "Get photo details")

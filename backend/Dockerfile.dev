@@ -21,6 +21,7 @@ RUN apt-get update -o Acquire::Retries=3 && apt-get install -y --no-install-reco
     mount \
     libvips-tools \
     libheif1 \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Ensure volumes mounted at runtime are owned by gradle user

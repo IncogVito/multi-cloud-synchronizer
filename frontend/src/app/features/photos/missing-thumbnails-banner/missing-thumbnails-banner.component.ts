@@ -1,7 +1,9 @@
-import { Component, computed, effect, inject, input, OnDestroy, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, OnDestroy, OnInit, output, signal } from '@angular/core';
 import { PhotosService } from '../../../core/api/generated/photos/photos.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ThumbnailProgress } from '../../../core/api/generated/model/thumbnailProgress';
+
+const JOB_KEY = 'cloudsync-thumbnail-job-id';
 
 @Component({
   selector: 'app-missing-thumbnails-banner',
@@ -10,7 +12,7 @@ import { ThumbnailProgress } from '../../../core/api/generated/model/thumbnailPr
   templateUrl: './missing-thumbnails-banner.component.html',
   styleUrl: './missing-thumbnails-banner.component.scss'
 })
-export class MissingThumbnailsBannerComponent implements OnDestroy {
+export class MissingThumbnailsBannerComponent implements OnInit, OnDestroy {
   private photosService = inject(PhotosService);
   private authService = inject(AuthService);
 
@@ -23,6 +25,7 @@ export class MissingThumbnailsBannerComponent implements OnDestroy {
   missingCount = signal(0);
   generating = signal(false);
   progress = signal<ThumbnailProgress | null>(null);
+  jobId = signal<string | null>(null);
 
   progressPercent = computed(() => {
     const p = this.progress();
@@ -37,6 +40,15 @@ export class MissingThumbnailsBannerComponent implements OnDestroy {
       const deviceId = this.storageDeviceId();
       if (deviceId) this.fetchMissingCount();
     });
+  }
+
+  ngOnInit(): void {
+    const savedJobId = localStorage.getItem(JOB_KEY);
+    if (savedJobId) {
+      this.jobId.set(savedJobId);
+      this.generating.set(true);
+      this.connectToJob(savedJobId);
+    }
   }
 
   fetchMissingCount(): void {
@@ -56,41 +68,56 @@ export class MissingThumbnailsBannerComponent implements OnDestroy {
     this.startGeneration(null, this.selectedPhotoIds());
   }
 
-  private startGeneration(storageDeviceId: string | null, photoIds: string[] | null): void {
-    this.generating.set(true);
+  stopGeneration(): void {
+    const id = this.jobId();
+    if (id) {
+      const headers = this.buildHeaders();
+      fetch(`/api/photos/thumbnail-jobs/${id}`, { method: 'DELETE', headers });
+      localStorage.removeItem(JOB_KEY);
+    }
+    this.abortController?.abort();
+    this.generating.set(false);
+    this.jobId.set(null);
     this.progress.set(null);
-    this.streamProgress(storageDeviceId, photoIds);
   }
 
-  private streamProgress(storageDeviceId: string | null, photoIds: string[] | null): void {
-    this.abortController?.abort();
-    this.abortController = new AbortController();
+  private async startGeneration(storageDeviceId: string | null, photoIds: string[] | null): Promise<void> {
+    this.generating.set(true);
+    this.progress.set(null);
 
-    const creds = this.authService.getCredentials();
-    const headers: Record<string, string> = {
-      'Accept': 'text/event-stream',
-      'Content-Type': 'application/json'
-    };
-    if (creds) headers['Authorization'] = `Basic ${creds.encoded}`;
-
+    const headers = this.buildHeaders({ 'Content-Type': 'application/json' });
     const body = JSON.stringify({
       storageDeviceId: storageDeviceId || null,
       photoIds: photoIds?.length ? photoIds : null
     });
 
-    fetch('/api/photos/generate-thumbnails', {
-      method: 'POST',
-      headers,
-      body,
-      signal: this.abortController.signal,
-    }).then(async (response) => {
-      await this.readProgressStream(response);
-    }).catch((err) => {
-      if (err?.name !== 'AbortError') {
-        console.error('Thumbnail generation SSE error', err);
-      }
+    try {
+      const response = await fetch('/api/photos/thumbnail-jobs', { method: 'POST', headers, body });
+      if (!response.ok) { this.generating.set(false); return; }
+      const data = await response.json();
+      const id: string = data.jobId;
+      this.jobId.set(id);
+      localStorage.setItem(JOB_KEY, id);
+      this.connectToJob(id);
+    } catch {
       this.generating.set(false);
-    });
+    }
+  }
+
+  private connectToJob(id: string): void {
+    this.abortController?.abort();
+    this.abortController = new AbortController();
+
+    fetch(`/api/photos/thumbnail-jobs/${id}/progress`, {
+      headers: this.buildHeaders({ Accept: 'text/event-stream' }),
+      signal: this.abortController.signal,
+    }).then(r => this.readProgressStream(r))
+      .catch(err => {
+        if (err?.name !== 'AbortError') {
+          console.error('Thumbnail job SSE error', err);
+          this.generating.set(false);
+        }
+      });
   }
 
   private async readProgressStream(response: Response): Promise<void> {
@@ -119,13 +146,23 @@ export class MissingThumbnailsBannerComponent implements OnDestroy {
       if (event.done) {
         this.generating.set(false);
         this.missingCount.set(0);
+        this.jobId.set(null);
+        localStorage.removeItem(JOB_KEY);
         this.thumbnailsGenerated.emit();
         this.abortController?.abort();
       }
     } catch { /* ignore parse errors */ }
   }
 
+  private buildHeaders(extra: Record<string, string> = {}): Record<string, string> {
+    const creds = this.authService.getCredentials();
+    const headers: Record<string, string> = { ...extra };
+    if (creds) headers['Authorization'] = `Basic ${creds.encoded}`;
+    return headers;
+  }
+
   ngOnDestroy(): void {
+    // Disconnect SSE only — job continues running server-side
     this.abortController?.abort();
   }
 }

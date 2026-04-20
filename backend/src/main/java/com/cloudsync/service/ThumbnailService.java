@@ -1,15 +1,11 @@
 package com.cloudsync.service;
 
-import com.cloudsync.model.dto.ThumbnailProgress;
 import com.cloudsync.model.entity.Photo;
 import com.cloudsync.repository.PhotoRepository;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSink;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +25,7 @@ public class ThumbnailService {
     private static final int THUMBNAIL_SIZE = 300;
     private static final float THUMBNAIL_QUALITY = 0.8f;
 
+    private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "heic", "heif", "webp", "tiff", "tif");
     private static final Set<String> VIDEO_EXTENSIONS = Set.of("mov", "mp4", "m4v", "avi", "mkv");
 
     private final PhotoRepository photoRepository;
@@ -65,53 +62,6 @@ public class ThumbnailService {
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 
-    /**
-     * Returns a Flux emitting progress for missing thumbnails on a device (or all if null).
-     */
-    public Flux<ThumbnailProgress> generateMissingForDevice(String storageDeviceId) {
-        return Flux.create(sink -> {
-            Thread.ofVirtual().start(() -> runGenerationForCandidates(findCandidates(storageDeviceId), sink));
-        }, FluxSink.OverflowStrategy.BUFFER);
-    }
-
-    /**
-     * Returns a Flux emitting progress for a specific set of photo IDs.
-     */
-    public Flux<ThumbnailProgress> generateForPhotoIds(List<String> photoIds) {
-        return Flux.create(sink -> {
-            Thread.ofVirtual().start(() -> runGenerationForCandidates(photoRepository.findByIdIn(photoIds), sink));
-        }, FluxSink.OverflowStrategy.BUFFER);
-    }
-
-    private void runGenerationForCandidates(List<Photo> candidates, FluxSink<ThumbnailProgress> sink) {
-        try {
-            int total = candidates.size();
-            AtomicInteger processed = new AtomicInteger(0);
-            AtomicInteger errors = new AtomicInteger(0);
-
-            List<CompletableFuture<Void>> futures = candidates.stream().map(photo ->
-                CompletableFuture.runAsync(() -> {
-                    if (sink.isCancelled()) return;
-                    try {
-                        generateThumbnail(photo);
-                    } catch (Exception e) {
-                        LOG.warn("Thumbnail generation failed for photo {}: {}", photo.getId(), e.getMessage());
-                        errors.incrementAndGet();
-                    } finally {
-                        int done = processed.incrementAndGet();
-                        sink.next(new ThumbnailProgress(done, total, false, errors.get()));
-                    }
-                }, thumbnailExecutor)
-            ).toList();
-
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-            sink.next(new ThumbnailProgress(processed.get(), total, true, errors.get()));
-            sink.complete();
-        } catch (Exception e) {
-            sink.error(e);
-        }
-    }
-
     public long countMissing() {
         return photoRepository.countMissingThumbnails();
     }
@@ -120,7 +70,7 @@ public class ThumbnailService {
         return photoRepository.countMissingThumbnailsByDevice(storageDeviceId);
     }
 
-    private List<Photo> findCandidates(String storageDeviceId) {
+    public List<Photo> findCandidates(String storageDeviceId) {
         if (storageDeviceId != null && !storageDeviceId.isBlank()) {
             return photoRepository.findSyncedWithoutThumbnailByDevice(storageDeviceId);
         }
@@ -141,8 +91,8 @@ public class ThumbnailService {
 
         String ext = extension(sourceFile);
 
-        if (VIDEO_EXTENSIONS.contains(ext)) {
-            LOG.debug("Skipping thumbnail for video file: {}", sourceFile.getFileName());
+        if (!IMAGE_EXTENSIONS.contains(ext) && !VIDEO_EXTENSIONS.contains(ext)) {
+            LOG.debug("Unsupported file type for thumbnail: {}", sourceFile.getFileName());
             return;
         }
 
@@ -150,11 +100,42 @@ public class ThumbnailService {
         Files.createDirectories(thumbDir);
         Path thumbFile = thumbDir.resolve(photo.getId() + ".jpg");
 
-        generateVipsThumbnail(sourceFile, thumbFile);
+        if (VIDEO_EXTENSIONS.contains(ext)) {
+            generateFfmpegThumbnail(sourceFile, thumbFile);
+        } else {
+            generateVipsThumbnail(sourceFile, thumbFile);
+        }
 
         photo.setThumbnailPath(thumbFile.toString());
         photoRepository.update(photo);
         LOG.debug("Thumbnail generated for photo {}: {}", photo.getId(), thumbFile);
+    }
+
+    private void generateFfmpegThumbnail(Path source, Path thumbFile) throws IOException {
+        // Seek 3s in before -i for fast input seeking; avoids common black opening frames.
+        // scale=-2:300 keeps aspect, height divisible by 2 (encoder requirement).
+        ProcessBuilder pb = new ProcessBuilder(
+                "ffmpeg", "-y",
+                "-ss", "3",
+                "-i", source.toAbsolutePath().toString(),
+                "-vframes", "1",
+                "-vf", "scale=-2:" + THUMBNAIL_SIZE,
+                "-q:v", "2",
+                thumbFile.toAbsolutePath().toString()
+        );
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+        int exitCode;
+        try {
+            exitCode = process.waitFor();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("ffmpeg interrupted", e);
+        }
+        if (exitCode != 0) {
+            String output = new String(process.getInputStream().readAllBytes());
+            throw new IOException("ffmpeg failed (exit " + exitCode + "): " + output);
+        }
     }
 
     private void generateVipsThumbnail(Path source, Path thumbFile) throws IOException {

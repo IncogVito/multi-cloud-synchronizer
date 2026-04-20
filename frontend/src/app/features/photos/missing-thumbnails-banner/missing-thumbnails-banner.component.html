@@ -15,6 +15,7 @@
         <div class="progress-track">
           <div class="progress-fill" [style.width.%]="progressPercent()"></div>
         </div>
+        <button class="btn btn-sm btn-ghost" (click)="stopGeneration()">Stop</button>
       </div>
     } @else {
       @if (selectedPhotoIds().length > 0) {

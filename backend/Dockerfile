@@ -33,6 +33,7 @@ RUN apt-get update -o Acquire::Retries=3 && apt-get install -y --no-install-reco
     mount \
     libvips-tools \
     libheif1 \
+    ffmpeg \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
