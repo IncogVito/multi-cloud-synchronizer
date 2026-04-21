@@ -10,6 +10,7 @@ export interface DriveStatus {
   freeBytes: number | null;
   deviceId: string | null;
   label: string | null;
+  warning: string | null;
 }
 
 export interface DiskInfo {

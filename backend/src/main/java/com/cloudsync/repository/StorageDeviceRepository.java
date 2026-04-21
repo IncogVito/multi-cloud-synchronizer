@@ -12,4 +12,6 @@ import java.util.Optional;
 public interface StorageDeviceRepository extends CrudRepository<StorageDevice, String> {
 
     Optional<StorageDevice> findByFilesystemUuid(String filesystemUuid);
+
+    Optional<StorageDevice> findByDevicePath(String devicePath);
 }

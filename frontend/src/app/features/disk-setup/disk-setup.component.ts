@@ -446,6 +446,9 @@ export class DiskSetupComponent implements OnInit {
         this.driveStatus.set(status);
         this.state.set('mounted');
         this.toast.success(`Zamontowano ${status.label || device}`);
+        if (status.warning) {
+          this.toast.warning(status.warning, 10000);
+        }
         this.cdr.markForCheck();
       },
       error: (err) => {

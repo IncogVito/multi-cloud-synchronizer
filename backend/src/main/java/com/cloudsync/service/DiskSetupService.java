@@ -53,7 +53,7 @@ public class DiskSetupService {
     }
 
     @Serdeable
-    public record DriveStatus(boolean mounted, String drivePath, String drivePathHost, Long freeBytes, String deviceId, String label) {}
+    public record DriveStatus(boolean mounted, String drivePath, String drivePathHost, Long freeBytes, String deviceId, String label, String warning) {}
 
     @Serdeable
     public record DiskInfo(String name, String path, String size, String type, String mountpoint, String label, String vendor, String model) {}
@@ -62,14 +62,14 @@ public class DiskSetupService {
         try {
             Optional<StorageDevice> device = findMountedDevice();
             if (device.isEmpty()) {
-                return new DriveStatus(false, null, null, null, null, null);
+                return new DriveStatus(false, null, null, null, null, null, null);
             }
             StorageDevice d = device.get();
             Long freeBytes = queryFreeBytes();
-            return new DriveStatus(true, containerMountPath, hostMountPath, freeBytes, d.getId(), d.getLabel());
+            return new DriveStatus(true, containerMountPath, hostMountPath, freeBytes, d.getId(), d.getLabel(), null);
         } catch (Exception e) {
             LOG.warn("getDriveStatus failed, reporting unmounted: {}", e.getMessage());
-            return new DriveStatus(false, null, null, null, null, null);
+            return new DriveStatus(false, null, null, null, null, null, null);
         }
     }
 
@@ -143,21 +143,26 @@ public class DiskSetupService {
             }
         }
 
-        String uuid;
-        String label;
-        try {
-            var idResult = hostAgent.readDeviceId(device);
-            uuid = idResult.uuid();
-            label = idResult.label();
-        } catch (HostAgentException e) {
-            LOG.warn("Could not read UUID for device {} via host agent: {}", device, e.getMessage());
-            uuid = null;
-            label = null;
+        String uuid = null;
+        String label = null;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                var idResult = hostAgent.readDeviceId(device);
+                uuid = idResult.uuid();
+                label = idResult.label();
+                break;
+            } catch (HostAgentException e) {
+                LOG.warn("readDeviceId attempt {}/3 failed for {}: {}", attempt, device, e.getMessage());
+                if (attempt < 3) {
+                    try { Thread.sleep(500); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
+                }
+            }
         }
 
         if (uuid == null) {
-            LOG.warn("Could not read UUID for device {}, generating random", device);
-            uuid = UUID.randomUUID().toString();
+            throw new IllegalStateException(
+                    "Nie udało się odczytać UUID dysku " + device + " po 3 próbach — host agent nie odpowiedział. " +
+                    "Spróbuj ponownie.");
         }
 
         Long sizeBytes = querySizeBytes();
@@ -185,7 +190,7 @@ public class DiskSetupService {
         }
 
         Long freeBytes = queryFreeBytes();
-        return new DriveStatus(true, containerMountPath, hostMountPath, freeBytes, storageDevice.getId(), label);
+        return new DriveStatus(true, containerMountPath, hostMountPath, freeBytes, storageDevice.getId(), label, null);
     }
 
     public void unmount() {
@@ -217,10 +222,14 @@ public class DiskSetupService {
         try {
             uuid = hostAgent.readDeviceId(device).uuid();
         } catch (HostAgentException e) {
-            LOG.warn("Could not read UUID for {} via host agent: {}", device, e.getMessage());
+            LOG.warn("Could not read UUID for {} via host agent, will try devicePath fallback: {}", device, e.getMessage());
         }
-        if (uuid == null) return Optional.empty();
-        return storageDeviceRepository.findByFilesystemUuid(uuid);
+        if (uuid != null) {
+            Optional<StorageDevice> byUuid = storageDeviceRepository.findByFilesystemUuid(uuid);
+            if (byUuid.isPresent()) return byUuid;
+            LOG.warn("Device {} has UUID {} but no DB record — falling back to devicePath lookup", device, uuid);
+        }
+        return storageDeviceRepository.findByDevicePath(device);
     }
 
     private Long querySizeBytes() {
