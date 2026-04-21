@@ -16,6 +16,7 @@ import { SyncService } from '../../core/services/sync.service';
 import { DiskIndexingService } from '../../core/services/disk-indexing.service';
 import { AppContextService } from '../../core/services/app-context.service';
 import { ThumbnailSpriteService } from '../../core/services/thumbnail-sprite.service';
+import { ThumbnailJobStateService } from '../../core/services/thumbnail-job-state.service';
 import { SyncProgressEvent } from '../../core/models/sync-progress.model';
 import { PhotosState } from '../../state/photos/photos.state';
 import { LoadPhotos, LoadMorePhotos, LoadMonthsSummary, SetActiveMonth } from '../../state/photos/photos.actions';
@@ -50,6 +51,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
   private diskIndexingService = inject(DiskIndexingService);
   private appContextService = inject(AppContextService);
   private thumbnailSpriteService = inject(ThumbnailSpriteService);
+  private thumbnailJobState = inject(ThumbnailJobStateService);
   private destroyRef = inject(DestroyRef);
 
   storageDeviceId = computed(() => this.appContextService.context()?.storageDeviceId ?? '');
@@ -98,6 +100,16 @@ export class PhotosComponent implements OnInit, OnDestroy {
       .map(p => p.id)
   );
 
+  private currentDetailIndex = computed(() =>
+    this.filteredPhotos().findIndex(p => p.id === this.detailPhoto()?.id)
+  );
+
+  hasPrevPhoto = computed(() => this.currentDetailIndex() > 0);
+  hasNextPhoto = computed(() => {
+    const idx = this.currentDetailIndex();
+    return idx >= 0 && idx < this.filteredPhotos().length - 1;
+  });
+
   canDeleteSelected = computed(() => {
     const selectedPhotos = this.allPhotos().filter(p => this.selectedIds().has(p.id));
     return selectedPhotos.length > 0 && selectedPhotos.every(p => p.syncedToDisk);
@@ -129,6 +141,14 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.previousDeviceId = deviceId;
       }
     });
+
+    effect(() => {
+      const n = this.thumbnailJobState.thumbnailsDone();
+      if (n > 0) {
+        this.reloadCurrent();
+        this.timeline?.refreshObserver();
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -137,6 +157,9 @@ export class PhotosComponent implements OnInit, OnDestroy {
       if (event?.phase === 'DONE') {
         this.syncing.set(false);
         this.reloadCurrent();
+        if (event.thumbnailJobId) {
+          this.thumbnailJobState.connectToJob(event.thumbnailJobId);
+        }
       } else if (event?.phase === 'ERROR') {
         this.syncing.set(false);
       }
@@ -202,8 +225,12 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.detailImageUrl.set(this.detailBlobUrl);
       },
       error: () => {
-        const slot = this.thumbnailSlots().get(photo.id);
-        if (slot) this.detailImageUrl.set(slot.spriteUrl);
+        this.http.get(`/api/photos/${photo.id}/thumbnail`, { responseType: 'blob' }).subscribe({
+          next: (blob) => {
+            this.detailBlobUrl = URL.createObjectURL(blob);
+            this.detailImageUrl.set(this.detailBlobUrl);
+          }
+        });
       }
     });
   }
@@ -215,6 +242,16 @@ export class PhotosComponent implements OnInit, OnDestroy {
       URL.revokeObjectURL(this.detailBlobUrl);
       this.detailBlobUrl = null;
     }
+  }
+
+  onPrevPhoto(): void {
+    const idx = this.currentDetailIndex();
+    if (idx > 0) this.onPhotoClicked(this.filteredPhotos()[idx - 1]);
+  }
+
+  onNextPhoto(): void {
+    const idx = this.currentDetailIndex();
+    if (idx >= 0 && idx < this.filteredPhotos().length - 1) this.onPhotoClicked(this.filteredPhotos()[idx + 1]);
   }
 
   onDeleteFromICloud(): void {

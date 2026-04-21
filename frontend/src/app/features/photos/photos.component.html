@@ -78,7 +78,11 @@
     [photo]="detailPhoto()"
     [imageUrl]="detailImageUrl()"
     [loading]="!detailImageUrl() && !!detailPhoto()"
+    [hasPrev]="hasPrevPhoto()"
+    [hasNext]="hasNextPhoto()"
     (closed)="onDetailClosed()"
+    (prevRequested)="onPrevPhoto()"
+    (nextRequested)="onNextPhoto()"
     (deleteFromICloud)="onDetailDeleteFromICloud($event)"
     (deleteFromIPhone)="onDetailDeleteFromIPhone($event)"
   ></app-photo-detail-modal>

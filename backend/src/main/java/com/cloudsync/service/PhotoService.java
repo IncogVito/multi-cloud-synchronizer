@@ -236,26 +236,30 @@ public class PhotoService {
     }
 
     private byte[] convertHeicToJpeg(Path source) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder(
-                "convert",
-                source.toAbsolutePath() + "[0]",
-                "jpg:-"
-        );
-        pb.redirectErrorStream(false);
-        Process process = pb.start();
-        byte[] jpeg;
+        Path temp = Files.createTempFile("heic-full-", ".jpg");
         try {
-            jpeg = process.getInputStream().readAllBytes();
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                String err = new String(process.getErrorStream().readAllBytes());
-                throw new IOException("ImageMagick convert failed (exit " + exitCode + "): " + err);
+            ProcessBuilder pb = new ProcessBuilder(
+                    "vips", "copy",
+                    source.toAbsolutePath() + "[0]",
+                    temp.toAbsolutePath() + "[Q=90]"
+            );
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            int exitCode;
+            try {
+                exitCode = process.waitFor();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("HEIC conversion interrupted", e);
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("HEIC conversion interrupted", e);
+            if (exitCode != 0) {
+                String output = new String(process.getInputStream().readAllBytes());
+                throw new IOException("vips copy failed (exit " + exitCode + "): " + output);
+            }
+            return Files.readAllBytes(temp);
+        } finally {
+            Files.deleteIfExists(temp);
         }
-        return jpeg;
     }
 
     private static String extension(Path file) {

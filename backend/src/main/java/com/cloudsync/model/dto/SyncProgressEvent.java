@@ -19,6 +19,7 @@ public class SyncProgressEvent {
     private Long diskFreeBytes;
     private Long diskPhotoCount;
     private int newlyDeleted;
+    private String thumbnailJobId;
 
     public SyncProgressEvent() {}
 
@@ -55,4 +56,6 @@ public class SyncProgressEvent {
 
     public int getNewlyDeleted() { return newlyDeleted; }
     public void setNewlyDeleted(int newlyDeleted) { this.newlyDeleted = newlyDeleted; }
+    public String getThumbnailJobId() { return thumbnailJobId; }
+    public void setThumbnailJobId(String thumbnailJobId) { this.thumbnailJobId = thumbnailJobId; }
 }

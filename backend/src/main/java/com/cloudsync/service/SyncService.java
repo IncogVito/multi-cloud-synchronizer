@@ -54,6 +54,7 @@ public class SyncService {
     private final PhotoRepository photoRepository;
     private final AccountRepository accountRepository;
     private final ThumbnailService thumbnailService;
+    private final ThumbnailJobService thumbnailJobService;
     private final SyncStateHolder syncStateHolder;
     private final AppContextService appContextService;
     private final ExecutorService syncVirtualThreadExecutor;
@@ -71,6 +72,7 @@ public class SyncService {
     public SyncService(PhotoRepository photoRepository,
                        AccountRepository accountRepository,
                        ThumbnailService thumbnailService,
+                       ThumbnailJobService thumbnailJobService,
                        SyncStateHolder syncStateHolder,
                        AppContextService appContextService,
                        @Named("syncVirtualThreadExecutor") ExecutorService syncVirtualThreadExecutor,
@@ -79,6 +81,7 @@ public class SyncService {
         this.photoRepository = photoRepository;
         this.accountRepository = accountRepository;
         this.thumbnailService = thumbnailService;
+        this.thumbnailJobService = thumbnailJobService;
         this.syncStateHolder = syncStateHolder;
         this.appContextService = appContextService;
         this.syncVirtualThreadExecutor = syncVirtualThreadExecutor;
@@ -542,11 +545,12 @@ public class SyncService {
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
                 .thenRun(() -> {
+                    String thumbnailJobId = null;
                     if (!isCancelled(accountId)) {
-                        generateThumbnailsPhase(accountId);
+                        thumbnailJobId = startThumbnailJobForSync(accountId);
                     }
                     if (!isCancelled(accountId)) {
-                        emitDoneEvent(accountId);
+                        emitDoneEvent(accountId, thumbnailJobId);
                     }
                 });
     }
@@ -679,35 +683,16 @@ public class SyncService {
         });
     }
 
-    private void generateThumbnailsPhase(String accountId) {
-        List<Photo> candidates = photoRepository.findByAccountIdAndSyncedToDisk(accountId, true).stream()
+    private String startThumbnailJobForSync(String accountId) {
+        List<String> candidateIds = photoRepository.findByAccountIdAndSyncedToDisk(accountId, true).stream()
                 .filter(p -> p.getThumbnailPath() == null || !Files.exists(Path.of(p.getThumbnailPath())))
+                .map(Photo::getId)
                 .toList();
-
-        if (candidates.isEmpty()) return;
-
-        int total = candidates.size();
-        AtomicInteger done = new AtomicInteger(0);
-
-        emitEvent(accountId, SyncPhase.GENERATING_THUMBNAILS, e -> {
-            e.setPending(total);
-            e.setSynced(0);
-            e.setPercentComplete(0.0);
-        });
-
-        thumbnailService.generateMissing(candidates, photo -> {
-            int d = done.incrementAndGet();
-            if (!isCancelled(accountId)) {
-                emitEvent(accountId, SyncPhase.GENERATING_THUMBNAILS, e -> {
-                    e.setSynced(d);
-                    e.setPending(total - d);
-                    e.setPercentComplete((double) d / total * 100);
-                });
-            }
-        }, () -> isCancelled(accountId));
+        if (candidateIds.isEmpty()) return null;
+        return thumbnailJobService.startJob(null, candidateIds).jobId();
     }
 
-    private void emitDoneEvent(String accountId) {
+    private void emitDoneEvent(String accountId, String thumbnailJobId) {
         long synced = photoRepository.countByAccountIdAndSyncStatus(accountId, SyncStatus.SYNCED.name());
         long failed = photoRepository.countByAccountIdAndSyncStatus(accountId, SyncStatus.FAILED.name());
         long total = photoRepository.countByAccountId(accountId);
@@ -715,6 +700,7 @@ public class SyncService {
             e.setSynced((int) synced);
             e.setFailed((int) failed);
             e.setTotalOnCloud((int) total);
+            e.setThumbnailJobId(thumbnailJobId);
             e.setPercentComplete(100.0);
         });
         accountRepository.findById(accountId).ifPresent(a -> {

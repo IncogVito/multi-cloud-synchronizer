@@ -23,6 +23,7 @@ export interface SyncProgressEvent {
   diskFreeBytes?: number;
   diskPhotoCount?: number;
   newlyDeleted?: number;
+  thumbnailJobId?: string;
 }
 
 export interface SyncStartResponse {

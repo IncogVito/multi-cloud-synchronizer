@@ -1,23 +1,74 @@
 @if (photo(); as p) {
   <div class="modal-overlay" (click)="closed.emit()">
     <div class="detail-modal" (click)="$event.stopPropagation()">
-      <button class="modal-close" (click)="closed.emit()">
+
+      <button class="modal-close" (click)="closed.emit()" title="Close (Esc)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
 
-      <div class="detail-image-area">
+      @if (hasPrev()) {
+        <button class="nav-btn nav-btn--prev" (click)="prevRequested.emit()" title="Previous (←)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+      }
+      @if (hasNext()) {
+        <button class="nav-btn nav-btn--next" (click)="nextRequested.emit()" title="Next (→)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+      }
+
+      <div
+        class="detail-image-area"
+        #imageArea
+        (wheel)="onWheel($event)"
+        [class.zoomable]="zoom() > 1"
+        [class.dragging]="zoom() > 1"
+      >
         @if (imageUrl()) {
           @if (p.mediaType === 'VIDEO') {
             <video [src]="imageUrl()!" class="detail-image" controls autoplay muted playsinline></video>
           } @else {
-            <img [src]="imageUrl()!" [alt]="p.filename" class="detail-image" />
+            <img
+              [src]="imageUrl()!"
+              [alt]="p.filename"
+              class="detail-image"
+              [style.transform]="imageTransform()"
+              (mousedown)="onMouseDown($event)"
+              draggable="false"
+            />
           }
         } @else {
           <div class="detail-loading">
             <span class="spinner"></span>
+          </div>
+        }
+
+        @if (p.mediaType !== 'VIDEO') {
+          <div class="zoom-controls">
+            <button class="zoom-btn" (click)="zoomOut()" [disabled]="zoom() <= 1" title="Zoom out (-)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+            </button>
+            <span class="zoom-label">{{ (zoom() * 100).toFixed(0) }}%</span>
+            <button class="zoom-btn" (click)="zoomIn()" [disabled]="zoom() >= 5" title="Zoom in (+)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+            </button>
+            @if (zoom() > 1) {
+              <button class="zoom-btn" (click)="resetView()" title="Reset (0)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+                </svg>
+              </button>
+            }
           </div>
         }
       </div>
@@ -55,8 +106,7 @@
           </div>
           <div class="detail-status-item" [class.active]="p.existsOnIphone">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-              <line x1="12" y1="18" x2="12.01" y2="18"/>
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
             </svg>
             iPhone
           </div>
@@ -69,18 +119,11 @@
         </div>
 
         <div class="detail-actions">
-          <button
-            class="btn btn-danger"
-            (click)="deleteFromICloud.emit(p)"
-            [disabled]="!p.syncedToDisk"
-          >Delete from iCloud</button>
-          <button
-            class="btn btn-danger"
-            (click)="deleteFromIPhone.emit(p)"
-            [disabled]="!p.syncedToDisk"
-          >Delete from iPhone</button>
+          <button class="btn btn-danger" (click)="deleteFromICloud.emit(p)" [disabled]="!p.syncedToDisk">Delete from iCloud</button>
+          <button class="btn btn-danger" (click)="deleteFromIPhone.emit(p)" [disabled]="!p.syncedToDisk">Delete from iPhone</button>
         </div>
       </div>
+
     </div>
   </div>
 }
