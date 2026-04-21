@@ -79,6 +79,16 @@
     display: block;
   }
 
+  .thumb-sprite {
+    width: 100%;
+    height: 100%;
+    background-size: calc(var(--sprite-cols, 1) * 100%) calc(var(--sprite-rows, 1) * 100%);
+    background-position:
+      calc(var(--sprite-col, 0) / max(var(--sprite-cols, 1) - 1, 1) * 100%)
+      calc(var(--sprite-row, 0) / max(var(--sprite-rows, 1) - 1, 1) * 100%);
+    background-repeat: no-repeat;
+  }
+
   .thumb-overlay {
     position: absolute;
     top: var(--spacing-2);

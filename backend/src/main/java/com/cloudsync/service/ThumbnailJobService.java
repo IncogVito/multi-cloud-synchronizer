@@ -65,7 +65,7 @@ public class ThumbnailJobService {
 
     @Scheduled(fixedDelay = "1h", initialDelay = "1h")
     void cleanupOldJobs() {
-        Instant cutoff = Instant.now().minus(24, ChronoUnit.HOURS);
+        Instant cutoff = Instant.now().minus(1, ChronoUnit.HOURS);
         int removed = 0;
         for (var it = jobs.entrySet().iterator(); it.hasNext(); ) {
             ThumbnailJob job = it.next().getValue();

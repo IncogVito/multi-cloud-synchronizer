@@ -17,8 +17,8 @@ public class ThumbnailJob {
     private volatile boolean done = false;
     private volatile boolean cancelled = false;
 
-    // replay().all() so reconnecting clients receive full history and catch up instantly
-    private final Sinks.Many<ThumbnailProgress> sink = Sinks.many().replay().all();
+    // replay().limit(1) — reconnecting clients get current state without accumulating all events in memory
+    private final Sinks.Many<ThumbnailProgress> sink = Sinks.many().replay().limit(1);
 
     ThumbnailJob(String id, int total) {
         this.id = id;

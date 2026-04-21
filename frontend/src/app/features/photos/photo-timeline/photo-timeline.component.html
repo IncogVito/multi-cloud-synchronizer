@@ -41,12 +41,16 @@
               (click)="photoClicked.emit(photo)"
               (mouseenter)="handlePhotoMouseEnter(photo.id)"
             >
-              @if (thumbnailUrls().has(photo.id)) {
-                <img
-                  [src]="thumbnailUrls().get(photo.id)"
-                  [alt]="photo.filename"
-                  loading="lazy"
-                />
+              @if (thumbnailSlots().has(photo.id)) {
+                @let slot = thumbnailSlots().get(photo.id)!;
+                <div
+                  class="thumb-sprite"
+                  [style.--sprite-cols]="slot.cols"
+                  [style.--sprite-rows]="slot.rows"
+                  [style.--sprite-col]="slot.col"
+                  [style.--sprite-row]="slot.row"
+                  [style.background-image]="'url(' + slot.spriteUrl + ')'"
+                ></div>
               } @else if (photo.mediaType === 'VIDEO') {
                 <div class="thumb-placeholder">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">

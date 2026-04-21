@@ -1,5 +1,6 @@
 import { Component, computed, effect, ElementRef, HostListener, input, OnDestroy, OnInit, output, signal, ViewChild } from '@angular/core';
 import { PhotoResponse } from '../../../core/api/generated/model/photoResponse';
+import { ResolvedSlot } from '../../../core/services/thumbnail-sprite.service';
 
 export interface PhotoGroup {
   key: string;
@@ -17,7 +18,7 @@ export interface PhotoGroup {
 export class PhotoTimelineComponent implements OnInit, OnDestroy {
   groups = input<PhotoGroup[]>([]);
   selectedIds = input(new Set<string>());
-  thumbnailUrls = input(new Map<string, string>());
+  thumbnailSlots = input(new Map<string, ResolvedSlot>());
   loading = input(false);
   loadingMore = input(false);
   hasMore = input(false);

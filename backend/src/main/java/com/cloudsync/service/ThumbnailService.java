@@ -14,7 +14,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -31,6 +31,9 @@ public class ThumbnailService {
     private final PhotoRepository photoRepository;
     private final ExecutorService thumbnailExecutor;
     private final String thumbnailDir;
+    private final Semaphore concurrencyLimit = new Semaphore(
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 2)
+    );
 
     public ThumbnailService(PhotoRepository photoRepository,
                             @Named("thumbnailExecutor") ExecutorService thumbnailExecutor,
@@ -78,6 +81,20 @@ public class ThumbnailService {
     }
 
     public void generateThumbnail(Photo photo) throws IOException {
+        try {
+            concurrencyLimit.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Thumbnail generation interrupted", e);
+        }
+        try {
+            generateThumbnailInternal(photo);
+        } finally {
+            concurrencyLimit.release();
+        }
+    }
+
+    private void generateThumbnailInternal(Photo photo) throws IOException {
         if (photo.getFilePath() == null) {
             LOG.warn("Photo {} has no file path, skipping thumbnail", photo.getId());
             return;

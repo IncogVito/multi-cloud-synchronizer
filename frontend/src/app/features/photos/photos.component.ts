@@ -15,6 +15,7 @@ import { MonthsNavComponent } from './photos-months-nav/months-nav.component';
 import { SyncService } from '../../core/services/sync.service';
 import { DiskIndexingService } from '../../core/services/disk-indexing.service';
 import { AppContextService } from '../../core/services/app-context.service';
+import { ThumbnailSpriteService } from '../../core/services/thumbnail-sprite.service';
 import { SyncProgressEvent } from '../../core/models/sync-progress.model';
 import { PhotosState } from '../../state/photos/photos.state';
 import { LoadPhotos, LoadMorePhotos, LoadMonthsSummary, SetActiveMonth } from '../../state/photos/photos.actions';
@@ -48,6 +49,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
   private syncService = inject(SyncService);
   private diskIndexingService = inject(DiskIndexingService);
   private appContextService = inject(AppContextService);
+  private thumbnailSpriteService = inject(ThumbnailSpriteService);
   private destroyRef = inject(DestroyRef);
 
   storageDeviceId = computed(() => this.appContextService.context()?.storageDeviceId ?? '');
@@ -105,17 +107,11 @@ export class PhotosComponent implements OnInit, OnDestroy {
   syncProgress = signal<SyncProgressEvent | null>(null);
   operationStatus = signal<string | null>(null);
 
-  thumbnailUrls = signal(new Map<string, string>());
+  thumbnailSlots = this.thumbnailSpriteService.slots;
   detailPhoto = signal<PhotoResponse | null>(null);
   detailImageUrl = signal<string | null>(null);
 
   private syncSub: Subscription | null = null;
-  private thumbnailBlobUrls: string[] = [];
-  private thumbnailQueue: PhotoResponse[] = [];
-  private thumbnailLoadingActive = false;
-  private isScrolling = false;
-  private scrollDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private thumbnailDelayTimer: ReturnType<typeof setTimeout> | null = null;
   private statusTimer: ReturnType<typeof setTimeout> | null = null;
   private detailBlobUrl: string | null = null;
   private previousDeviceId: string | null = null;
@@ -155,14 +151,10 @@ export class PhotosComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    for (const url of this.thumbnailBlobUrls) URL.revokeObjectURL(url);
     if (this.detailBlobUrl) URL.revokeObjectURL(this.detailBlobUrl);
     this.syncSub?.unsubscribe();
     this.syncService.closeEvents();
-    if (this.scrollDebounceTimer !== null) clearTimeout(this.scrollDebounceTimer);
-    if (this.thumbnailDelayTimer !== null) clearTimeout(this.thumbnailDelayTimer);
     if (this.statusTimer !== null) clearTimeout(this.statusTimer);
-    this.thumbnailQueue = [];
   }
 
   onGranularityChanged(g: Granularity): void { this.granularity.set(g); }
@@ -210,8 +202,8 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.detailImageUrl.set(this.detailBlobUrl);
       },
       error: () => {
-        const thumbUrl = this.thumbnailUrls().get(photo.id);
-        if (thumbUrl) this.detailImageUrl.set(thumbUrl);
+        const slot = this.thumbnailSlots().get(photo.id);
+        if (slot) this.detailImageUrl.set(slot.spriteUrl);
       }
     });
   }
@@ -296,32 +288,12 @@ export class PhotosComponent implements OnInit, OnDestroy {
   }
 
   onThumbnailNeeded(photoId: string): void {
-    if (this.thumbnailUrls().has(photoId)) return;
     const photo = this.allPhotos().find(p => p.id === photoId);
     if (!photo?.thumbnailPath) return;
-
-    const idx = this.thumbnailQueue.findIndex(p => p.id === photoId);
-    if (idx > 0) {
-      const [p] = this.thumbnailQueue.splice(idx, 1);
-      this.thumbnailQueue.unshift(p);
-    } else if (idx === -1) {
-      this.thumbnailQueue.unshift(photo);
-    }
-
-    if (!this.thumbnailLoadingActive && !this.isScrolling) {
-      this.processNextThumbnail();
-    }
+    this.thumbnailSpriteService.request(photoId);
   }
 
-  onScrolled(): void {
-    this.isScrolling = true;
-    if (this.scrollDebounceTimer !== null) clearTimeout(this.scrollDebounceTimer);
-    this.scrollDebounceTimer = setTimeout(() => {
-      this.isScrolling = false;
-      this.scrollDebounceTimer = null;
-      if (!this.thumbnailLoadingActive) this.processNextThumbnail();
-    }, 250);
-  }
+  onScrolled(): void {}
 
   clearSelection(): void { this.selectedIds.set(new Set()); }
 
@@ -345,11 +317,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
   }
 
   private resetThumbnailState(): void {
-    this.thumbnailQueue = [];
-    this.thumbnailLoadingActive = false;
-    for (const url of this.thumbnailBlobUrls) URL.revokeObjectURL(url);
-    this.thumbnailBlobUrls = [];
-    this.thumbnailUrls.set(new Map());
+    this.thumbnailSpriteService.reset();
   }
 
   private buildGroupsFromPhotos(photos: PhotoResponse[], granularity: Granularity): PhotoGroup[] {
@@ -373,23 +341,4 @@ export class PhotosComponent implements OnInit, OnDestroy {
       }));
   }
 
-  private processNextThumbnail(): void {
-    if (this.thumbnailQueue.length === 0) { this.thumbnailLoadingActive = false; return; }
-    if (this.isScrolling) { this.thumbnailLoadingActive = false; return; }
-
-    this.thumbnailLoadingActive = true;
-    const photo = this.thumbnailQueue.shift()!;
-
-    if (this.thumbnailUrls().has(photo.id)) { this.processNextThumbnail(); return; }
-
-    this.http.get(`/api/photos/${photo.id}/thumbnail`, { responseType: 'blob' }).subscribe({
-      next: (blob) => {
-        const url = URL.createObjectURL(blob);
-        this.thumbnailBlobUrls.push(url);
-        this.thumbnailUrls.update(urls => new Map(urls).set(photo.id, url));
-        this.thumbnailDelayTimer = setTimeout(() => this.processNextThumbnail(), 40);
-      },
-      error: () => { this.thumbnailDelayTimer = setTimeout(() => this.processNextThumbnail(), 40); }
-    });
-  }
 }

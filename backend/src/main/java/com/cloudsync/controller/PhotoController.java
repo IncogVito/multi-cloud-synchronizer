@@ -6,12 +6,15 @@ import com.cloudsync.model.dto.MissingThumbnailsCount;
 import com.cloudsync.model.dto.MonthSummaryResponse;
 import com.cloudsync.model.dto.PhotoListResponse;
 import com.cloudsync.model.dto.PhotoResponse;
+import com.cloudsync.model.dto.SpriteManifest;
+import com.cloudsync.model.dto.SpriteManifestRequest;
 import com.cloudsync.model.dto.ThumbnailJobResponse;
 import com.cloudsync.model.dto.ThumbnailProgress;
 import com.cloudsync.service.PhotoService;
 import com.cloudsync.service.SyncService;
 import com.cloudsync.service.ThumbnailJobService;
 import com.cloudsync.service.ThumbnailService;
+import com.cloudsync.service.ThumbnailSpriteService;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
@@ -41,13 +44,16 @@ public class PhotoController {
     private final SyncService syncService;
     private final ThumbnailService thumbnailService;
     private final ThumbnailJobService thumbnailJobService;
+    private final ThumbnailSpriteService thumbnailSpriteService;
 
     public PhotoController(PhotoService photoService, SyncService syncService,
-                           ThumbnailService thumbnailService, ThumbnailJobService thumbnailJobService) {
+                           ThumbnailService thumbnailService, ThumbnailJobService thumbnailJobService,
+                           ThumbnailSpriteService thumbnailSpriteService) {
         this.photoService = photoService;
         this.syncService = syncService;
         this.thumbnailService = thumbnailService;
         this.thumbnailJobService = thumbnailJobService;
+        this.thumbnailSpriteService = thumbnailSpriteService;
     }
 
     @Operation(summary = "List photos", description = "Returns paginated photos with optional filters. Use yearMonth (YYYY-MM) or year (YYYY) to scope to a specific time range.")
@@ -123,6 +129,33 @@ public class PhotoController {
     public HttpResponse<Void> cancelThumbnailJob(@PathVariable String jobId) {
         thumbnailJobService.cancelJob(jobId);
         return HttpResponse.noContent();
+    }
+
+    @Operation(summary = "Build sprite sheet manifest for a batch of photos")
+    @ApiResponse(responseCode = "200", description = "Sprite manifest with slot positions")
+    @Post("/sprite-manifest")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public SpriteManifest getSpriteManifest(@Body SpriteManifestRequest request) throws IOException {
+        List<String> photoIds = request != null ? request.photoIds() : null;
+        if (photoIds == null || photoIds.isEmpty()) {
+            throw new io.micronaut.http.exceptions.HttpStatusException(HttpStatus.BAD_REQUEST, "photoIds required");
+        }
+        if (photoIds.size() > 500) {
+            throw new io.micronaut.http.exceptions.HttpStatusException(HttpStatus.BAD_REQUEST, "Max 500 photoIds per request");
+        }
+        return thumbnailSpriteService.buildSpriteManifest(photoIds);
+    }
+
+    @Operation(summary = "Get sprite sheet image")
+    @ApiResponse(responseCode = "200", description = "JPEG sprite sheet")
+    @ApiResponse(responseCode = "404", description = "Sprite not found")
+    @Get("/sprites/{spriteId}")
+    @Produces("image/jpeg")
+    public HttpResponse<byte[]> getSprite(@PathVariable String spriteId) throws IOException {
+        return thumbnailSpriteService.getSpriteBytes(spriteId)
+            .map(HttpResponse::ok)
+            .orElse(HttpResponse.notFound());
     }
 
     @Operation(summary = "Get photo details")
