@@ -5,13 +5,17 @@ import { PhotosService } from '../../core/api/generated/photos/photos.service';
 import { PhotoResponse } from '../../core/api/generated/model/photoResponse';
 import { MonthSummaryResponse } from '../../core/api/generated/model/monthSummaryResponse';
 import {
+  ClearDeletedPhotos,
+  ClearPhotosPendingDeletion,
   LoadMonthsSummary,
   LoadMorePhotos,
   LoadPhotos,
+  MarkPhotosDeleted,
+  MarkPhotosPendingDeletion,
   ResetPhotos,
   SetActiveMonth,
-  SetShowDetails,
   SetColumnsPerRow,
+  SetShowDetails,
 } from './photos.actions';
 
 const DEFAULT_PAGE_SIZE = 2000;
@@ -28,6 +32,8 @@ export interface PhotosStateModel {
   loading: boolean;
   loadingMore: boolean;
   hasMore: boolean;
+  pendingDeletionIds: string[];
+  deletedIds: string[];
   currentPage: number;
   error: string | null;
   showDetails: boolean;
@@ -48,6 +54,8 @@ export interface PhotosStateModel {
     error: null,
     showDetails: false,
     columnsPerRow: 7,
+    pendingDeletionIds: [],
+    deletedIds: [],
   },
 })
 @Injectable()
@@ -97,6 +105,16 @@ export class PhotosState {
   @Selector()
   static columnsPerRow(state: PhotosStateModel): number {
     return state.columnsPerRow;
+  }
+
+  @Selector()
+  static pendingDeletionIds(state: PhotosStateModel): string[] {
+    return state.pendingDeletionIds;
+  }
+
+  @Selector()
+  static deletedIds(state: PhotosStateModel): string[] {
+    return state.deletedIds;
   }
 
   /**
@@ -238,6 +256,42 @@ export class PhotosState {
       loading: false,
       loadingMore: false,
       error: null,
+    });
+  }
+
+  @Action(MarkPhotosPendingDeletion)
+  markPhotosPendingDeletion(ctx: StateContext<PhotosStateModel>, action: MarkPhotosPendingDeletion): void {
+    const existing = new Set(ctx.getState().pendingDeletionIds);
+    action.ids.forEach(id => existing.add(id));
+    ctx.patchState({ pendingDeletionIds: [...existing] });
+  }
+
+  @Action(MarkPhotosDeleted)
+  markPhotosDeleted(ctx: StateContext<PhotosStateModel>, action: MarkPhotosDeleted): void {
+    const pending = new Set(ctx.getState().pendingDeletionIds);
+    action.ids.forEach(id => pending.delete(id));
+    const existingDeleted = new Set(ctx.getState().deletedIds);
+    action.ids.forEach(id => existingDeleted.add(id));
+    ctx.patchState({
+      pendingDeletionIds: [...pending],
+      deletedIds: [...existingDeleted],
+    });
+  }
+
+  @Action(ClearPhotosPendingDeletion)
+  clearPhotosPendingDeletion(ctx: StateContext<PhotosStateModel>, action: ClearPhotosPendingDeletion): void {
+    const toRemove = new Set(action.ids);
+    ctx.patchState({
+      pendingDeletionIds: ctx.getState().pendingDeletionIds.filter(id => !toRemove.has(id)),
+    });
+  }
+
+  @Action(ClearDeletedPhotos)
+  clearDeletedPhotos(ctx: StateContext<PhotosStateModel>): void {
+    const toRemove = new Set(ctx.getState().deletedIds);
+    ctx.patchState({
+      photos: ctx.getState().photos.filter(p => !toRemove.has(p.id)),
+      deletedIds: [],
     });
   }
 }

@@ -10,6 +10,7 @@ import { provideStore } from '@ngxs/store';
 import { DevicesState } from './state/devices/devices.state';
 import { AccountsState } from './state/accounts/accounts.state';
 import { PhotosState } from './state/photos/photos.state';
+import { JobsState } from './state/jobs/jobs.state';
 import { firstValueFrom } from 'rxjs';
 
 export const appConfig: ApplicationConfig = {
@@ -17,7 +18,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideHttpClient(withInterceptors([authInterceptor, noContextInterceptor])),
     provideAnimations(),
-    provideStore([DevicesState, AccountsState, PhotosState]),
+    provideStore([DevicesState, AccountsState, PhotosState, JobsState]),
     provideAppInitializer(() => {
       const ctx = inject(AppContextService);
       return firstValueFrom(ctx.load()).catch(() => null);

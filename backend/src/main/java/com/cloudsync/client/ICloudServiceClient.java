@@ -1,5 +1,7 @@
 package com.cloudsync.client;
 
+import com.cloudsync.model.dto.ICloudBatchDeleteRequest;
+import com.cloudsync.model.dto.ICloudBatchDeleteResponse;
 import com.cloudsync.model.dto.ICloudPhotoListResponse;
 import com.cloudsync.model.dto.ICloudPrefetchStatus;
 import io.micronaut.http.HttpResponse;
@@ -66,5 +68,13 @@ public interface ICloudServiceClient {
     @Delete("/photos/delete")
     HttpResponse<Map<String, Object>> deletePhoto(
             @QueryValue("photo_id") String photoId,
+            @Header("X-Session-ID") String sessionId);
+
+    @Post("/photos/batch-delete")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
+    HttpResponse<ICloudBatchDeleteResponse> batchDeletePhotos(
+            @Body ICloudBatchDeleteRequest request,
+            // FIX: create SessionId annotation
             @Header("X-Session-ID") String sessionId);
 }

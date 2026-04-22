@@ -41,3 +41,22 @@ export class SetColumnsPerRow {
   static readonly type = '[Photos] Set columns per row';
   constructor(public readonly columns: number) {}
 }
+
+export class MarkPhotosPendingDeletion {
+  static readonly type = '[Photos] Mark Pending Deletion';
+  constructor(public readonly ids: string[]) {}
+}
+
+export class MarkPhotosDeleted {
+  static readonly type = '[Photos] Mark Deleted';
+  constructor(public readonly ids: string[]) {}
+}
+
+export class ClearPhotosPendingDeletion {
+  static readonly type = '[Photos] Clear Pending Deletion';
+  constructor(public readonly ids: string[]) {}
+}
+
+export class ClearDeletedPhotos {
+  static readonly type = '[Photos] Clear Deleted';
+}

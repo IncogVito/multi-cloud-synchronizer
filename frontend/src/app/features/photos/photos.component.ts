@@ -19,7 +19,8 @@ import { ThumbnailSpriteService } from '../../core/services/thumbnail-sprite.ser
 import { ThumbnailJobStateService } from '../../core/services/thumbnail-job-state.service';
 import { SyncProgressEvent } from '../../core/models/sync-progress.model';
 import { PhotosState } from '../../state/photos/photos.state';
-import { LoadPhotos, LoadMorePhotos, LoadMonthsSummary, SetActiveMonth } from '../../state/photos/photos.actions';
+import { ClearDeletedPhotos, LoadPhotos, LoadMorePhotos, LoadMonthsSummary, SetActiveMonth } from '../../state/photos/photos.actions';
+import { StartDeletionJob } from '../../state/jobs/jobs.actions';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
@@ -99,6 +100,13 @@ export class PhotosComponent implements OnInit, OnDestroy {
       .filter(p => this.selectedIds().has(p.id) && !p.thumbnailPath)
       .map(p => p.id)
   );
+
+  deletedIds = this.store.selectSignal(PhotosState.deletedIds);
+  deletedCount = computed(() => this.deletedIds().length);
+
+  clearRemoved(): void {
+    this.store.dispatch(new ClearDeletedPhotos());
+  }
 
   private currentDetailIndex = computed(() =>
     this.filteredPhotos().findIndex(p => p.id === this.detailPhoto()?.id)
@@ -262,15 +270,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
     const photoIds = Array.from(this.selectedIds());
     const accountId = this.firstAccountId(photoIds);
     this.selectedIds.set(new Set());
-    this.setOperationStatus(`Deleting ${count} photo(s) from iCloud...`, 0);
-
-    this.photosService.deleteFromICloud({ photoIds }, { accountId }).subscribe({
-      next: () => {
-        this.setOperationStatus(`Deleted ${count} photo(s) from iCloud`, 5000);
-        this.reloadCurrent();
-      },
-      error: (err) => this.setOperationStatus(`Delete from iCloud failed: ${err?.message ?? 'Unknown error'}`, 8000)
-    });
+    this.store.dispatch(new StartDeletionJob({ accountId, photoIds, provider: 'ICLOUD' }));
   }
 
   onDeleteFromIPhone(): void {
@@ -281,15 +281,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
     const photoIds = Array.from(this.selectedIds());
     const accountId = this.firstAccountId(photoIds);
     this.selectedIds.set(new Set());
-    this.setOperationStatus(`Deleting ${count} photo(s) from iPhone...`, 0);
-
-    this.photosService.deleteFromIPhone({ photoIds }, { accountId }).subscribe({
-      next: () => {
-        this.setOperationStatus(`Deleted ${count} photo(s) from iPhone`, 5000);
-        this.reloadCurrent();
-      },
-      error: (err) => this.setOperationStatus(`Delete from iPhone failed: ${err?.message ?? 'Unknown error'}`, 8000)
-    });
+    this.store.dispatch(new StartDeletionJob({ accountId, photoIds, provider: 'IPHONE' }));
   }
 
   onGenerateThumbnailsForSelected(): void {
@@ -299,25 +291,15 @@ export class PhotosComponent implements OnInit, OnDestroy {
   onDetailDeleteFromICloud(photo: PhotoResponse): void {
     if (!photo.syncedToDisk) return;
     if (!confirm(`Delete "${photo.filename}" from iCloud?`)) return;
-    this.photosService.deleteFromICloud({ photoIds: [photo.id] }, { accountId: photo.accountId }).subscribe({
-      next: () => {
-        this.detailPhoto.update(p => p ? { ...p, existsOnIcloud: false } : p);
-        this.reloadCurrent();
-      },
-      error: (err) => alert('Failed: ' + (err?.message ?? 'Unknown error'))
-    });
+    this.store.dispatch(new StartDeletionJob({ accountId: photo.accountId, photoIds: [photo.id], provider: 'ICLOUD' }));
+    this.onDetailClosed();
   }
 
   onDetailDeleteFromIPhone(photo: PhotoResponse): void {
     if (!photo.syncedToDisk) return;
     if (!confirm(`Delete "${photo.filename}" from iPhone?`)) return;
-    this.photosService.deleteFromIPhone({ photoIds: [photo.id] }, { accountId: photo.accountId }).subscribe({
-      next: () => {
-        this.detailPhoto.update(p => p ? { ...p, existsOnIphone: false } : p);
-        this.reloadCurrent();
-      },
-      error: (err) => alert('Failed: ' + (err?.message ?? 'Unknown error'))
-    });
+    this.store.dispatch(new StartDeletionJob({ accountId: photo.accountId, photoIds: [photo.id], provider: 'IPHONE' }));
+    this.onDetailClosed();
   }
 
   onThumbnailsGenerated(): void {

@@ -62,6 +62,19 @@ public class ThumbnailJobService {
         job.cancel();
         return true;
     }
+// FIX: use constants
+    public List<com.cloudsync.model.dto.JobSummary> allJobSummaries() {
+        return jobs.values().stream()
+                .map(j -> new com.cloudsync.model.dto.JobSummary(
+                        j.getId(),
+                        "THUMBNAIL",
+                        j.isDone() ? "COMPLETED" : j.isCancelled() ? "CANCELLED" : "RUNNING",
+                        j.currentProgress().total(),
+                        j.currentProgress().processed(),
+                        j.currentProgress().errors(),
+                        "Generating thumbnails"))
+                .toList();
+    }
 
     @Scheduled(fixedDelay = "1h", initialDelay = "1h")
     void cleanupOldJobs() {

@@ -192,27 +192,20 @@ public class PhotoController {
                 .orElse(HttpResponse.notFound());
     }
 
-    @Operation(summary = "Delete photos from iCloud", description = "Batch delete; photos must already be synced to disk")
-    @ApiResponse(responseCode = "204", description = "Deleted")
+    @Operation(summary = "Delete photos from iCloud (deprecated)", description = "Use POST /api/photos/deletion-jobs instead")
+    @ApiResponse(responseCode = "410", description = "Gone — use deletion-jobs endpoint")
     @Delete("/icloud")
     @Produces(MediaType.APPLICATION_JSON)
-    @Consumes(MediaType.APPLICATION_JSON)
-    public HttpResponse<Void> deleteFromICloud(
-            @QueryValue String accountId,
-            @Body BatchPhotoRequest request) {
-        syncService.deleteFromICloud(accountId, request.photoIds());
-        return HttpResponse.noContent();
+    public HttpResponse<Object> deleteFromICloud() {
+        throw new HttpStatusException(HttpStatus.GONE, "Use POST /api/photos/deletion-jobs instead");
     }
 
-    @Operation(summary = "Delete photos from iPhone", description = "Batch delete; photos must already be synced to disk")
-    @ApiResponse(responseCode = "204", description = "Deleted")
+// FIX: Remove these two methods
+    @Operation(summary = "Delete photos from iPhone (deprecated)", description = "Use POST /api/photos/deletion-jobs instead")
+    @ApiResponse(responseCode = "410", description = "Gone — use deletion-jobs endpoint")
     @Delete("/iphone")
     @Produces(MediaType.APPLICATION_JSON)
-    @Consumes(MediaType.APPLICATION_JSON)
-    public HttpResponse<Void> deleteFromIPhone(
-            @QueryValue String accountId,
-            @Body BatchPhotoRequest request) {
-        syncService.deleteFromIPhone(accountId, request.photoIds());
-        return HttpResponse.noContent();
+    public HttpResponse<Object> deleteFromIPhone() {
+        throw new HttpStatusException(HttpStatus.GONE, "Use POST /api/photos/deletion-jobs instead");
     }
 }

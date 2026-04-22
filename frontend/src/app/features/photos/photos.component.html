@@ -44,6 +44,13 @@
     }
 
     <div class="photos-main">
+      @if (deletedCount() > 0) {
+        <div class="clear-removed-bar">
+          <span>{{ deletedCount() }} photo(s) removed</span>
+          <button class="btn btn-secondary btn-sm" (click)="clearRemoved()">Clear from view</button>
+        </div>
+      }
+
       <app-photo-timeline
         [groups]="groups()"
         [selectedIds]="selectedIds()"

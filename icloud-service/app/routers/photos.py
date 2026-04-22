@@ -3,6 +3,7 @@ import asyncio
 from fastapi import APIRouter, Header, Query
 from fastapi.responses import StreamingResponse
 
+from app.models.batch_delete import BatchDeleteRequest, BatchDeleteResponse, BatchDeleteResult
 from app.models.photo import PhotoListResponse
 from app.services.photo_cache import photo_cache
 from app.services.photo_service import photo_service
@@ -67,3 +68,27 @@ async def delete_photo(
     """Delete a photo from iCloud."""
     await asyncio.to_thread(photo_service.delete_photo, x_session_id, photo_id)
     return {"deleted": True}
+
+
+@router.post("/batch-delete", response_model=BatchDeleteResponse)
+async def batch_delete_photos(
+    request: BatchDeleteRequest,
+    x_session_id: str = Header(..., alias="X-Session-ID"),
+):
+    """Delete multiple photos concurrently. Returns per-photo result."""
+    sem = asyncio.Semaphore(3)
+
+    async def delete_one(photo_id: str) -> BatchDeleteResult:
+        async with sem:
+            for attempt in range(4):
+                try:
+                    await asyncio.to_thread(photo_service.delete_photo, x_session_id, photo_id)
+                    return BatchDeleteResult(photo_id=photo_id, deleted=True)
+                except Exception as e:
+                    if "TRY_AGAIN_LATER" in str(e) and attempt < 3:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
+                    return BatchDeleteResult(photo_id=photo_id, deleted=False, error=str(e))
+
+    results = await asyncio.gather(*[delete_one(pid) for pid in request.photo_ids])
+    return BatchDeleteResponse(results=list(results))

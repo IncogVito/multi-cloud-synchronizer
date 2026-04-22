@@ -1,5 +1,6 @@
 package com.cloudsync.provider;
 
+import com.cloudsync.model.dto.ICloudBatchDeleteResult;
 import com.cloudsync.model.dto.PhotoAsset;
 import com.cloudsync.model.dto.PrefetchStatus;
 
@@ -32,4 +33,16 @@ public interface PhotoSyncProvider {
 
     /** Permanently delete a photo from the remote source. */
     void deletePhoto(String photoId, String sessionId);
+
+    /** Batch delete photos. Returns per-photo results. Default: sequential single deletes. */
+    default List<ICloudBatchDeleteResult> batchDeletePhotos(List<String> photoIds, String sessionId) {
+        return photoIds.stream().map(id -> {
+            try {
+                deletePhoto(id, sessionId);
+                return new ICloudBatchDeleteResult(id, true, null);
+            } catch (Exception e) {
+                return new ICloudBatchDeleteResult(id, false, e.getMessage());
+            }
+        }).toList();
+    }
 }

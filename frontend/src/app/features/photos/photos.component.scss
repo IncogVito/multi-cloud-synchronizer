@@ -81,3 +81,21 @@
     }
   }
 }
+
+.clear-removed-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--color-warning-50, #fffbeb);
+  border: 1px solid var(--color-warning-200, #fde68a);
+  border-radius: var(--radius-md, 6px);
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--color-warning-800, #92400e);
+
+  .btn-sm {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+}

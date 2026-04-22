@@ -1,14 +1,17 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { Router } from '@angular/router';
+import { Store } from '@ngxs/store';
 import { AuthService } from './core/services/auth.service';
 import { DiskSetupService } from './core/services/disk-setup.service';
 import { ToastHostComponent } from './core/components/toast-host.component';
+import { GlobalTaskBarComponent } from './core/components/global-task-bar/global-task-bar.component';
+import { LoadActiveJobs } from './state/jobs/jobs.actions';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent, GlobalTaskBarComponent],
   template: `
     <div class="app-shell">
       @if (authService.isAuthenticated()) {
@@ -76,6 +79,7 @@ import { ToastHostComponent } from './core/components/toast-host.component';
       </main>
 
       <app-toast-host />
+      <app-global-task-bar />
     </div>
   `,
   styles: [`
@@ -247,6 +251,7 @@ export class AppComponent implements OnInit {
   authService = inject(AuthService);
   private router = inject(Router);
   private diskSetupService = inject(DiskSetupService);
+  private store = inject(Store);
 
   sidebarCollapsed = signal<boolean>(localStorage.getItem('cloudsync-sidebar-collapsed') === '1');
 
@@ -260,6 +265,8 @@ export class AppComponent implements OnInit {
     if (!this.authService.isAuthenticated()) {
       return;
     }
+
+    this.store.dispatch(new LoadActiveJobs());
 
     this.diskSetupService.getStatus().subscribe({
       next: (status) => {

@@ -2,6 +2,9 @@ package com.cloudsync.provider;
 
 import com.cloudsync.client.ICloudDownloadRetryClient;
 import com.cloudsync.client.ICloudServiceClient;
+import com.cloudsync.model.dto.ICloudBatchDeleteRequest;
+import com.cloudsync.model.dto.ICloudBatchDeleteResponse;
+import com.cloudsync.model.dto.ICloudBatchDeleteResult;
 import com.cloudsync.model.dto.ICloudPhotoAsset;
 import com.cloudsync.model.dto.ICloudPhotoListResponse;
 import com.cloudsync.model.dto.ICloudPrefetchStatus;
@@ -93,5 +96,18 @@ public class ICloudSyncProvider implements PhotoSyncProvider {
     @Override
     public void deletePhoto(String photoId, String sessionId) {
         client.deletePhoto(photoId, sessionId);
+    }
+
+    @Override
+    public List<ICloudBatchDeleteResult> batchDeletePhotos(List<String> photoIds, String sessionId) {
+        HttpResponse<ICloudBatchDeleteResponse> resp = client.batchDeletePhotos(
+                new ICloudBatchDeleteRequest(photoIds), sessionId);
+        ICloudBatchDeleteResponse body = resp.body();
+        if (body == null || body.results() == null) {
+            return photoIds.stream()
+                    .map(id -> new ICloudBatchDeleteResult(id, false, "No response from icloud-service"))
+                    .toList();
+        }
+        return body.results();
     }
 }
