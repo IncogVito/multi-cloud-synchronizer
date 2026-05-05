@@ -88,7 +88,7 @@ export class JobsState {
       type: action.type,
       status: 'RUNNING',
       label: action.label,
-      total: 0,
+      total: action.affectedPhotoIds?.length ?? 0,
       done: 0,
       failed: 0,
       affectedPhotoIds: action.affectedPhotoIds,
@@ -224,11 +224,10 @@ export class JobsState {
         };
         ctx.dispatch(new UpdateJobProgress(jobId, patch));
 
-        if (event.done) {
-          const successIds: string[] = event.successfulIds ?? [];
-          if (successIds.length) ctx.dispatch(new MarkPhotosDeleted(successIds));
+        const successIds: string[] = event.successfulIds ?? [];
+        if (successIds.length) ctx.dispatch(new MarkPhotosDeleted(successIds));
 
-          const failedIds: string[] = event.failedIds ?? [];
+        if (event.done) {
           const notDeleted = affectedPhotoIds.filter(id => !successIds.includes(id));
           if (notDeleted.length) ctx.dispatch(new ClearPhotosPendingDeletion(notDeleted));
 

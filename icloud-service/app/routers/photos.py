@@ -75,20 +75,18 @@ async def batch_delete_photos(
     request: BatchDeleteRequest,
     x_session_id: str = Header(..., alias="X-Session-ID"),
 ):
-    """Delete multiple photos concurrently. Returns per-photo result."""
-    sem = asyncio.Semaphore(3)
-
-    async def delete_one(photo_id: str) -> BatchDeleteResult:
-        async with sem:
-            for attempt in range(4):
-                try:
-                    await asyncio.to_thread(photo_service.delete_photo, x_session_id, photo_id)
-                    return BatchDeleteResult(photo_id=photo_id, deleted=True)
-                except Exception as e:
-                    if "TRY_AGAIN_LATER" in str(e) and attempt < 3:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    return BatchDeleteResult(photo_id=photo_id, deleted=False, error=str(e))
-
-    results = await asyncio.gather(*[delete_one(pid) for pid in request.photo_ids])
+    """Delete multiple photos sequentially. iCloud does not support concurrent deletions."""
+    results: list[BatchDeleteResult] = []
+    for photo_id in request.photo_ids:
+        for attempt in range(4):
+            try:
+                await asyncio.to_thread(photo_service.delete_photo, x_session_id, photo_id)
+                results.append(BatchDeleteResult(photo_id=photo_id, deleted=True))
+                break
+            except Exception as e:
+                if "TRY_AGAIN_LATER" in str(e) and attempt < 3:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                results.append(BatchDeleteResult(photo_id=photo_id, deleted=False, error=str(e)))
+                break
     return BatchDeleteResponse(results=list(results))
