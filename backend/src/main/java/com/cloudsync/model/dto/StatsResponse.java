@@ -9,6 +9,7 @@ public record StatsResponse(
         long diskPhotoCount,
         Long diskSizeBytes,
         Long diskCapacityBytes,
+        Long diskFreeBytes,
         Instant diskLastSyncAt,
 
         long icloudPhotoCount,

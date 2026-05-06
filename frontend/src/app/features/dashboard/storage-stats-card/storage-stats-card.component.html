@@ -39,10 +39,13 @@
                 <div class="capacity-fill" [style.width.%]="diskUsedPercent()"></div>
               </div>
               <span class="capacity-text">
-                {{ formatBytes(s.diskSizeBytes) }} / {{ formatBytes(s.diskCapacityBytes) }}
+                {{ formatBytes(s.diskSizeBytes) }} zdjęć / {{ formatBytes(s.diskCapacityBytes) }} dysk
                 ({{ diskUsedPercent() }}%)
               </span>
             </div>
+          }
+          @if (s.diskFreeBytes != null) {
+            <div class="free-space-text">Wolne: {{ formatBytes(s.diskFreeBytes) }}</div>
           }
           <div class="stat-footer">
             <span class="stat-meta-label">ostatni sync:</span>

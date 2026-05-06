@@ -64,9 +64,6 @@ export class DiskIndexingService {
             try {
               const event: DiskIndexProgress = JSON.parse(line.slice(5).trim());
               this._progress.next(event);
-              if (event.phase === 'DONE' || event.phase === 'ERROR') {
-                this.closeEvents();
-              }
             } catch { /* ignore parse errors */ }
           }
         }
@@ -84,7 +81,6 @@ export class DiskIndexingService {
   }
 
   reset(): void {
-    this.closeEvents();
     this._progress.next(null);
   }
 

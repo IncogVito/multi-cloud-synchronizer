@@ -1,4 +1,4 @@
-import { Component, OnInit, DestroyRef, inject, signal, computed, output } from '@angular/core';
+import { Component, OnInit, OnDestroy, DestroyRef, inject, signal, computed, output } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
 import { filter } from 'rxjs/operators';
@@ -15,7 +15,7 @@ import { StatsResponse } from '../../../core/api/generated/model/statsResponse';
   templateUrl: './storage-stats-card.component.html',
   styleUrl: './storage-stats-card.component.scss'
 })
-export class StorageStatsCardComponent implements OnInit {
+export class StorageStatsCardComponent implements OnInit, OnDestroy {
   private statsApi = inject(StatsService);
   appContext = inject(AppContextService);
   private syncService = inject(SyncService);
@@ -42,6 +42,11 @@ export class StorageStatsCardComponent implements OnInit {
     this.diskIndexingService.progress$
       .pipe(filter(p => p?.phase === 'DONE'), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.load());
+    this.diskIndexingService.subscribeToEvents();
+  }
+
+  ngOnDestroy(): void {
+    this.diskIndexingService.closeEvents();
   }
 
   private load(): void {

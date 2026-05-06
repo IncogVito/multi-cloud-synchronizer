@@ -202,7 +202,6 @@ export class DiskScanningModalComponent implements OnInit, OnDestroy {
     this.sub = this.diskIndexingService.progress$.subscribe(p => {
       this.progress.set(p);
     });
-    this.diskIndexingService.subscribeToEvents();
   }
 
   ngOnDestroy(): void {
