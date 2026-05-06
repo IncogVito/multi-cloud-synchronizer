@@ -1413,6 +1413,9 @@ components:
         diskCapacityBytes:
           type: integer
           format: int64
+        diskFreeBytes:
+          type: integer
+          format: int64
         diskLastSyncAt:
           type: string
           format: date-time

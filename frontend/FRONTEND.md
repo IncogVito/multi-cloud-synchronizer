@@ -100,3 +100,4 @@ cd frontend && npm run generate-api
 ```
 
 `prestart` and `prebuild` npm scripts run step 2 automatically. Never edit files under `src/app/core/api/generated/` by hand.
+
