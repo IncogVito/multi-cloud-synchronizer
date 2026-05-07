@@ -439,6 +439,10 @@ public class SyncService {
             existing.setExistsOnIcloud(true);
             changed = true;
         }
+        if (asset.createdDate() != null && !asset.createdDate().equals(existing.getCreatedDate())) {
+            existing.setCreatedDate(asset.createdDate());
+            changed = true;
+        }
         if (changed) toUpdate.add(existing);
     }
 
@@ -465,6 +469,10 @@ public class SyncService {
         }
         if ("IPHONE".equals(providerType) && !asset.id().equals(existing.getIphoneLocation())) {
             existing.setIphoneLocation(asset.id());
+            changed = true;
+        }
+        if (asset.createdDate() != null && !asset.createdDate().equals(existing.getCreatedDate())) {
+            existing.setCreatedDate(asset.createdDate());
             changed = true;
         }
         if (changed && !toUpdate.contains(existing)) {
