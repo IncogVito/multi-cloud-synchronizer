@@ -65,7 +65,9 @@ public class SyncService {
     private final ConcurrentHashMap<String, AtomicBoolean> cancellationFlags = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> lastEmitTime = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicInteger> downloadedSinceEmit = new ConcurrentHashMap<>();
-    /** Tracks which provider is active for the current metadata-fetch phase per accountId. */
+    /**
+     * Tracks which provider is active for the current metadata-fetch phase per accountId.
+     */
     private final ConcurrentHashMap<String, String> activeProviderType = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> downloadTotalCache = new ConcurrentHashMap<>();
 
@@ -102,6 +104,8 @@ public class SyncService {
         AppContext ctx = appContextService.requireActive();
         ICloudAccount account = requireAccount(accountId);
 
+
+        // FIXME: Maybe more abstract?
         // FIXME: use enum, not stringly-typed. And validate at API boundary (e.g. controller).
         if ("ICLOUD".equalsIgnoreCase(providerType)) {
             requireValidSession(account);
@@ -111,8 +115,12 @@ public class SyncService {
         activeProviderType.put(accountId, provider.providerType());
 
         resetCancellation(accountId);
+
+        // TODO: extract to different method of prefetch.
         emitEvent(accountId, SyncPhase.FETCHING_METADATA, e -> e.setMetadataFetched(0));
         provider.prefetch(account.getSessionId());
+
+
         CompletableFuture.runAsync(
                 () -> pollMetadataAndContinue(accountId, account, ctx, provider),
                 syncVirtualThreadExecutor);
@@ -139,7 +147,8 @@ public class SyncService {
     public void cancelSync(String accountId) {
         cancellationFlags.computeIfAbsent(accountId, k -> new AtomicBoolean(false)).set(true);
         resetDownloadingToPending(accountId);
-        emitEvent(accountId, SyncPhase.CANCELLED, e -> {});
+        emitEvent(accountId, SyncPhase.CANCELLED, e -> {
+        });
         LOG.info(Messages.LOG_SYNC_CANCELLED, accountId);
     }
 
@@ -281,6 +290,8 @@ public class SyncService {
 
     private void pollMetadataAndContinue(String accountId, ICloudAccount account, AppContext ctx, PhotoSyncProvider provider) {
         try {
+
+            // TODO: Maybe extract to some method.
             while (true) {
                 Thread.sleep(1000);
                 if (isCancelled(accountId)) return;
@@ -319,6 +330,8 @@ public class SyncService {
 
     // ── compare & persist ─────────────────────────────────────────────────────
 
+    // TODO: Change the method name
+    // TODO: Keep change logs -> Display them later.
     private void compareAndPersist(String accountId, ICloudAccount account, AppContext appContext, PhotoSyncProvider provider) {
         try {
             List<PhotoAsset> remotePhotos = provider.listAllPhotos(account.getSessionId());
@@ -333,7 +346,11 @@ public class SyncService {
             List<Photo> toUpdate = new ArrayList<>();
 
             for (PhotoAsset asset : remotePhotos) {
-                if (checkSyncedAndUpdateMetadata(externalIdToExistingPhoto, asset, provider.providerType(), toUpdate)) continue;
+
+                // TODO: One method to check all of the metadata and everything.
+
+                if (checkSyncedAndUpdateMetadata(externalIdToExistingPhoto, asset, provider.providerType(), toUpdate))
+                    continue;
                 if (isAlreadyOnDisk(diskFiles, asset)) {
                     updateCrossProviderFlag(filenameToSyncedPhoto, asset, provider.providerType(), toUpdate);
                     continue;
@@ -431,9 +448,12 @@ public class SyncService {
                 .collect(Collectors.toMap(Photo::getIcloudPhotoId, p -> p));
     }
 
-    private boolean checkSyncedAndUpdateMetadata(Map<String, Photo> existingByExternalId, PhotoAsset asset,
-                                                  String providerType, List<Photo> toUpdate) {
+    private boolean checkSyncedAndUpdateMetadata(Map<String, Photo> existingByExternalId,
+                                                 PhotoAsset asset,
+                                                 String providerType, List<Photo> toUpdate) {
         Photo existing = existingByExternalId.get(asset.id());
+
+        // TODO: Don't skip previous errors
         if (existing == null || !SyncStatus.SYNCED.name().equals(existing.getSyncStatus())) {
             return false;
         }
@@ -453,7 +473,7 @@ public class SyncService {
     }
 
     private int markPhotosDeletedFromCloud(String providerType, List<PhotoAsset> remotePhotos,
-                                            Map<String, Photo> existingByExternalId, List<Photo> toUpdate) {
+                                           Map<String, Photo> existingByExternalId, List<Photo> toUpdate) {
         if (!"ICLOUD".equals(providerType)) return 0;
         Set<String> remoteIds = remotePhotos.stream().map(PhotoAsset::id).collect(Collectors.toSet());
         Set<String> alreadyQueued = toUpdate.stream().map(Photo::getId).collect(Collectors.toSet());
@@ -667,7 +687,8 @@ public class SyncService {
                 diskFreeBytes = ctx.get().freeBytes();
                 diskPhotoCount = photoRepository.countBySyncedToDiskAndStorageDeviceId(true, ctx.get().storageDeviceId());
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         final Long finalDiskFreeBytes = diskFreeBytes;
         final Long finalDiskPhotoCount = diskPhotoCount;
@@ -740,7 +761,9 @@ public class SyncService {
         }
     }
 
-    /** Replace "/" in filename to prevent path traversal issues and broken icloud-service lookups. */
+    /**
+     * Replace "/" in filename to prevent path traversal issues and broken icloud-service lookups.
+     */
     private String sanitizeFilename(String filename) {
         if (filename == null) return null;
         return filename.replace("/", "_");

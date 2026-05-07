@@ -86,34 +86,48 @@ public class DiskIndexingService {
                 return;
             }
 
-            // First pass: collect all media files
             List<Path> mediaFiles = collectMediaFiles(root);
             int total = mediaFiles.size();
             LOG.info("DiskIndexing: found {} media files in {}", total, folderPath);
 
-            // Build set of already-indexed paths to skip duplicates
-            Set<String> indexedPaths = buildIndexedPathSet(storageDeviceId);
+            // Reset syncedToDisk flag — will be re-set only for files actually found on disk
+            List<Photo> currentlySynced = photoRepository.findByStorageDeviceIdAndSyncedToDisk(storageDeviceId, true);
+            resetSyncedToDisk(currentlySynced);
+
+            // Path → Photo map (all photos with a path, including deleted) for reconciliation
+            Map<String, Photo> existingByPath = buildExistingPhotosByPath(storageDeviceId);
 
             int scanned = 0;
-            List<Photo> batch = new ArrayList<>();
+            List<Photo> toSave = new ArrayList<>();
+            List<Photo> toUpdate = new ArrayList<>();
 
             for (Path file : mediaFiles) {
                 String absPath = file.toAbsolutePath().toString();
-                if (indexedPaths.contains(absPath)) {
-                    scanned++;
-                    continue;
-                }
+                Photo existing = existingByPath.get(absPath);
 
-                Photo photo = buildPhotoFromFile(file, storageDeviceId);
-                if (photo != null) {
-                    batch.add(photo);
-                    indexedPaths.add(absPath);
+                if (existing != null) {
+                    existing.setSyncedToDisk(true);
+                    if (existing.isDeleted()) {
+                        existing.setDeleted(false);
+                        existing.setDeletedDate(null);
+                    }
+                    toUpdate.add(existing);
+                } else {
+                    Photo photo = buildPhotoFromFile(file, storageDeviceId);
+                    if (photo != null) {
+                        toSave.add(photo);
+                        existingByPath.put(absPath, photo);
+                    }
                 }
                 scanned++;
 
-                if (batch.size() >= BATCH_SIZE) {
-                    photoRepository.saveAll(batch);
-                    batch.clear();
+                if (toSave.size() >= BATCH_SIZE) {
+                    photoRepository.saveAll(toSave);
+                    toSave.clear();
+                }
+                if (toUpdate.size() >= BATCH_SIZE) {
+                    photoRepository.updateAll(toUpdate);
+                    toUpdate.clear();
                 }
 
                 if (scanned % 50 == 0 || scanned == total) {
@@ -122,13 +136,11 @@ public class DiskIndexingService {
                 }
             }
 
-            if (!batch.isEmpty()) {
-                photoRepository.saveAll(batch);
-            }
+            if (!toSave.isEmpty()) photoRepository.saveAll(toSave);
+            if (!toUpdate.isEmpty()) photoRepository.updateAll(toUpdate);
 
-            int newlyDeleted = markMissingPhotosAsDeleted(storageDeviceId);
-            LOG.info("DiskIndexing complete: {} files processed, {} marked deleted", total, newlyDeleted);
-            emitDoneEvent(scanned, total, newlyDeleted);
+            LOG.info("DiskIndexing complete: {} files processed", total);
+            emitDoneEvent(scanned, total, 0);
         } catch (Exception e) {
             LOG.error("DiskIndexing failed: {}", e.getMessage(), e);
             emitEvent("ERROR", 0, 0, 0.0, e.getMessage(), 0);
@@ -137,21 +149,28 @@ public class DiskIndexingService {
         }
     }
 
-    private int markMissingPhotosAsDeleted(String storageDeviceId) {
-        List<Photo> synced = photoRepository.findByStorageDeviceIdAndSyncedToDisk(storageDeviceId, true);
-        List<Photo> toUpdate = new ArrayList<>();
-        Instant now = Instant.now();
-        for (Photo photo : synced) {
-            if (photo.getFilePath() != null && !Files.exists(Path.of(photo.getFilePath()))) {
-                photo.setDeleted(true);
-                photo.setDeletedDate(now);
-                toUpdate.add(photo);
+    private void resetSyncedToDisk(List<Photo> photos) {
+        List<Photo> batch = new ArrayList<>();
+        for (Photo photo : photos) {
+            photo.setSyncedToDisk(false);
+            batch.add(photo);
+            if (batch.size() >= BATCH_SIZE) {
+                photoRepository.updateAll(batch);
+                batch.clear();
             }
         }
-        for (int i = 0; i < toUpdate.size(); i += BATCH_SIZE) {
-            photoRepository.updateAll(toUpdate.subList(i, Math.min(i + BATCH_SIZE, toUpdate.size())));
+        if (!batch.isEmpty()) photoRepository.updateAll(batch);
+    }
+
+    private Map<String, Photo> buildExistingPhotosByPath(String storageDeviceId) {
+        Map<String, Photo> map = new HashMap<>();
+        try {
+            photoRepository.findAllWithFilePathByStorageDeviceId(storageDeviceId)
+                    .forEach(p -> map.put(p.getFilePath(), p));
+        } catch (Exception e) {
+            LOG.warn("Could not load existing photos by path: {}", e.getMessage());
         }
-        return toUpdate.size();
+        return map;
     }
 
     private List<Path> collectMediaFiles(Path root) throws IOException {
@@ -162,19 +181,6 @@ public class DiskIndexingService {
                 .forEach(files::add);
         }
         return files;
-    }
-
-    private Set<String> buildIndexedPathSet(String storageDeviceId) {
-        Set<String> paths = new HashSet<>();
-        try {
-            photoRepository.findAllByStorageDeviceIdAndSyncedToDiskIncludeDeleted(storageDeviceId)
-                    .forEach(p -> {
-                        if (p.getFilePath() != null) paths.add(p.getFilePath());
-                    });
-        } catch (Exception e) {
-            LOG.warn("Could not load existing indexed paths: {}", e.getMessage());
-        }
-        return paths;
     }
 
     private Photo buildPhotoFromFile(Path file, String storageDeviceId) {
@@ -193,6 +199,7 @@ public class DiskIndexingService {
                 }
             }
 
+            // TODO: Delegate to builder
             Photo photo = new Photo();
             photo.setId(UUID.randomUUID().toString());
             photo.setFilename(filename);
@@ -218,6 +225,7 @@ public class DiskIndexingService {
      * then EXIF DateTime, then QuickTime creation_time). Returns null if no metadata
      * date is available, so the caller can fall back to filesystem timestamps.
      */
+    // TODO: Move to somekind of helper
     private Instant readExifCreationDate(Path file) {
         try {
             Metadata metadata = ImageMetadataReader.readMetadata(file.toFile());
@@ -226,6 +234,7 @@ public class DiskIndexingService {
             ExifSubIFDDirectory exifSub = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
             if (exifSub != null) {
                 var date = exifSub.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
+                // TODO: Maybe worth to use TAG_DATETIME_DIGITIZED
                 if (date != null) return date.toInstant();
             }
 

@@ -91,6 +91,10 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
     @Query("SELECT * FROM photos WHERE storage_device_id = :storageDeviceId AND synced_to_disk = true")
     List<Photo> findAllByStorageDeviceIdAndSyncedToDiskIncludeDeleted(String storageDeviceId);
 
+    /** All photos for device that have a file_path — used during reindex reconciliation. Includes deleted. */
+    @Query("SELECT * FROM photos WHERE storage_device_id = :storageDeviceId AND file_path IS NOT NULL")
+    List<Photo> findAllWithFilePathByStorageDeviceId(String storageDeviceId);
+
     /**
      * Returns a page of synced, non-deleted photos for a device whose createdDate falls within [startInclusive, endExclusive).
      */
