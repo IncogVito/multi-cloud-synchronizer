@@ -28,10 +28,25 @@ export class StorageStatsCardComponent implements OnInit, OnDestroy {
   loading = signal(true);
   reindexing = signal(false);
 
-  diskUsedPercent = computed(() => {
+  diskPhotosPercent = computed(() => {
     const s = this.stats();
     if (!s?.diskCapacityBytes || !s.diskSizeBytes) return 0;
     return Math.min(100, Math.round((s.diskSizeBytes / s.diskCapacityBytes) * 100));
+  });
+
+  diskOtherPercent = computed(() => {
+    const s = this.stats();
+    if (!s?.diskCapacityBytes || s.diskFreeBytes == null) return 0;
+    const other = s.diskCapacityBytes - (s.diskFreeBytes ?? 0) - (s.diskSizeBytes ?? 0);
+    if (other <= 0) return 0;
+    return Math.min(100, Math.round((other / s.diskCapacityBytes) * 100));
+  });
+
+  diskOtherBytes = computed(() => {
+    const s = this.stats();
+    if (!s?.diskCapacityBytes || s.diskFreeBytes == null) return null;
+    const other = s.diskCapacityBytes - (s.diskFreeBytes ?? 0) - (s.diskSizeBytes ?? 0);
+    return other > 0 ? other : null;
   });
 
   ngOnInit(): void {

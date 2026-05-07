@@ -36,16 +36,28 @@
           @if (s.diskCapacityBytes) {
             <div class="capacity-bar-wrap">
               <div class="capacity-bar">
-                <div class="capacity-fill" [style.width.%]="diskUsedPercent()"></div>
+                <div class="capacity-fill-photos" [style.width.%]="diskPhotosPercent()"></div>
+                <div class="capacity-fill-other" [style.width.%]="diskOtherPercent()"></div>
               </div>
-              <span class="capacity-text">
-                {{ formatBytes(s.diskSizeBytes) }} zdjęć / {{ formatBytes(s.diskCapacityBytes) }} dysk
-                ({{ diskUsedPercent() }}%)
-              </span>
+              <div class="capacity-legend">
+                <div class="legend-row">
+                  <span class="legend-dot legend-dot--photos"></span>
+                  <span class="capacity-text">Zdjęcia: {{ formatBytes(s.diskSizeBytes) }} ({{ diskPhotosPercent() }}%)</span>
+                </div>
+                @if (diskOtherBytes()) {
+                  <div class="legend-row">
+                    <span class="legend-dot legend-dot--other"></span>
+                    <span class="capacity-text">Inne: {{ formatBytes(diskOtherBytes()) }} ({{ diskOtherPercent() }}%)</span>
+                  </div>
+                }
+                @if (s.diskFreeBytes != null) {
+                  <div class="legend-row">
+                    <span class="legend-dot legend-dot--free"></span>
+                    <span class="capacity-text free-text">Wolne: {{ formatBytes(s.diskFreeBytes) }}</span>
+                  </div>
+                }
+              </div>
             </div>
-          }
-          @if (s.diskFreeBytes != null) {
-            <div class="free-space-text">Wolne: {{ formatBytes(s.diskFreeBytes) }}</div>
           }
           <div class="stat-footer">
             <span class="stat-meta-label">ostatni sync:</span>

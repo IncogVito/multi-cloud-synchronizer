@@ -5,6 +5,7 @@ import com.cloudsync.model.dto.DiskIndexProgressEvent;
 import com.cloudsync.model.entity.Photo;
 import com.cloudsync.model.enums.MediaType;
 import com.cloudsync.repository.PhotoRepository;
+import com.cloudsync.repository.StorageDeviceRepository;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -45,17 +46,20 @@ public class DiskIndexingService {
     private final AppContextService appContextService;
     private final DiskIndexStateHolder stateHolder;
     private final ExecutorService syncVirtualThreadExecutor;
+    private final StorageDeviceRepository storageDeviceRepository;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     public DiskIndexingService(PhotoRepository photoRepository,
                                AppContextService appContextService,
                                DiskIndexStateHolder stateHolder,
-                               @Named("syncVirtualThreadExecutor") ExecutorService syncVirtualThreadExecutor) {
+                               @Named("syncVirtualThreadExecutor") ExecutorService syncVirtualThreadExecutor,
+                               StorageDeviceRepository storageDeviceRepository) {
         this.photoRepository = photoRepository;
         this.appContextService = appContextService;
         this.stateHolder = stateHolder;
         this.syncVirtualThreadExecutor = syncVirtualThreadExecutor;
+        this.storageDeviceRepository = storageDeviceRepository;
     }
 
     public boolean isRunning() {
@@ -141,6 +145,10 @@ public class DiskIndexingService {
 
             LOG.info("DiskIndexing complete: {} files processed", total);
             emitDoneEvent(scanned, total, 0);
+            storageDeviceRepository.findById(storageDeviceId).ifPresent(d -> {
+                d.setLastIndexedAt(Instant.now());
+                storageDeviceRepository.update(d);
+            });
         } catch (Exception e) {
             LOG.error("DiskIndexing failed: {}", e.getMessage(), e);
             emitEvent("ERROR", 0, 0, 0.0, e.getMessage(), 0);

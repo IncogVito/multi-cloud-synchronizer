@@ -74,7 +74,7 @@ public class StatsService {
 
         Instant iphoneLastSync = icloudLastSync;
 
-        Instant diskLastSync = icloudLastSync;
+        Instant diskLastSync = device != null ? device.getLastIndexedAt() : null;
 
         return new StatsResponse(
                 diskCount,

@@ -18,6 +18,7 @@ public class StorageDevice {
     private Long sizeBytes;
     private Instant firstSeenAt;
     private Instant lastSeenAt;
+    private Instant lastIndexedAt;
 
     public StorageDevice() {}
 
@@ -44,4 +45,7 @@ public class StorageDevice {
 
     public Instant getLastSeenAt() { return lastSeenAt; }
     public void setLastSeenAt(Instant lastSeenAt) { this.lastSeenAt = lastSeenAt; }
+
+    public Instant getLastIndexedAt() { return lastIndexedAt; }
+    public void setLastIndexedAt(Instant lastIndexedAt) { this.lastIndexedAt = lastIndexedAt; }
 }

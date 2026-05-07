@@ -1393,13 +1393,10 @@ components:
     StatsResponse:
       required:
       - diskCapacityBytes
-      - diskLastSyncAt
       - diskPhotoCount
       - diskSizeBytes
-      - icloudLastSyncAt
       - icloudPhotoCount
       - icloudSizeBytes
-      - iphoneLastSyncAt
       - iphonePhotoCount
       - iphoneSizeBytes
       type: object
