@@ -123,9 +123,15 @@ interface DeviceReadiness {
             @if (activeProgress()!.phase !== 'ERROR' && activeProgress()!.phase !== 'CANCELLED') {
               <div class="progress-wrap">
                 <div class="progress-bar">
-                  <div class="progress-fill" [style.width.%]="activeProgress()!.percentComplete"></div>
+                  <div class="progress-fill"
+                       [class.progress-fill--indeterminate]="isIndeterminate()"
+                       [style.width.%]="isIndeterminate() ? 100 : displayPercent()"></div>
                 </div>
-                <span class="progress-pct">{{ activeProgress()!.percentComplete | number:'1.0-0' }}%</span>
+                @if (!isIndeterminate()) {
+                  <span class="progress-pct">{{ displayPercent() | number:'1.0-0' }}%</span>
+                } @else {
+                  <span class="progress-pct">...</span>
+                }
               </div>
             }
             <ul class="stats">
@@ -192,6 +198,8 @@ interface DeviceReadiness {
     .progress-wrap { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; }
     .progress-bar { flex: 1; height: 10px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
     .progress-fill { height: 100%; background: #3b82f6; transition: width 0.3s ease; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .progress-fill--indeterminate { background: linear-gradient(90deg, #3b82f6 25%, #93c5fd 50%, #3b82f6 75%); background-size: 200% 100%; animation: shimmer 1.5s linear infinite; }
     .progress-pct { font-size: 0.8rem; color: #374151; min-width: 3em; text-align: right; }
     .stats { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; color: #374151; }
     .stats .err { color: #dc2626; }
@@ -273,6 +281,23 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
       || phase === 'DOWNLOADING';
   });
 
+  displayPercent = computed<number>(() => {
+    const p = this.activeProgress();
+    if (!p) return 0;
+    if (p.phase === 'FETCHING_METADATA' && p.totalOnCloud > 0 && p.metadataFetched > 0) {
+      return Math.round((p.metadataFetched / p.totalOnCloud) * 100);
+    }
+    return p.percentComplete;
+  });
+
+  isIndeterminate = computed<boolean>(() => {
+    const p = this.activeProgress();
+    if (!p) return false;
+    if (p.phase === 'FETCHING_METADATA' && p.totalOnCloud === 0) return true;
+    if (p.phase === 'PERSISTING_METADATA' && p.percentComplete === 0) return true;
+    return false;
+  });
+
   driveLabel = computed<string>(() => {
     const d = this.driveStatus();
     if (!d || !d.mounted) return '—';
@@ -313,6 +338,8 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     this.refresh();
     this.progressSub = this.syncService.syncProgress$.subscribe(evt => {
       if (evt) {
+        this.starting.set(false);
+        this.confirming.set(false);
         if (!this.syncStartTime) this.syncStartTime = Date.now();
         this.activeProgress.set(evt);
         if (evt.phase === 'DONE' || evt.phase === 'ERROR' || evt.phase === 'CANCELLED') {
@@ -356,7 +383,7 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     // For iPhone, use any account's session (Apple ID link) or a placeholder empty string
     const accountId = acc?.id ?? '';
     this.syncService.startSync(accountId, provider).subscribe({
-      next: () => this.starting.set(false),
+      next: () => { /* starting reset by first SSE event */ },
       error: () => {
         this.starting.set(false);
         this.syncStartTime = null;
@@ -369,7 +396,7 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     if (!acc) return;
     this.confirming.set(true);
     this.syncService.confirmSync(acc.id).subscribe({
-      next: () => this.confirming.set(false),
+      next: () => { /* confirming reset by first SSE event */ },
       error: () => this.confirming.set(false)
     });
   }

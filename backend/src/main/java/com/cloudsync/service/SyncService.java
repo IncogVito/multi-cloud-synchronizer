@@ -40,6 +40,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -533,7 +534,8 @@ public class SyncService {
 
     private void emitAwaitingConfirmation(String accountId, int totalOnCloud, int newlyDeleted) {
         String providerType = activeProviderType.getOrDefault(accountId, "ICLOUD");
-        long pending = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.PENDING.name(), providerType);
+        long pending = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.PENDING.name(), providerType)
+                + photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.FAILED.name(), providerType);
         long synced = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.SYNCED.name(), providerType);
         emitEvent(accountId, SyncPhase.AWAITING_CONFIRMATION, e -> {
             e.setTotalOnCloud(totalOnCloud);
@@ -548,10 +550,12 @@ public class SyncService {
     private void downloadPendingPhotosAsync(String accountId, ICloudAccount account, AppContext ctx, String providerType) {
         lastEmitTime.remove(accountId);
         downloadedSinceEmit.remove(accountId);
-        List<Photo> pending = photoRepository.findByAccountIdAndSyncStatus(accountId, SyncStatus.PENDING.name())
-                .stream()
+        List<Photo> pending = Stream.concat(
+                        photoRepository.findByAccountIdAndSyncStatus(accountId, SyncStatus.PENDING.name()).stream(),
+                        photoRepository.findByAccountIdAndSyncStatus(accountId, SyncStatus.FAILED.name()).stream())
                 .filter(p -> providerType.equals(p.getSourceProvider()))
                 .filter(p -> !p.isDeleted())
+                .distinct()
                 .toList();
         long alreadySynced = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(
                 accountId, SyncStatus.SYNCED.name(), providerType);

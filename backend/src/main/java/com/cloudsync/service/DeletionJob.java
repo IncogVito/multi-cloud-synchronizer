@@ -24,7 +24,7 @@ public class DeletionJob {
     private final Instant createdAt = Instant.now();
     private volatile String status = "RUNNING";
 
-    private final Sinks.Many<DeletionProgress> sink = Sinks.many().replay().limit(1);
+    private final Sinks.Many<DeletionProgress> sink = Sinks.many().replay().all();
 
     public DeletionJob(String jobId, String accountId, String provider, List<String> photoIds) {
         this.jobId = jobId;
