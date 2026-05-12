@@ -33,8 +33,6 @@ public class Photo {
     private String assetToken;
     /** Which provider this photo was synced from: "ICLOUD" or "IPHONE". */
     private String sourceProvider;
-    private boolean deleted;
-    private Instant deletedDate;
     /** Relative path of this photo on the mounted iPhone (e.g. "DCIM/100APPLE/IMG_1234.jpg"). */
     private String iphoneLocation;
 
@@ -104,12 +102,6 @@ public class Photo {
 
     public String getSourceProvider() { return sourceProvider; }
     public void setSourceProvider(String sourceProvider) { this.sourceProvider = sourceProvider; }
-
-    public boolean isDeleted() { return deleted; }
-    public void setDeleted(boolean deleted) { this.deleted = deleted; }
-
-    public Instant getDeletedDate() { return deletedDate; }
-    public void setDeletedDate(Instant deletedDate) { this.deletedDate = deletedDate; }
 
     public String getIphoneLocation() { return iphoneLocation; }
     public void setIphoneLocation(String iphoneLocation) { this.iphoneLocation = iphoneLocation; }

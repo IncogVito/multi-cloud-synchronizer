@@ -504,14 +504,11 @@ public class SyncService {
         Set<String> remoteIds = remotePhotos.stream().map(PhotoAsset::id).collect(Collectors.toSet());
         Set<String> alreadyQueued = toUpdate.stream().map(Photo::getId).collect(Collectors.toSet());
         int count = 0;
-        Instant now = Instant.now();
         for (Photo photo : existingByExternalId.values()) {
-            if (!photo.isDeleted() && photo.isExistsOnIcloud()
+            if (photo.isExistsOnIcloud()
                     && !remoteIds.contains(photo.getIcloudPhotoId())
                     && !alreadyQueued.contains(photo.getId())) {
                 photo.setExistsOnIcloud(false);
-                photo.setDeleted(true);
-                photo.setDeletedDate(now);
                 toUpdate.add(photo);
                 count++;
             }
@@ -579,7 +576,6 @@ public class SyncService {
                         photoRepository.findByAccountIdAndSyncStatus(accountId, SyncStatus.PENDING.name()).stream(),
                         photoRepository.findByAccountIdAndSyncStatus(accountId, SyncStatus.FAILED.name()).stream())
                 .filter(p -> providerType.equals(p.getSourceProvider()))
-                .filter(p -> !p.isDeleted())
                 .distinct()
                 .toList();
         long alreadySynced = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(

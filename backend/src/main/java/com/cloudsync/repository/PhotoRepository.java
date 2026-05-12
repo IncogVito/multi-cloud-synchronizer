@@ -19,22 +19,22 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
 
     Page<Photo> findByAccountId(String accountId, Pageable pageable);
 
-    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND (deleted = false OR deleted IS NULL)",
-           countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk AND (deleted = false OR deleted IS NULL)")
+    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk",
+           countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk")
     Page<Photo> findBySyncedToDisk(boolean syncedToDisk, Pageable pageable);
 
-    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND (deleted = false OR deleted IS NULL)",
-           countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND (deleted = false OR deleted IS NULL)")
+    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId",
+           countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId")
     Page<Photo> findBySyncedToDiskAndStorageDeviceId(boolean syncedToDisk, String storageDeviceId, Pageable pageable);
 
-    @Query("SELECT * FROM photos WHERE account_id = :accountId AND synced_to_disk = :syncedToDisk AND (deleted = false OR deleted IS NULL)")
+    @Query("SELECT * FROM photos WHERE account_id = :accountId AND synced_to_disk = :syncedToDisk")
     List<Photo> findByAccountIdAndSyncedToDisk(String accountId, boolean syncedToDisk);
 
     Optional<Photo> findByIcloudPhotoId(String icloudPhotoId);
 
     long countByAccountId(String accountId);
 
-    @Query("SELECT * FROM photos WHERE account_id = :accountId AND synced_to_disk = :synced AND (deleted = false OR deleted IS NULL)")
+    @Query("SELECT * FROM photos WHERE account_id = :accountId AND synced_to_disk = :synced")
     List<Photo> findByAccountIdAndSynced(String accountId, boolean synced);
 
     List<Photo> findByAccountIdAndSyncStatus(String accountId, String syncStatus);
@@ -44,10 +44,10 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
     @Query("SELECT COUNT(*) FROM photos WHERE account_id = :accountId AND sync_status = :syncStatus AND source_provider = :sourceProvider")
     long countByAccountIdAndSyncStatusAndSourceProvider(String accountId, String syncStatus, String sourceProvider);
 
-    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (deleted = false OR deleted IS NULL)")
+    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId")
     long countBySyncedToDiskAndStorageDeviceId(boolean syncedToDisk, String storageDeviceId);
 
-    @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (deleted = false OR deleted IS NULL)")
+    @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId")
     Long sumFileSizeOnDisk(String storageDeviceId);
 
     long countByAccountIdAndExistsOnIcloud(String accountId, boolean existsOnIcloud);
@@ -72,34 +72,29 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
     @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE storage_device_id = :storageDeviceId AND exists_on_iphone = true")
     Long sumFileSizeOnIphoneByDevice(String storageDeviceId);
 
-    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND (deleted = false OR deleted IS NULL) AND (thumbnail_path IS NULL OR thumbnail_path = '')")
+    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND (thumbnail_path IS NULL OR thumbnail_path = '')")
     long countMissingThumbnails();
 
-    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (deleted = false OR deleted IS NULL) AND (thumbnail_path IS NULL OR thumbnail_path = '')")
+    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (thumbnail_path IS NULL OR thumbnail_path = '')")
     long countMissingThumbnailsByDevice(String storageDeviceId);
 
-    @Query("SELECT * FROM photos WHERE synced_to_disk = true AND (deleted = false OR deleted IS NULL) AND (thumbnail_path IS NULL OR thumbnail_path = '')")
+    @Query("SELECT * FROM photos WHERE synced_to_disk = true AND (thumbnail_path IS NULL OR thumbnail_path = '')")
     List<Photo> findSyncedWithoutThumbnail();
 
-    @Query("SELECT * FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (deleted = false OR deleted IS NULL) AND (thumbnail_path IS NULL OR thumbnail_path = '')")
+    @Query("SELECT * FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (thumbnail_path IS NULL OR thumbnail_path = '')")
     List<Photo> findSyncedWithoutThumbnailByDevice(String storageDeviceId);
 
-    @Query("SELECT * FROM photos WHERE storage_device_id = :storageDeviceId AND synced_to_disk = :syncedToDisk AND (deleted = false OR deleted IS NULL)")
+    @Query("SELECT * FROM photos WHERE storage_device_id = :storageDeviceId AND synced_to_disk = :syncedToDisk")
     List<Photo> findByStorageDeviceIdAndSyncedToDisk(String storageDeviceId, boolean syncedToDisk);
 
-    /** Includes deleted=true records — used for path deduplication during disk indexing. */
     @Query("SELECT * FROM photos WHERE storage_device_id = :storageDeviceId AND synced_to_disk = true")
-    List<Photo> findAllByStorageDeviceIdAndSyncedToDiskIncludeDeleted(String storageDeviceId);
+    List<Photo> findAllByStorageDeviceIdAndSyncedToDisk(String storageDeviceId);
 
-    /** All photos for device that have a file_path — used during reindex reconciliation. Includes deleted. */
     @Query("SELECT * FROM photos WHERE storage_device_id = :storageDeviceId AND file_path IS NOT NULL")
     List<Photo> findAllWithFilePathByStorageDeviceId(String storageDeviceId);
 
-    /**
-     * Returns a page of synced, non-deleted photos for a device whose createdDate falls within [startInclusive, endExclusive).
-     */
-    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND created_date >= :startInclusive AND created_date < :endExclusive AND (deleted = false OR deleted IS NULL)",
-           countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND created_date >= :startInclusive AND created_date < :endExclusive AND (deleted = false OR deleted IS NULL)")
+    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND created_date >= :startInclusive AND created_date < :endExclusive",
+           countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND created_date >= :startInclusive AND created_date < :endExclusive")
     Page<Photo> findBySyncedToDiskAndStorageDeviceIdAndCreatedDateBetween(
             boolean syncedToDisk,
             String storageDeviceId,

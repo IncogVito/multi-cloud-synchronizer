@@ -1,4 +1,4 @@
-import { Component, signal, inject } from '@angular/core';
+import { Component, signal, inject, effect } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
@@ -44,6 +44,18 @@ export class LoginComponent {
   });
 
   constructor() {
+    effect(() => {
+      const loading = this.isLoading();
+      if (loading) {
+        this.loginForm.disable();
+        this.twoFaForm.disable();
+        this.newAccountForm.disable();
+      } else {
+        this.loginForm.enable();
+        this.twoFaForm.enable();
+        this.newAccountForm.enable();
+      }
+    });
     this.loadAccounts();
   }
 
@@ -104,9 +116,11 @@ export class LoginComponent {
           this.currentAccountId.set(response.accountId || '');
           this.isLoading.set(false);
         } else {
-          this.authService.setCredentials(this.selectedAccount()!.appleId, password);
           this.isLoading.set(false);
-          this.navigateAfterLogin();
+          setTimeout(() => {
+            this.authService.setCredentials(this.selectedAccount()!.appleId, password);
+            this.navigateAfterLogin();
+          }, 0);
         }
       },
       error: (err) => {
@@ -167,9 +181,11 @@ export class LoginComponent {
           this.currentAccountId.set(response.accountId || '');
           this.isLoading.set(false);
         } else {
-          this.authService.setCredentials(username, password);
           this.isLoading.set(false);
-          this.navigateAfterLogin();
+          setTimeout(() => {
+            this.authService.setCredentials(username, password);
+            this.navigateAfterLogin();
+          }, 0);
         }
       },
       error: (err) => {

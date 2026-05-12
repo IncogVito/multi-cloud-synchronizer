@@ -111,10 +111,6 @@ public class DiskIndexingService {
 
                 if (existing != null) {
                     existing.setSyncedToDisk(true);
-                    if (existing.isDeleted()) {
-                        existing.setDeleted(false);
-                        existing.setDeletedDate(null);
-                    }
                     toUpdate.add(existing);
                 } else {
                     Photo photo = buildPhotoFromFile(file, storageDeviceId);

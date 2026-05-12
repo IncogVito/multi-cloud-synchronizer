@@ -208,8 +208,6 @@ public class DeletionJobService {
             } else {
                 photo.setExistsOnIphone(false);
             }
-            photo.setDeleted(true);
-            photo.setDeletedDate(Instant.now());
             photoRepository.update(photo);
         } catch (Exception e) {
             LOG.warn("Failed to update DB for photo {} after deletion: {}", photo.getId(), e.getMessage());

@@ -54,7 +54,6 @@
               formControlName="password"
               placeholder="Wpisz swoje hasło"
               autocomplete="current-password"
-              [disabled]="isLoading()"
               autofocus
             />
             @if (loginForm.get('password')?.invalid && loginForm.get('password')?.touched) {
@@ -97,7 +96,6 @@
             formControlName="username"
             placeholder="Wpisz Apple ID"
             autocomplete="username"
-            [disabled]="isLoading()"
             autofocus
           />
           @if (newAccountForm.get('username')?.invalid && newAccountForm.get('username')?.touched) {
@@ -113,7 +111,6 @@
             formControlName="password"
             placeholder="Wpisz swoje hasło"
             autocomplete="new-password"
-            [disabled]="isLoading()"
           />
           @if (newAccountForm.get('password')?.invalid && newAccountForm.get('password')?.touched) {
             <span class="error-text">Hasło jest wymagane</span>
@@ -159,7 +156,6 @@
             placeholder="000000"
             maxlength="6"
             autocomplete="off"
-            [disabled]="isLoading()"
             class="twofa-input"
             autofocus
           />
