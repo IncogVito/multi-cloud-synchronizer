@@ -15,6 +15,7 @@ import com.cloudsync.provider.PhotoSyncProvider;
 import com.cloudsync.repository.AccountRepository;
 import com.cloudsync.repository.PhotoRepository;
 import com.cloudsync.util.Messages;
+import io.micronaut.context.annotation.Value;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -62,8 +63,8 @@ public class SyncService {
     private final ExecutorService syncVirtualThreadExecutor;
     private final Map<String, PhotoSyncProvider> providers;
 
-    private final Semaphore downloadSemaphore = new Semaphore(50);
-    private final Semaphore iphoneDownloadSemaphore = new Semaphore(6);
+    private final Semaphore downloadSemaphore;
+    private final Semaphore iphoneDownloadSemaphore;
     private final ConcurrentHashMap<String, AtomicBoolean> cancellationFlags = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> lastEmitTime = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicInteger> downloadedSinceEmit = new ConcurrentHashMap<>();
@@ -83,7 +84,8 @@ public class SyncService {
                        TaskHistoryService taskHistoryService,
                        @Named("syncVirtualThreadExecutor") ExecutorService syncVirtualThreadExecutor,
                        @Named("ICLOUD") PhotoSyncProvider iCloudProvider,
-                       @Named("IPHONE") PhotoSyncProvider iPhoneProvider) {
+                       @Named("IPHONE") PhotoSyncProvider iPhoneProvider,
+                       @Value("${sync.download-concurrency:0}") int configuredConcurrency) {
         this.photoRepository = photoRepository;
         this.accountRepository = accountRepository;
         this.thumbnailService = thumbnailService;
@@ -96,6 +98,11 @@ public class SyncService {
                 iCloudProvider.providerType(), iCloudProvider,
                 iPhoneProvider.providerType(), iPhoneProvider
         );
+        int concurrency = configuredConcurrency > 0
+                ? configuredConcurrency
+                : Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
+        this.downloadSemaphore = new Semaphore(concurrency);
+        this.iphoneDownloadSemaphore = new Semaphore(concurrency);
     }
 
     // ── public API ────────────────────────────────────────────────────────────

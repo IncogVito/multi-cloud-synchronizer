@@ -60,6 +60,8 @@ public class AppConfig {
     @Bean
     @jakarta.inject.Named("thumbnailExecutor")
     public java.util.concurrent.ExecutorService thumbnailExecutor() {
-        return java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+        int threads = Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
+        return java.util.concurrent.Executors.newFixedThreadPool(threads,
+            Thread.ofPlatform().name("thumbnail-", 0).factory());
     }
 }

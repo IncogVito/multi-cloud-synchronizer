@@ -58,7 +58,12 @@ application {
 }
 
 tasks.named<JavaExec>("run") {
-    jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005")
+    jvmArgs(
+        "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+        "-Xmx4g",
+        "-XX:+UseZGC",
+        "-XX:ZUncommitDelay=30"
+    )
 }
 
 java {

@@ -50,6 +50,7 @@ services:
       - HOST_AGENT_SOCKET=${HOST_AGENT_SOCKET:-/run/cloudsync-host-agent/agent.sock}
       # Keep Gradle cache in the named volume even when running as root
       - GRADLE_USER_HOME=/home/gradle/.gradle
+      - JAVA_TOOL_OPTIONS=-Xmx4g -XX:+UseZGC -XX:ZUncommitDelay=30
     volumes:
       - ./backend:/app                       # live source editing
       - /app/build                           # build artifacts stay in container (anonymous vol)
