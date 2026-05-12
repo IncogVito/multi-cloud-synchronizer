@@ -58,6 +58,7 @@ public class SyncService {
     private final ThumbnailJobService thumbnailJobService;
     private final SyncStateHolder syncStateHolder;
     private final AppContextService appContextService;
+    private final TaskHistoryService taskHistoryService;
     private final ExecutorService syncVirtualThreadExecutor;
     private final Map<String, PhotoSyncProvider> providers;
 
@@ -71,6 +72,7 @@ public class SyncService {
      */
     private final ConcurrentHashMap<String, String> activeProviderType = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> downloadTotalCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> activeSyncTaskId = new ConcurrentHashMap<>();
 
     public SyncService(PhotoRepository photoRepository,
                        AccountRepository accountRepository,
@@ -78,6 +80,7 @@ public class SyncService {
                        ThumbnailJobService thumbnailJobService,
                        SyncStateHolder syncStateHolder,
                        AppContextService appContextService,
+                       TaskHistoryService taskHistoryService,
                        @Named("syncVirtualThreadExecutor") ExecutorService syncVirtualThreadExecutor,
                        @Named("ICLOUD") PhotoSyncProvider iCloudProvider,
                        @Named("IPHONE") PhotoSyncProvider iPhoneProvider) {
@@ -87,6 +90,7 @@ public class SyncService {
         this.thumbnailJobService = thumbnailJobService;
         this.syncStateHolder = syncStateHolder;
         this.appContextService = appContextService;
+        this.taskHistoryService = taskHistoryService;
         this.syncVirtualThreadExecutor = syncVirtualThreadExecutor;
         this.providers = Map.of(
                 iCloudProvider.providerType(), iCloudProvider,
@@ -116,6 +120,10 @@ public class SyncService {
         activeProviderType.put(accountId, provider.providerType());
 
         resetCancellation(accountId);
+
+        String syncTaskId = UUID.randomUUID().toString();
+        activeSyncTaskId.put(accountId, syncTaskId);
+        taskHistoryService.createTask(syncTaskId, "SYNC", accountId, provider.providerType(), 0);
 
         // TODO: extract to different method of prefetch.
         emitEvent(accountId, SyncPhase.FETCHING_METADATA, e -> e.setMetadataFetched(0));
@@ -150,6 +158,15 @@ public class SyncService {
         resetDownloadingToPending(accountId);
         emitEvent(accountId, SyncPhase.CANCELLED, e -> {
         });
+        String taskId = activeSyncTaskId.remove(accountId);
+        if (taskId != null) {
+            String providerType = activeProviderType.getOrDefault(accountId, "ICLOUD");
+            int synced = (int) photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(
+                    accountId, com.cloudsync.model.enums.SyncStatus.SYNCED.name(), providerType);
+            int failed = (int) photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(
+                    accountId, com.cloudsync.model.enums.SyncStatus.FAILED.name(), providerType);
+            taskHistoryService.completeTask(taskId, "CANCELLED", synced, failed, null);
+        }
         LOG.info(Messages.LOG_SYNC_CANCELLED, accountId);
     }
 
@@ -740,6 +757,10 @@ public class SyncService {
             a.setLastSyncAt(Instant.now());
             accountRepository.update(a);
         });
+        String taskId = activeSyncTaskId.remove(accountId);
+        if (taskId != null) {
+            taskHistoryService.completeTask(taskId, "COMPLETED", (int) synced, (int) failed, null);
+        }
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -783,12 +804,21 @@ public class SyncService {
 
     private void emitError(String accountId) {
         syncStateHolder.updateAndEmit(accountId, new SyncProgressEvent(accountId, SyncPhase.ERROR));
+        String taskId = activeSyncTaskId.get(accountId);
+        if (taskId != null) {
+            taskHistoryService.recordSyncPhaseEnd(taskId, SyncPhase.ERROR.name(), "Sync failed");
+            taskHistoryService.completeTask(taskId, "FAILED", 0, 0, "Sync failed with error");
+        }
     }
 
     private void emitEvent(String accountId, SyncPhase phase, Consumer<SyncProgressEvent> configure) {
         SyncProgressEvent event = new SyncProgressEvent(accountId, phase);
         configure.accept(event);
         syncStateHolder.updateAndEmit(accountId, event);
+        String taskId = activeSyncTaskId.get(accountId);
+        if (taskId != null) {
+            taskHistoryService.recordSyncPhaseStart(taskId, phase.name());
+        }
     }
 
     private static final Set<String> VIDEO_EXTENSIONS = Set.of("mp4", "m4v", "mov", "avi", "mkv");

@@ -125,7 +125,7 @@ export class JobsState {
       if (!res.ok) return;
       const data: { jobs: Array<{ jobId: string; type: string; status: string; total: number; done: number; failed: number; label: string }> } = await res.json();
 
-      for (const j of data.jobs) {
+      for (const j of data.jobs ?? []) {
         const exists = ctx.getState().jobs.some(existing => existing.jobId === j.jobId);
         if (!exists && (j.status === 'RUNNING' || j.status === 'QUEUED')) {
           ctx.dispatch(new TrackJob(j.jobId, j.type as Job['type'], j.label));

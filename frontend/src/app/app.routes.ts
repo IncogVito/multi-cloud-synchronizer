@@ -36,5 +36,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/photos/photos.component').then(m => m.PhotosComponent),
     canActivate: [authGuard, appContextGuard]
+  },
+  {
+    path: 'tasks',
+    loadComponent: () =>
+      import('./features/tasks/tasks.component').then(m => m.TasksComponent),
+    canActivate: [authGuard, appContextGuard]
   }
 ];

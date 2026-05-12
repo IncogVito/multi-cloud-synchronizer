@@ -31,6 +31,7 @@ public class DeletionJobService {
 
     private final PhotoRepository photoRepository;
     private final AccountRepository accountRepository;
+    private final TaskHistoryService taskHistoryService;
     private final Map<String, PhotoSyncProvider> providers;
     private final int chunkSize;
     private final ConcurrentHashMap<String, DeletionJob> jobs = new ConcurrentHashMap<>();
@@ -39,11 +40,13 @@ public class DeletionJobService {
     public DeletionJobService(
             PhotoRepository photoRepository,
             AccountRepository accountRepository,
+            TaskHistoryService taskHistoryService,
             @Named("ICLOUD") PhotoSyncProvider iCloudProvider,
             @Named("IPHONE") PhotoSyncProvider iPhoneProvider,
             @Value("${deletion.batch-chunk-size:50}") int chunkSize) {
         this.photoRepository = photoRepository;
         this.accountRepository = accountRepository;
+        this.taskHistoryService = taskHistoryService;
         this.providers = Map.of("ICLOUD", iCloudProvider, "IPHONE", iPhoneProvider);
         this.chunkSize = chunkSize;
     }
@@ -61,6 +64,8 @@ public class DeletionJobService {
 
         DeletionJob job = new DeletionJob(UUID.randomUUID().toString(), accountId, provider, eligibleIds);
         jobs.put(job.getJobId(), job);
+
+        taskHistoryService.createTask(job.getJobId(), "DELETION", accountId, provider, eligible.size());
 
         Thread.ofVirtual().start(() -> runJob(job, eligible, provider));
 
@@ -122,10 +127,13 @@ public class DeletionJobService {
         } catch (Exception e) {
             LOG.error("Deletion job {} failed: {}", job.getJobId(), e.getMessage(), e);
             job.markFailed();
+            taskHistoryService.completeTask(job.getJobId(), "FAILED", job.getDeleted(), job.getFailed(), e.getMessage());
             return;
         }
 
+        String finalStatus = job.isCancelled() ? "CANCELLED" : "COMPLETED";
         job.markDone();
+        taskHistoryService.completeTask(job.getJobId(), finalStatus, job.getDeleted(), job.getFailed(), null);
     }
 
     private void processChunk(DeletionJob job, List<Photo> chunk, PhotoSyncProvider syncProvider) {
@@ -174,8 +182,22 @@ public class DeletionJobService {
             }
         }
 
-        if (!succeeded.isEmpty()) job.recordSuccess(succeeded);
-        if (!failed.isEmpty()) job.recordFailure(failed);
+        if (!succeeded.isEmpty()) {
+            job.recordSuccess(succeeded);
+            List<String> succeededNames = chunk.stream()
+                    .filter(p -> succeeded.contains(p.getId()))
+                    .map(Photo::getFilename)
+                    .toList();
+            taskHistoryService.addTaskItems(job.getJobId(), succeeded, succeededNames, "DELETED", null);
+        }
+        if (!failed.isEmpty()) {
+            job.recordFailure(failed);
+            List<String> failedNames = chunk.stream()
+                    .filter(p -> failed.contains(p.getId()))
+                    .map(Photo::getFilename)
+                    .toList();
+            taskHistoryService.addTaskItems(job.getJobId(), failed, failedNames, "FAILED", "Deletion failed");
+        }
     }
 
     private void updatePhotoAfterDeletion(Photo photo, String provider) {

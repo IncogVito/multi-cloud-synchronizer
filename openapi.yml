@@ -424,6 +424,95 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthController.HealthResponse"
+  /api/jobs:
+    get:
+      tags:
+      - Jobs
+      summary: List all active and recent jobs
+      operationId: listJobs
+      responses:
+        "200":
+          description: listJobs 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobsListResponse"
+  /api/jobs/history:
+    get:
+      tags:
+      - Jobs
+      summary: List task history (paginated)
+      operationId: listHistory
+      parameters:
+      - name: page
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - name: size
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      - name: type
+        in: query
+        schema:
+          type: string
+          nullable: true
+      - name: status
+        in: query
+        schema:
+          type: string
+          nullable: true
+      responses:
+        "200":
+          description: listHistory 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskHistoryPageDto"
+  /api/jobs/history/{taskId}:
+    get:
+      tags:
+      - Jobs
+      summary: Get task history detail by ID
+      operationId: getTaskDetail
+      parameters:
+      - name: taskId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: getTaskDetail 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskHistoryDetailDto"
+  /api/jobs/{jobId}/progress:
+    get:
+      tags:
+      - Jobs
+      summary: Stream progress for any job type by ID (SSE)
+      operationId: getJobProgress
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: getJobProgress 200 response
+          content:
+            text/event-stream:
+              schema:
+                type: object
   /api/photos:
     get:
       tags:
@@ -479,70 +568,97 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PhotoListResponse"
-  /api/photos/generate-thumbnails:
+  /api/photos/deletion-jobs:
     post:
       tags:
-      - Photos
-      summary: Generate missing thumbnails
-      description: Async SSE stream with progress events
-      operationId: generateThumbnails
+      - Deletion Jobs
+      summary: Start a batch deletion job
+      operationId: startDeletionJob
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GenerateThumbnailsRequest"
+              $ref: "#/components/schemas/DeletionJobRequest"
         required: true
       responses:
         "200":
-          description: SSE progress stream
+          description: startDeletionJob 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletionJobStartResponse"
+  /api/photos/deletion-jobs/{jobId}:
+    get:
+      tags:
+      - Deletion Jobs
+      summary: Get deletion job status
+      operationId: getDeletionJob
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: getDeletionJob 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletionProgress"
+    delete:
+      tags:
+      - Deletion Jobs
+      summary: Cancel a deletion job
+      operationId: cancelDeletionJob
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: cancelDeletionJob 200 response
+  /api/photos/deletion-jobs/{jobId}/progress:
+    get:
+      tags:
+      - Deletion Jobs
+      summary: Stream deletion job progress (SSE)
+      operationId: getDeletionJobProgress
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: getDeletionJobProgress 200 response
           content:
             text/event-stream:
               schema:
-                $ref: "#/components/schemas/Event_ThumbnailProgress_"
+                $ref: "#/components/schemas/Event_DeletionProgress_"
   /api/photos/icloud:
     delete:
       tags:
       - Photos
-      summary: Delete photos from iCloud
-      description: Batch delete; photos must already be synced to disk
+      summary: Delete photos from iCloud (deprecated)
+      description: Use POST /api/photos/deletion-jobs instead
       operationId: deleteFromICloud
-      parameters:
-      - name: accountId
-        in: query
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BatchPhotoRequest"
-        required: true
       responses:
-        "204":
-          description: Deleted
+        "410":
+          description: Gone — use deletion-jobs endpoint
   /api/photos/iphone:
     delete:
       tags:
       - Photos
-      summary: Delete photos from iPhone
-      description: Batch delete; photos must already be synced to disk
+      summary: Delete photos from iPhone (deprecated)
+      description: Use POST /api/photos/deletion-jobs instead
       operationId: deleteFromIPhone
-      parameters:
-      - name: accountId
-        in: query
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BatchPhotoRequest"
-        required: true
       responses:
-        "204":
-          description: Deleted
+        "410":
+          description: Gone — use deletion-jobs endpoint
   /api/photos/missing-thumbnails-count:
     get:
       tags:
@@ -590,6 +706,107 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/MonthSummaryResponse"
+  /api/photos/sprite-manifest:
+    post:
+      tags:
+      - Photos
+      summary: Build sprite sheet manifest for a batch of photos
+      operationId: getSpriteManifest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpriteManifestRequest"
+        required: true
+      responses:
+        "200":
+          description: Sprite manifest with slot positions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpriteManifest"
+  /api/photos/sprites/{spriteId}:
+    get:
+      tags:
+      - Photos
+      summary: Get sprite sheet image
+      operationId: getSprite
+      parameters:
+      - name: spriteId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: JPEG sprite sheet
+          content:
+            image/jpeg:
+              schema:
+                type: array
+                items:
+                  type: string
+                  format: byte
+        "404":
+          description: Sprite not found
+  /api/photos/thumbnail-jobs:
+    post:
+      tags:
+      - Photos
+      summary: Start thumbnail generation job
+      description: Returns jobId immediately. Job runs server-side and survives page
+        navigation.
+      operationId: startThumbnailJob
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateThumbnailsRequest"
+        required: true
+      responses:
+        "200":
+          description: Job started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThumbnailJobResponse"
+  /api/photos/thumbnail-jobs/{jobId}:
+    delete:
+      tags:
+      - Photos
+      summary: Cancel thumbnail generation job
+      operationId: cancelThumbnailJob
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Cancelled
+  /api/photos/thumbnail-jobs/{jobId}/progress:
+    get:
+      tags:
+      - Photos
+      summary: Stream thumbnail job progress (SSE)
+      description: "Reconnect-safe: replays all past progress events on reconnect."
+      operationId: getThumbnailJobProgress
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: SSE progress stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_ThumbnailProgress_"
+        "404":
+          description: Job not found
   /api/photos/{id}:
     get:
       tags:
@@ -1014,6 +1231,65 @@ components:
         sortOrder:
           type: integer
           format: int32
+    DeletionJobRequest:
+      required:
+      - accountId
+      - photoIds
+      - provider
+      type: object
+      properties:
+        accountId:
+          type: string
+        photoIds:
+          type: array
+          items:
+            type: string
+        provider:
+          type: string
+    DeletionJobStartResponse:
+      required:
+      - accepted
+      - jobId
+      - skipped
+      type: object
+      properties:
+        jobId:
+          type: string
+        accepted:
+          type: integer
+          format: int32
+        skipped:
+          type: integer
+          format: int32
+    DeletionProgress:
+      required:
+      - deleted
+      - done
+      - failed
+      - failedIds
+      - successfulIds
+      - total
+      type: object
+      properties:
+        deleted:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        failed:
+          type: integer
+          format: int32
+        done:
+          type: boolean
+        successfulIds:
+          type: array
+          items:
+            type: string
+        failedIds:
+          type: array
+          items:
+            type: string
     DeviceCheckEvent:
       required:
       - details
@@ -1114,6 +1390,7 @@ components:
       - freeBytes
       - label
       - mounted
+      - warning
       type: object
       properties:
         mounted:
@@ -1129,11 +1406,26 @@ components:
           type: string
         label:
           type: string
+        warning:
+          type: string
     Event_AgentStepEvent_:
       type: object
       properties:
         data:
           $ref: "#/components/schemas/AgentStepEvent"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
+    Event_DeletionProgress_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/DeletionProgress"
         id:
           type: string
         name:
@@ -1225,11 +1517,16 @@ components:
             $ref: "#/components/schemas/FolderResponse"
     GenerateThumbnailsRequest:
       required:
+      - photoIds
       - storageDeviceId
       type: object
       properties:
         storageDeviceId:
           type: string
+        photoIds:
+          type: array
+          items:
+            type: string
     HealthController.HealthResponse:
       required:
       - status
@@ -1240,6 +1537,43 @@ components:
           type: string
         version:
           type: string
+    JobSummary:
+      required:
+      - done
+      - failed
+      - jobId
+      - label
+      - status
+      - total
+      - type
+      type: object
+      properties:
+        jobId:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        total:
+          type: integer
+          format: int32
+        done:
+          type: integer
+          format: int32
+        failed:
+          type: integer
+          format: int32
+        label:
+          type: string
+    JobsListResponse:
+      required:
+      - jobs
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobSummary"
     LoginRequest:
       required:
       - appleId
@@ -1390,13 +1724,66 @@ components:
       enum:
       - ICLOUD
       - IPHONE
+    SpriteManifest:
+      required:
+      - slots
+      - spriteHeight
+      - spriteId
+      - spriteWidth
+      type: object
+      properties:
+        spriteId:
+          type: string
+        spriteWidth:
+          type: integer
+          format: int32
+        spriteHeight:
+          type: integer
+          format: int32
+        slots:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/SpriteSlot"
+    SpriteManifestRequest:
+      required:
+      - photoIds
+      type: object
+      properties:
+        photoIds:
+          type: array
+          items:
+            type: string
+    SpriteSlot:
+      required:
+      - h
+      - w
+      - x
+      - "y"
+      type: object
+      properties:
+        x:
+          type: integer
+          format: int32
+        "y":
+          type: integer
+          format: int32
+        w:
+          type: integer
+          format: int32
+        h:
+          type: integer
+          format: int32
     StatsResponse:
       required:
       - diskCapacityBytes
+      - diskFreeBytes
+      - diskLastSyncAt
       - diskPhotoCount
       - diskSizeBytes
+      - icloudLastSyncAt
       - icloudPhotoCount
       - icloudSizeBytes
+      - iphoneLastSyncAt
       - iphonePhotoCount
       - iphoneSizeBytes
       type: object
@@ -1499,6 +1886,8 @@ components:
         newlyDeleted:
           type: integer
           format: int32
+        thumbnailJobId:
+          type: string
     SyncStartResponse:
       required:
       - accountId
@@ -1516,6 +1905,181 @@ components:
         startedAt:
           type: string
           format: date-time
+    TaskHistoryDetailDto:
+      required:
+      - accountId
+      - completedAt
+      - createdAt
+      - durationMs
+      - errorMessage
+      - failedItems
+      - id
+      - items
+      - phases
+      - provider
+      - status
+      - succeededItems
+      - totalItems
+      - type
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        accountId:
+          type: string
+        provider:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        totalItems:
+          type: integer
+          format: int32
+        succeededItems:
+          type: integer
+          format: int32
+        failedItems:
+          type: integer
+          format: int32
+        errorMessage:
+          type: string
+        durationMs:
+          type: integer
+          format: int64
+        phases:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskHistoryDetailDto.TaskSyncPhaseDto"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskHistoryDetailDto.TaskItemDto"
+    TaskHistoryDetailDto.TaskItemDto:
+      required:
+      - errorMessage
+      - itemStatus
+      - photoId
+      - photoName
+      type: object
+      properties:
+        itemStatus:
+          type: string
+        photoId:
+          type: string
+        photoName:
+          type: string
+        errorMessage:
+          type: string
+    TaskHistoryDetailDto.TaskSyncPhaseDto:
+      required:
+      - completedAt
+      - durationMs
+      - errorMessage
+      - phase
+      - startedAt
+      type: object
+      properties:
+        phase:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        errorMessage:
+          type: string
+        durationMs:
+          type: integer
+          format: int64
+    TaskHistoryDto:
+      required:
+      - accountId
+      - completedAt
+      - createdAt
+      - durationMs
+      - errorMessage
+      - failedItems
+      - id
+      - provider
+      - status
+      - succeededItems
+      - totalItems
+      - type
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        accountId:
+          type: string
+        provider:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        totalItems:
+          type: integer
+          format: int32
+        succeededItems:
+          type: integer
+          format: int32
+        failedItems:
+          type: integer
+          format: int32
+        errorMessage:
+          type: string
+        durationMs:
+          type: integer
+          format: int64
+    TaskHistoryPageDto:
+      required:
+      - page
+      - size
+      - tasks
+      - totalElements
+      - totalPages
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskHistoryDto"
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+    ThumbnailJobResponse:
+      required:
+      - jobId
+      - progress
+      type: object
+      properties:
+        jobId:
+          type: string
+        progress:
+          $ref: "#/components/schemas/ThumbnailProgress"
     ThumbnailProgress:
       required:
       - done

@@ -25,14 +25,17 @@ public class ThumbnailJobService {
 
     private final ThumbnailService thumbnailService;
     private final PhotoRepository photoRepository;
+    private final TaskHistoryService taskHistoryService;
     private final ExecutorService thumbnailExecutor;
     private final ConcurrentHashMap<String, ThumbnailJob> jobs = new ConcurrentHashMap<>();
 
     public ThumbnailJobService(ThumbnailService thumbnailService,
                                PhotoRepository photoRepository,
+                               TaskHistoryService taskHistoryService,
                                @Named("thumbnailExecutor") ExecutorService thumbnailExecutor) {
         this.thumbnailService = thumbnailService;
         this.photoRepository = photoRepository;
+        this.taskHistoryService = taskHistoryService;
         this.thumbnailExecutor = thumbnailExecutor;
     }
 
@@ -46,6 +49,8 @@ public class ThumbnailJobService {
 
         ThumbnailJob job = new ThumbnailJob(UUID.randomUUID().toString(), candidates.size());
         jobs.put(job.getId(), job);
+
+        taskHistoryService.createTask(job.getId(), "THUMBNAIL", null, null, candidates.size());
 
         Thread.ofVirtual().start(() -> runJob(job, candidates));
 
@@ -108,6 +113,10 @@ public class ThumbnailJobService {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         } finally {
             job.markDone();
+            String status = job.isCancelled() ? "CANCELLED" : "COMPLETED";
+            taskHistoryService.completeTask(job.getId(), status,
+                    job.currentProgress().processed() - job.currentProgress().errors(),
+                    job.currentProgress().errors(), null);
         }
     }
 }
