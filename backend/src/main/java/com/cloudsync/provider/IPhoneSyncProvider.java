@@ -9,6 +9,8 @@ import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.cloudsync.util.ExifDateUtil;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -186,7 +188,7 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
                         relPath,
                         filename,
                         attrs.size(),
-                        attrs.creationTime().toInstant(),
+                        ExifDateUtil.readCaptureDate(p, attrs.creationTime().toInstant()),
                         null,
                         null,
                         relPath
@@ -201,6 +203,7 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
         }
         return photos;
     }
+
 
     private static String fileExtension(String filename) {
         int dot = filename.lastIndexOf('.');
