@@ -694,12 +694,24 @@ public class SyncService {
 
     private void maybeEmitDownloadProgress(String accountId) {
         int count = downloadedSinceEmit.computeIfAbsent(accountId, k -> new AtomicInteger()).incrementAndGet();
-        Instant last = lastEmitTime.getOrDefault(accountId, Instant.EPOCH);
-        if (count >= EMIT_EVERY_N || Duration.between(last, Instant.now()).compareTo(EMIT_MAX_INTERVAL) > 0) {
+        if (shouldEmitProgress(accountId, count)) {
             downloadedSinceEmit.get(accountId).set(0);
             lastEmitTime.put(accountId, Instant.now());
             emitDownloadProgress(accountId);
         }
+    }
+
+    private boolean shouldEmitProgress(String accountId, int completedSinceLastEmit) {
+        if (completedSinceLastEmit >= EMIT_EVERY_N) return true;
+        if (Duration.between(lastEmitTime.getOrDefault(accountId, Instant.EPOCH), Instant.now()).compareTo(EMIT_MAX_INTERVAL) > 0) return true;
+        return isFinalBatch(accountId);
+    }
+
+    private boolean isFinalBatch(String accountId) {
+        String providerType = activeProviderType.getOrDefault(accountId, "ICLOUD");
+        long remaining = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.PENDING.name(), providerType)
+                + photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(accountId, SyncStatus.DOWNLOADING.name(), providerType);
+        return remaining < EMIT_EVERY_N;
     }
 
     private void emitDownloadProgress(String accountId) {
