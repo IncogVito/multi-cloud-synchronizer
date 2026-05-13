@@ -9,8 +9,6 @@
     (sourceFilterChanged)="onSourceFilterChanged($event)"
   ></app-photos-toolbar>
 
-  <app-sync-progress [event]="syncProgress()"></app-sync-progress>
-
   <app-missing-thumbnails-banner
     [storageDeviceId]="storageDeviceId()"
     [selectedPhotoIds]="selectedMissingThumbnailIds()"

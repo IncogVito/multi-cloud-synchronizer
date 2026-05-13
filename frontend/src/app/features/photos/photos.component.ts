@@ -9,7 +9,6 @@ import { PhotoTimelineComponent } from './photo-timeline/photo-timeline.componen
 import { PhotoGroup } from './photo-timeline/photo-timeline.component';
 import { BatchActionsBarComponent } from './batch-actions-bar/batch-actions-bar.component';
 import { PhotoDetailModalComponent } from './photo-detail-modal/photo-detail-modal.component';
-import { SyncProgressComponent } from './sync-progress/sync-progress.component';
 import { MissingThumbnailsBannerComponent } from './missing-thumbnails-banner/missing-thumbnails-banner.component';
 import { MonthsNavComponent } from './photos-months-nav/months-nav.component';
 import { SyncService } from '../../core/services/sync.service';
@@ -34,7 +33,6 @@ type Granularity = 'year' | 'month';
     PhotoTimelineComponent,
     BatchActionsBarComponent,
     PhotoDetailModalComponent,
-    SyncProgressComponent,
     MissingThumbnailsBannerComponent,
     MonthsNavComponent,
   ],
@@ -86,6 +84,10 @@ export class PhotosComponent implements OnInit, OnDestroy {
 
   groups = computed<PhotoGroup[]>(() => this.buildGroupsFromPhotos(this.filteredPhotos(), this.granularity()));
 
+  private orderedPhotos = computed<PhotoResponse[]>(() =>
+    this.groups().flatMap(g => g.photos)
+  );
+
   selectedIds = signal(new Set<string>());
 
   selectedSize = computed(() => {
@@ -109,13 +111,13 @@ export class PhotosComponent implements OnInit, OnDestroy {
   }
 
   private currentDetailIndex = computed(() =>
-    this.filteredPhotos().findIndex(p => p.id === this.detailPhoto()?.id)
+    this.orderedPhotos().findIndex(p => p.id === this.detailPhoto()?.id)
   );
 
   hasPrevPhoto = computed(() => this.currentDetailIndex() > 0);
   hasNextPhoto = computed(() => {
     const idx = this.currentDetailIndex();
-    return idx >= 0 && idx < this.filteredPhotos().length - 1;
+    return idx >= 0 && idx < this.orderedPhotos().length - 1;
   });
 
   canDeleteSelected = computed(() => {
@@ -143,7 +145,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.resetThumbnailState();
         this.selectedIds.set(new Set());
         if (deviceId) {
-          this.store.dispatch(new LoadPhotos(deviceId));
+          this.store.dispatch(new LoadPhotos(deviceId, this.activeMonth() ?? undefined));
           this.store.dispatch(new LoadMonthsSummary(deviceId));
         }
         this.previousDeviceId = deviceId;
@@ -254,12 +256,12 @@ export class PhotosComponent implements OnInit, OnDestroy {
 
   onPrevPhoto(): void {
     const idx = this.currentDetailIndex();
-    if (idx > 0) this.onPhotoClicked(this.filteredPhotos()[idx - 1]);
+    if (idx > 0) this.onPhotoClicked(this.orderedPhotos()[idx - 1]);
   }
 
   onNextPhoto(): void {
     const idx = this.currentDetailIndex();
-    if (idx >= 0 && idx < this.filteredPhotos().length - 1) this.onPhotoClicked(this.filteredPhotos()[idx + 1]);
+    if (idx >= 0 && idx < this.orderedPhotos().length - 1) this.onPhotoClicked(this.orderedPhotos()[idx + 1]);
   }
 
   onDeleteFromICloud(): void {

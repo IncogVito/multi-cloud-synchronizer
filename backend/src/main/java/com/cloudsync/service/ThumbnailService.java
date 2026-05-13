@@ -129,11 +129,22 @@ public class ThumbnailService {
     }
 
     private void generateFfmpegThumbnail(Path source, Path thumbFile) throws IOException {
-        // Seek 3s in before -i for fast input seeking; avoids common black opening frames.
+        // Try 3s seek first (avoids black opening frames); fall back to 0s for short clips.
+        runFfmpeg(source, thumbFile, "3");
+        if (!Files.exists(thumbFile) || Files.size(thumbFile) == 0) {
+            Files.deleteIfExists(thumbFile);
+            runFfmpeg(source, thumbFile, "0");
+        }
+        if (!Files.exists(thumbFile) || Files.size(thumbFile) == 0) {
+            throw new IOException("ffmpeg produced no output for: " + source.getFileName());
+        }
+    }
+
+    private void runFfmpeg(Path source, Path thumbFile, String seekSeconds) throws IOException {
         // scale=-2:300 keeps aspect, height divisible by 2 (encoder requirement).
         ProcessBuilder pb = new ProcessBuilder(
                 "ffmpeg", "-y",
-                "-ss", "3",
+                "-ss", seekSeconds,
                 "-i", source.toAbsolutePath().toString(),
                 "-vframes", "1",
                 "-vf", "scale=-2:" + THUMBNAIL_SIZE,
@@ -142,6 +153,7 @@ public class ThumbnailService {
         );
         pb.redirectErrorStream(true);
         Process process = pb.start();
+        String output = new String(process.getInputStream().readAllBytes());
         int exitCode;
         try {
             exitCode = process.waitFor();
@@ -150,7 +162,6 @@ public class ThumbnailService {
             throw new IOException("ffmpeg interrupted", e);
         }
         if (exitCode != 0) {
-            String output = new String(process.getInputStream().readAllBytes());
             throw new IOException("ffmpeg failed (exit " + exitCode + "): " + output);
         }
     }

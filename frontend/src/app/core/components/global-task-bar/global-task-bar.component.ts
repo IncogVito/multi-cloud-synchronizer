@@ -1,19 +1,22 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { Store } from '@ngxs/store';
 import { JobsState, Job } from '../../../state/jobs/jobs.state';
 import { CancelJob } from '../../../state/jobs/jobs.actions';
+import { SyncService } from '../../services/sync.service';
+import { SyncProgressEvent } from '../../models/sync-progress.model';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-global-task-bar',
   standalone: true,
   template: `
-    @if (jobs().length > 0) {
+    @if (hasAnything()) {
       <div class="task-bar" [class.expanded]="expanded()">
         <button class="task-bar-header" (click)="expanded.set(!expanded())">
           <span class="task-bar-title">
-            @if (activeCount() > 0) {
+            @if (totalActiveCount() > 0) {
               <span class="spinner"></span>
-              {{ activeCount() }} task{{ activeCount() !== 1 ? 's' : '' }} running
+              {{ totalActiveCount() }} task{{ totalActiveCount() !== 1 ? 's' : '' }} running
             } @else {
               All tasks done
             }
@@ -23,10 +26,34 @@ import { CancelJob } from '../../../state/jobs/jobs.actions';
 
         @if (expanded()) {
           <div class="task-list">
+            @if (syncProgress(); as sp) {
+              @if (sp.phase !== 'DONE' && sp.phase !== 'ERROR' && sp.phase !== 'CANCELLED') {
+                <div class="task-item">
+                  <div class="task-header">
+                    <span class="task-icon">↓</span>
+                    <span class="task-label">{{ syncLabel(sp) }}</span>
+                  </div>
+                  @if (syncPercent(sp) > 0) {
+                    <div class="task-progress-bar">
+                      <div class="task-progress-fill" [style.width.%]="syncPercent(sp)"></div>
+                    </div>
+                  }
+                  <div class="task-counts">{{ syncCounts(sp) }}</div>
+                </div>
+              } @else if (sp.phase === 'DONE') {
+                <div class="task-item done">
+                  <div class="task-header">
+                    <span class="task-icon">↓</span>
+                    <span class="task-label">Sync zakończony</span>
+                  </div>
+                  <div class="task-done-row">✓ {{ sp.synced }} pobranych@if (sp.failed > 0) {, {{ sp.failed }} błędów}</div>
+                </div>
+              }
+            }
             @for (job of jobs(); track job.jobId) {
               <div class="task-item" [class.done]="job.status === 'COMPLETED'">
                 <div class="task-header">
-                  <span class="task-icon">{{ job.type === 'DELETION' ? '🗑' : '🖼' }}</span>
+                  <span class="task-icon">{{ job.type === 'DELETION' ? '🗑' : '▣' }}</span>
                   <span class="task-label">{{ job.label }}</span>
                   @if (job.status === 'RUNNING' && job.type === 'DELETION') {
                     <button class="cancel-btn" (click)="cancel(job)" title="Cancel">✕</button>
@@ -169,14 +196,64 @@ import { CancelJob } from '../../../state/jobs/jobs.actions';
     }
   `],
 })
-export class GlobalTaskBarComponent {
+export class GlobalTaskBarComponent implements OnInit, OnDestroy {
   private store = inject(Store);
+  private syncService = inject(SyncService);
+  private syncSub: Subscription | null = null;
 
   jobs = this.store.selectSignal(JobsState.jobs);
+  syncProgress = signal<SyncProgressEvent | null>(null);
+
   activeCount = computed(() => this.jobs().filter(j => j.status === 'RUNNING').length);
+  syncActive = computed(() => {
+    const sp = this.syncProgress();
+    return !!sp && sp.phase !== 'DONE' && sp.phase !== 'ERROR' && sp.phase !== 'CANCELLED';
+  });
+  totalActiveCount = computed(() => this.activeCount() + (this.syncActive() ? 1 : 0));
+  hasAnything = computed(() => this.jobs().length > 0 || !!this.syncProgress());
   expanded = signal(true);
+
+  ngOnInit(): void {
+    this.syncSub = this.syncService.syncProgress$.subscribe(ev => this.syncProgress.set(ev));
+  }
+
+  ngOnDestroy(): void {
+    this.syncSub?.unsubscribe();
+  }
 
   cancel(job: Job): void {
     this.store.dispatch(new CancelJob(job.jobId));
+  }
+
+  syncLabel(sp: SyncProgressEvent): string {
+    switch (sp.phase) {
+      case 'FETCHING_METADATA': return 'Pobieranie listy z iCloud';
+      case 'PERSISTING_METADATA': return 'Zapisywanie metadanych';
+      case 'COMPARING': return 'Porównywanie zdjęć';
+      case 'DOWNLOADING': return 'Pobieranie zdjęć';
+      case 'REORGANIZING': return 'Reorganizacja plików';
+      default: return 'Synchronizacja';
+    }
+  }
+
+  syncPercent(sp: SyncProgressEvent): number {
+    if (sp.phase === 'FETCHING_METADATA' && sp.totalOnCloud > 0)
+      return Math.round((sp.metadataFetched / sp.totalOnCloud) * 100);
+    if (sp.phase === 'DOWNLOADING' && sp.totalOnCloud > 0)
+      return Math.round((sp.synced / sp.totalOnCloud) * 100);
+    return 0;
+  }
+
+  syncCounts(sp: SyncProgressEvent): string {
+    if (sp.phase === 'FETCHING_METADATA') {
+      return sp.totalOnCloud > 0 ? `${sp.metadataFetched} / ${sp.totalOnCloud}` : `${sp.metadataFetched}`;
+    }
+    if (sp.phase === 'DOWNLOADING') {
+      return `${sp.synced} / ${sp.totalOnCloud}`;
+    }
+    if (sp.phase === 'COMPARING') {
+      return `${sp.pending} nowych, ${sp.synced} zsync.`;
+    }
+    return '';
   }
 }
