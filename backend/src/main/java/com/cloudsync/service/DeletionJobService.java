@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DeletionJobService {
 
     private static final Logger LOG = LoggerFactory.getLogger(DeletionJobService.class);
+    private static final int DELETE_SUB_CHUNK_SIZE = 5;
 
     private final PhotoRepository photoRepository;
     private final AccountRepository accountRepository;
@@ -149,8 +150,17 @@ public class DeletionJobService {
             return;
         }
 
+        List<List<Photo>> subChunks = partition(chunk, DELETE_SUB_CHUNK_SIZE);
+        for (List<Photo> subChunk : subChunks) {
+            if (job.isCancelled()) return;
+            processSubChunk(job, subChunk, syncProvider, provider, sessionId);
+        }
+    }
+
+    private void processSubChunk(DeletionJob job, List<Photo> subChunk, PhotoSyncProvider syncProvider,
+                                  String provider, String sessionId) {
         // FIX: Use constant enum for provider
-        List<String> remoteIds = chunk.stream()
+        List<String> remoteIds = subChunk.stream()
                 .map(p -> "ICLOUD".equals(provider) ? p.getIcloudPhotoId() : p.getIphoneLocation())
                 .toList();
 
@@ -158,17 +168,16 @@ public class DeletionJobService {
         try {
             results = syncProvider.batchDeletePhotos(remoteIds, sessionId);
         } catch (Exception e) {
-            LOG.warn("Batch delete chunk failed for job {}: {}", job.getJobId(), e.getMessage());
-            List<String> failedIds = chunk.stream().map(Photo::getId).toList();
-            job.recordFailure(failedIds);
+            LOG.warn("Batch delete sub-chunk failed for job {}: {}", job.getJobId(), e.getMessage());
+            job.recordFailure(subChunk.stream().map(Photo::getId).toList());
             return;
         }
 
         List<String> succeeded = new ArrayList<>();
         List<String> failed = new ArrayList<>();
 
-        for (int i = 0; i < chunk.size(); i++) {
-            Photo photo = chunk.get(i);
+        for (int i = 0; i < subChunk.size(); i++) {
+            Photo photo = subChunk.get(i);
             ICloudBatchDeleteResult result = i < results.size() ? results.get(i) : null;
             boolean deleted = result != null && result.deleted();
 
@@ -184,7 +193,7 @@ public class DeletionJobService {
 
         if (!succeeded.isEmpty()) {
             job.recordSuccess(succeeded);
-            List<String> succeededNames = chunk.stream()
+            List<String> succeededNames = subChunk.stream()
                     .filter(p -> succeeded.contains(p.getId()))
                     .map(Photo::getFilename)
                     .toList();
@@ -192,7 +201,7 @@ public class DeletionJobService {
         }
         if (!failed.isEmpty()) {
             job.recordFailure(failed);
-            List<String> failedNames = chunk.stream()
+            List<String> failedNames = subChunk.stream()
                     .filter(p -> failed.contains(p.getId()))
                     .map(Photo::getFilename)
                     .toList();

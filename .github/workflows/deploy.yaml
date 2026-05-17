@@ -166,6 +166,12 @@ jobs:
             chmod 600 .env || true
 
             docker compose pull || true
+
+            PRE_DEPLOY="$HOME/docker-apps/multi-cloud-synchronizer/scripts/pre-deploy.sh"
+            if [ -f "$PRE_DEPLOY" ]; then
+              bash "$PRE_DEPLOY" || true
+            fi
+
             docker compose down || true
             docker compose up -d
 

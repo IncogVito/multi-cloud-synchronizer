@@ -2,8 +2,6 @@ package com.cloudsync.provider;
 
 import com.cloudsync.client.ICloudDownloadRetryClient;
 import com.cloudsync.client.ICloudServiceClient;
-import com.cloudsync.model.dto.ICloudBatchDeleteRequest;
-import com.cloudsync.model.dto.ICloudBatchDeleteResponse;
 import com.cloudsync.model.dto.ICloudBatchDeleteResult;
 import com.cloudsync.model.dto.ICloudPhotoAsset;
 import com.cloudsync.model.dto.ICloudPhotoListResponse;
@@ -100,14 +98,16 @@ public class ICloudSyncProvider implements PhotoSyncProvider {
 
     @Override
     public List<ICloudBatchDeleteResult> batchDeletePhotos(List<String> photoIds, String sessionId) {
-        HttpResponse<ICloudBatchDeleteResponse> resp = client.batchDeletePhotos(
-                new ICloudBatchDeleteRequest(photoIds), sessionId);
-        ICloudBatchDeleteResponse body = resp.body();
-        if (body == null || body.results() == null) {
-            return photoIds.stream()
-                    .map(id -> new ICloudBatchDeleteResult(id, false, "No response from icloud-service"))
-                    .toList();
+        List<ICloudBatchDeleteResult> results = new ArrayList<>();
+        for (String photoId : photoIds) {
+            try {
+                client.deletePhoto(photoId, sessionId);
+                results.add(new ICloudBatchDeleteResult(photoId, true, null));
+            } catch (Exception e) {
+                LOG.warn("Failed to delete photo {}: {}", photoId, e.getMessage());
+                results.add(new ICloudBatchDeleteResult(photoId, false, e.getMessage()));
+            }
         }
-        return body.results();
+        return results;
     }
 }
