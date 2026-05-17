@@ -7,6 +7,7 @@ import com.cloudsync.model.entity.Photo;
 import com.cloudsync.repository.PhotoRepository;
 import io.micronaut.data.model.Page;
 import io.micronaut.data.model.Pageable;
+import io.micronaut.data.model.Sort;
 import jakarta.inject.Singleton;
 
 import java.io.IOException;
@@ -123,7 +124,7 @@ public class PhotoService {
             int size) {
 
         appContextService.requireActive();
-        Pageable pageable = Pageable.from(page, size);
+        Pageable pageable = Pageable.from(page, size, Sort.of(Sort.Order.desc("createdDate")));
 
         DateRange dateRange = resolveDateRange(yearMonth, year);
 

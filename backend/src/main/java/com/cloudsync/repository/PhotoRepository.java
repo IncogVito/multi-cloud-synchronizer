@@ -19,11 +19,11 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
 
     Page<Photo> findByAccountId(String accountId, Pageable pageable);
 
-    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk",
+    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk ORDER BY created_date DESC",
            countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk")
     Page<Photo> findBySyncedToDisk(boolean syncedToDisk, Pageable pageable);
 
-    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId",
+    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId ORDER BY created_date DESC",
            countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId")
     Page<Photo> findBySyncedToDiskAndStorageDeviceId(boolean syncedToDisk, String storageDeviceId, Pageable pageable);
 
@@ -93,7 +93,7 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
     @Query("SELECT * FROM photos WHERE storage_device_id = :storageDeviceId AND file_path IS NOT NULL")
     List<Photo> findAllWithFilePathByStorageDeviceId(String storageDeviceId);
 
-    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND created_date >= :startInclusive AND created_date < :endExclusive",
+    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND created_date >= :startInclusive AND created_date < :endExclusive ORDER BY created_date DESC",
            countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND created_date >= :startInclusive AND created_date < :endExclusive")
     Page<Photo> findBySyncedToDiskAndStorageDeviceIdAndCreatedDateBetween(
             boolean syncedToDisk,
