@@ -55,6 +55,39 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+
+  .custom-select {
+    .cs-trigger {
+      min-width: unset;
+    }
+
+    .actions-panel {
+      right: 0;
+      left: auto;
+      min-width: 200px;
+    }
+  }
+}
+
+.action-msg {
+  font-size: var(--font-size-sm);
+  color: #166534;
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  background: #f0fdf4;
+  white-space: nowrap;
+
+  &--error {
+    color: #991b1b;
+    background: #fef2f2;
+  }
+}
+
 .filters {
   display: flex;
   gap: var(--spacing-6);

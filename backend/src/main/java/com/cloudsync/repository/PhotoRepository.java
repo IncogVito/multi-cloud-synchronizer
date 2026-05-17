@@ -106,4 +106,7 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
 
     @Query("SELECT * FROM photos WHERE id IN (:ids)")
     List<Photo> findByIdIn(List<String> ids);
+
+    @Query("SELECT * FROM photos WHERE thumbnail_path IS NOT NULL AND thumbnail_path != ''")
+    List<Photo> findAllWithThumbnailPath();
 }

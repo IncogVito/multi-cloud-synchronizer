@@ -1,6 +1,7 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { JobsService } from '../../core/api/generated/jobs/jobs.service';
+import { RepairThumbnailsService } from '../../core/services/repair-thumbnails.service';
 import { TaskHistoryDto } from '../../core/api/generated/model/taskHistoryDto';
 import { TaskHistoryDetailDto } from '../../core/api/generated/model/taskHistoryDetailDto';
 
@@ -20,13 +21,47 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
             <h1>Tasks</h1>
             <p class="subtitle">History of all background operations</p>
           </div>
-          <button class="refresh-btn" (click)="refresh()" [disabled]="loading()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" [class.spinning]="loading()">
-              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-            </svg>
-            Refresh
-          </button>
+          <div class="header-actions">
+            <button class="refresh-btn" (click)="refresh()" [disabled]="loading()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" [class.spinning]="loading()">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Refresh
+            </button>
+
+            <div class="custom-select" [class.open]="actionsOpen()">
+              <button class="cs-trigger" (click)="actionsOpen.set(!actionsOpen())" type="button" [disabled]="repairService.running()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+                </svg>
+                <span class="cs-value">Actions</span>
+                <svg class="cs-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              @if (actionsOpen()) {
+                <div class="cs-panel actions-panel">
+                  <button class="cs-option" type="button" (click)="repairBrokenThumbnails()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                    </svg>
+                    Fix broken thumbnails
+                  </button>
+                </div>
+              }
+            </div>
+
+            @if (repairService.running()) {
+              @if (repairService.progress(); as p) {
+                <span class="action-msg">Repairing... {{ p.checked }}/{{ p.total }}</span>
+              } @else {
+                <span class="action-msg">Starting repair...</span>
+              }
+            } @else if (repairDoneMessage()) {
+              <span class="action-msg">{{ repairDoneMessage() }}</span>
+            }
+          </div>
         </div>
       </div>
 
@@ -224,6 +259,7 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 })
 export class TasksComponent implements OnInit, OnDestroy {
   private jobsService = inject(JobsService);
+  readonly repairService = inject(RepairThumbnailsService);
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
   tasks = signal<TaskHistoryDto[]>([]);
@@ -239,6 +275,14 @@ export class TasksComponent implements OnInit, OnDestroy {
 
   currentPage = signal(0);
   hasMore = signal(false);
+
+  actionsOpen = signal(false);
+
+  readonly repairDoneMessage = computed(() => {
+    const p = this.repairService.progress();
+    if (!p?.done) return null;
+    return `Fixed ${p.fixed} broken thumbnail(s) (checked ${p.total}).`;
+  });
 
   typeOptions: { value: FilterType; label: string }[] = [
     { value: 'ALL', label: 'All' },
@@ -335,6 +379,11 @@ export class TasksComponent implements OnInit, OnDestroy {
     const m = Math.floor(ms / 60000);
     const s = Math.floor((ms % 60000) / 1000);
     return `${m}m ${s}s`;
+  }
+
+  repairBrokenThumbnails(): void {
+    this.actionsOpen.set(false);
+    this.repairService.startJob().then(() => this.refresh());
   }
 
   private load(page: number, silent = false): void {

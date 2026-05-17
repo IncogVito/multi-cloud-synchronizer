@@ -4,6 +4,8 @@ import com.cloudsync.model.dto.BatchPhotoRequest;
 import com.cloudsync.model.dto.GenerateThumbnailsRequest;
 import com.cloudsync.model.dto.MissingThumbnailsCount;
 import com.cloudsync.model.dto.MonthSummaryResponse;
+import com.cloudsync.model.dto.RepairProgress;
+import com.cloudsync.model.dto.RepairThumbnailsResult;
 import com.cloudsync.model.dto.PhotoListResponse;
 import com.cloudsync.model.dto.PhotoResponse;
 import com.cloudsync.model.dto.SpriteManifest;
@@ -11,6 +13,8 @@ import com.cloudsync.model.dto.SpriteManifestRequest;
 import com.cloudsync.model.dto.ThumbnailJobResponse;
 import com.cloudsync.model.dto.ThumbnailProgress;
 import com.cloudsync.service.PhotoService;
+import com.cloudsync.service.RepairThumbnailsJobService;
+import com.cloudsync.service.RepairThumbnailsJob;
 import com.cloudsync.service.SyncService;
 import com.cloudsync.service.ThumbnailJobService;
 import com.cloudsync.service.ThumbnailService;
@@ -45,14 +49,17 @@ public class PhotoController {
     private final ThumbnailService thumbnailService;
     private final ThumbnailJobService thumbnailJobService;
     private final ThumbnailSpriteService thumbnailSpriteService;
+    private final RepairThumbnailsJobService repairThumbnailsJobService;
 
     public PhotoController(PhotoService photoService, SyncService syncService,
                            ThumbnailService thumbnailService, ThumbnailJobService thumbnailJobService,
-                           ThumbnailSpriteService thumbnailSpriteService) {
+                           ThumbnailSpriteService thumbnailSpriteService,
+                           RepairThumbnailsJobService repairThumbnailsJobService) {
         this.photoService = photoService;
         this.syncService = syncService;
         this.thumbnailService = thumbnailService;
         this.thumbnailJobService = thumbnailJobService;
+        this.repairThumbnailsJobService = repairThumbnailsJobService;
         this.thumbnailSpriteService = thumbnailSpriteService;
     }
 
@@ -198,6 +205,24 @@ public class PhotoController {
     @Produces(MediaType.APPLICATION_JSON)
     public HttpResponse<Object> deleteFromICloud() {
         throw new HttpStatusException(HttpStatus.GONE, "Use POST /api/photos/deletion-jobs instead");
+    }
+
+    @Operation(summary = "Start repair-thumbnails job", description = "Checks all photos with a thumbnail_path set, removes the path (and file) for any that are missing or empty. Runs in background, returns jobId.")
+    @ApiResponse(responseCode = "200", description = "Job started")
+    @Post("/repair-thumbnails")
+    @Produces(MediaType.APPLICATION_JSON)
+    public RepairThumbnailsResult startRepairThumbnailsJob() {
+        return repairThumbnailsJobService.startJob();
+    }
+
+    @Operation(summary = "Stream repair-thumbnails job progress (SSE)")
+    @ApiResponse(responseCode = "200", description = "SSE progress stream")
+    @ApiResponse(responseCode = "404", description = "Job not found")
+    @Get(value = "/repair-thumbnails/{jobId}/progress", produces = MediaType.TEXT_EVENT_STREAM)
+    public Publisher<Event<RepairProgress>> getRepairThumbnailsProgress(@PathVariable String jobId) {
+        return repairThumbnailsJobService.getJob(jobId)
+                .map(job -> (Publisher<Event<RepairProgress>>) Flux.from(job.subscribe()).map(Event::of))
+                .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Job not found: " + jobId));
     }
 
 // FIX: Remove these two methods
