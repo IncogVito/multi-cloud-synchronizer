@@ -124,14 +124,16 @@ public class PhotoService {
             int size) {
 
         appContextService.requireActive();
-        Pageable pageable = Pageable.from(page, size, Sort.of(Sort.Order.desc("createdDate")));
+        // Native Micronaut methods need sort in Pageable; custom @Query methods already have ORDER BY.
+        Pageable sortedPageable = Pageable.from(page, size, Sort.of(Sort.Order.desc("createdDate")));
+        Pageable unsortedPageable = Pageable.from(page, size);
 
         DateRange dateRange = resolveDateRange(yearMonth, year);
 
         if (dateRange != null && storageDeviceId != null) {
             boolean syncedFlag = synced != null ? synced : true;
             Page<Photo> result = photoRepository.findBySyncedToDiskAndStorageDeviceIdAndCreatedDateBetween(
-                    syncedFlag, storageDeviceId, dateRange.startInclusive(), dateRange.endExclusive(), pageable);
+                    syncedFlag, storageDeviceId, dateRange.startInclusive(), dateRange.endExclusive(), unsortedPageable);
             return toPhotoListResponse(result, page, size);
         }
 
@@ -140,13 +142,13 @@ public class PhotoService {
             List<Photo> photos = photoRepository.findByAccountIdAndSyncedToDisk(accountId, synced);
             return new PhotoListResponse(photos.stream().map(this::toResponse).toList(), photos.size(), page, size);
         } else if (storageDeviceId != null && synced != null) {
-            result = photoRepository.findBySyncedToDiskAndStorageDeviceId(synced, storageDeviceId, pageable);
+            result = photoRepository.findBySyncedToDiskAndStorageDeviceId(synced, storageDeviceId, unsortedPageable);
         } else if (accountId != null) {
-            result = photoRepository.findByAccountId(accountId, pageable);
+            result = photoRepository.findByAccountId(accountId, sortedPageable);
         } else if (synced != null) {
-            result = photoRepository.findBySyncedToDisk(synced, pageable);
+            result = photoRepository.findBySyncedToDisk(synced, unsortedPageable);
         } else {
-            result = photoRepository.findAll(pageable);
+            result = photoRepository.findAll(sortedPageable);
         }
 
         return toPhotoListResponse(result, page, size);

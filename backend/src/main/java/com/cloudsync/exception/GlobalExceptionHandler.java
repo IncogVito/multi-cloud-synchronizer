@@ -7,11 +7,15 @@ import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.exceptions.ExceptionHandler;
 import io.micronaut.serde.annotation.Serdeable;
 import jakarta.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Singleton
 @Produces
 @Requires(classes = {DriveNotAvailableException.class, ExceptionHandler.class})
 public class GlobalExceptionHandler implements ExceptionHandler<RuntimeException, HttpResponse<?>> {
+
+    private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @Serdeable
     public record ErrorResponse(String error, String message) {}
@@ -28,6 +32,7 @@ public class GlobalExceptionHandler implements ExceptionHandler<RuntimeException
         if (exception instanceof PhotoNotSyncedException) {
             return HttpResponse.badRequest(new ErrorResponse("PHOTO_NOT_SYNCED", exception.getMessage()));
         }
+        LOG.error("Unhandled exception on {} {}: {}", request.getMethod(), request.getPath(), exception.getMessage(), exception);
         return HttpResponse.serverError(new ErrorResponse("INTERNAL_ERROR", exception.getMessage()));
     }
 }

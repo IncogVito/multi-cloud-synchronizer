@@ -153,6 +153,10 @@ export class PhotosComponent implements OnInit, OnDestroy {
     });
 
     effect(() => {
+      this.schedulePrefetch(this.filteredPhotos(), this.columnsPerRow());
+    });
+
+    effect(() => {
       const n = this.thumbnailJobState.thumbnailsDone();
       if (n > 0) {
         this.reloadCurrent();
@@ -335,6 +339,12 @@ export class PhotosComponent implements OnInit, OnDestroy {
     if (autoClearMs > 0) {
       this.statusTimer = setTimeout(() => this.operationStatus.set(null), autoClearMs);
     }
+  }
+
+  private schedulePrefetch(photos: PhotoResponse[], cols: number): void {
+    if (photos.length === 0) return;
+    const ids = photos.filter(p => p.thumbnailPath).map(p => p.id);
+    this.thumbnailSpriteService.prefetchPages(ids, cols * 8, 4);
   }
 
   private resetThumbnailState(): void {
