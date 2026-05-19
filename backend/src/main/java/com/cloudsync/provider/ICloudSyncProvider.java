@@ -1,7 +1,10 @@
 package com.cloudsync.provider;
 
+import com.cloudsync.client.ICloudDeleteClient;
 import com.cloudsync.client.ICloudDownloadRetryClient;
 import com.cloudsync.client.ICloudServiceClient;
+import com.cloudsync.model.dto.ICloudBatchDeleteRequest;
+import com.cloudsync.model.dto.ICloudBatchDeleteResponse;
 import com.cloudsync.model.dto.ICloudBatchDeleteResult;
 import com.cloudsync.model.dto.ICloudPhotoAsset;
 import com.cloudsync.model.dto.ICloudPhotoListResponse;
@@ -28,10 +31,12 @@ public class ICloudSyncProvider implements PhotoSyncProvider {
 
     private final ICloudServiceClient client;
     private final ICloudDownloadRetryClient retryClient;
+    private final ICloudDeleteClient deleteClient;
 
-    public ICloudSyncProvider(ICloudServiceClient client, ICloudDownloadRetryClient retryClient) {
+    public ICloudSyncProvider(ICloudServiceClient client, ICloudDownloadRetryClient retryClient, ICloudDeleteClient deleteClient) {
         this.client = client;
         this.retryClient = retryClient;
+        this.deleteClient = deleteClient;
     }
 
     @Override
@@ -98,16 +103,17 @@ public class ICloudSyncProvider implements PhotoSyncProvider {
 
     @Override
     public List<ICloudBatchDeleteResult> batchDeletePhotos(List<String> photoIds, String sessionId) {
-        List<ICloudBatchDeleteResult> results = new ArrayList<>();
-        for (String photoId : photoIds) {
-            try {
-                client.deletePhoto(photoId, sessionId);
-                results.add(new ICloudBatchDeleteResult(photoId, true, null));
-            } catch (Exception e) {
-                LOG.warn("Failed to delete photo {}: {}", photoId, e.getMessage());
-                results.add(new ICloudBatchDeleteResult(photoId, false, e.getMessage()));
+        try {
+            ICloudBatchDeleteResponse body = deleteClient.batchDeletePhotos(
+                    new ICloudBatchDeleteRequest(photoIds), sessionId).body();
+            if (body == null || body.results() == null) {
+                LOG.warn("Empty batch-delete response for {} photos", photoIds.size());
+                return photoIds.stream().map(id -> new ICloudBatchDeleteResult(id, false, "empty response")).toList();
             }
+            return body.results();
+        } catch (Exception e) {
+            LOG.warn("Batch delete failed: {}", e.getMessage());
+            return photoIds.stream().map(id -> new ICloudBatchDeleteResult(id, false, e.getMessage())).toList();
         }
-        return results;
     }
 }

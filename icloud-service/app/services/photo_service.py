@@ -102,12 +102,14 @@ class PhotoService:
         OPEN: icloudpy's public API does not document a delete method for PhotoAsset.
               This may raise AttributeError if the method does not exist.
         """
+        logger.info("delete_photo: photo_id=%s", photo_id)
         photo = self._find_photo(session_id, photo_id)
         if not hasattr(photo, "delete"):
             raise NotImplementedError(
                 "icloudpy does not expose a public delete method for PhotoAsset"
             )
         photo.delete()
+        logger.info("delete_photo: success photo_id=%s", photo_id)
         return True
 
     # ------------------------------------------------------------------
@@ -120,7 +122,7 @@ class PhotoService:
         index = photo_cache.get_index(session_id)
         if index and photo_id in index:
             return index[photo_id]
-        # fallback: full iteration (cache not populated yet)
+        logger.warning("_find_photo: cache miss for photo_id=%s, falling back to full scan", photo_id)
         api = session_manager.get_api(session_id)
         for photo in api.photos.all:
             if photo.id == photo_id:

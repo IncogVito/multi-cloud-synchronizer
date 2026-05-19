@@ -12,6 +12,9 @@ micronaut:
       icloud-retry:
         read-timeout: 90s
         connect-timeout: 10s
+      icloud-delete:
+        read-timeout: 300s
+        connect-timeout: 10s
   router:
     static-resources:
       swagger:
