@@ -1,7 +1,7 @@
 import { Component, HostListener, inject, input, output, signal } from '@angular/core';
 import { Store } from '@ngxs/store';
 import { PhotosState } from '../../../state/photos/photos.state';
-import { SetShowDetails, SetColumnsPerRow } from '../../../state/photos/photos.actions';
+import { GroupingMode, SetColumnsPerRow, SetGroupingMode, SetShowDetails } from '../../../state/photos/photos.actions';
 
 export type SourceFilter = 'all' | 'icloud' | 'iphone';
 
@@ -25,6 +25,7 @@ export class PhotosToolbarComponent {
   private store = inject(Store);
   showDetails = this.store.selectSignal(PhotosState.showDetails);
   columnsPerRow = this.store.selectSignal(PhotosState.columnsPerRow);
+  groupingMode = this.store.selectSignal(PhotosState.groupingMode);
   viewOptionsOpen = signal(false);
   readonly columnOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
@@ -49,6 +50,20 @@ export class PhotosToolbarComponent {
   setColumnsPerRow(n: number, event: MouseEvent): void {
     event.stopPropagation();
     this.store.dispatch(new SetColumnsPerRow(n));
+  }
+
+  toggleGroupByDays(event: MouseEvent): void {
+    event.stopPropagation();
+    const current = this.groupingMode();
+    const next: GroupingMode = current === 'none' ? 'day' : 'none';
+    this.store.dispatch(new SetGroupingMode(next));
+  }
+
+  toggleGroupByHours(event: MouseEvent): void {
+    event.stopPropagation();
+    const current = this.groupingMode();
+    const next: GroupingMode = current === 'hour' ? 'day' : 'hour';
+    this.store.dispatch(new SetGroupingMode(next));
   }
 
   @HostListener('document:click')

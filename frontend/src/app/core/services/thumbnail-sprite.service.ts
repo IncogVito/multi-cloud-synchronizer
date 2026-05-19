@@ -60,6 +60,7 @@ export class ThumbnailSpriteService implements OnDestroy {
    * Cancels any in-flight prefetch from a prior call.
    */
   prefetchPages(photoIds: string[], pageSize: number, maxPages = 4): void {
+    console.log(`Prefetching pages (page size: ${pageSize}, max pages: ${maxPages})`);
     this.prefetchSub?.unsubscribe();
     this.prefetchSub = from(buildPages(photoIds, pageSize, maxPages)).pipe(
       concatMap(page => this.fetchBatch(page)),

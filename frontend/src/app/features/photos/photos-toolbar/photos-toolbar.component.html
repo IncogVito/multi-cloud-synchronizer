@@ -75,6 +75,19 @@
               }
             </div>
           </div>
+          <div class="view-option-divider"></div>
+          <label class="view-option-item" (click)="toggleGroupByDays($event)">
+            <span class="view-option-label">Grupuj po dniach</span>
+            <div class="toggle-switch" [class.on]="groupingMode() !== 'none'">
+              <div class="toggle-thumb"></div>
+            </div>
+          </label>
+          <label class="view-option-item" [class.view-option-item--indented]="true" (click)="toggleGroupByHours($event)">
+            <span class="view-option-label view-option-label--sub">Grupuj po godzinach</span>
+            <div class="toggle-switch" [class.on]="groupingMode() === 'hour'">
+              <div class="toggle-thumb"></div>
+            </div>
+          </label>
         </div>
       }
     </div>

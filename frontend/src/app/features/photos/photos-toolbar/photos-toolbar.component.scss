@@ -136,6 +136,14 @@
 .view-option-label {
   font-size: var(--font-size-sm);
   color: var(--color-text-primary);
+
+  &--sub {
+    color: var(--color-text-secondary);
+  }
+}
+
+.view-option-item--indented {
+  padding-left: var(--spacing-6);
 }
 
 .toggle-switch {

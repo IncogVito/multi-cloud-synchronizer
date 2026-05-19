@@ -6,6 +6,10 @@ export interface PhotoGroup {
   key: string;
   label: string;
   photos: PhotoResponse[];
+  /** 'primary' = top-level year/month header (no photo grid); 'secondary' = day/hour sub-header */
+  level?: 'primary' | 'secondary';
+  /** For primary groups: all descendant photos used for selection logic. */
+  selectionPhotos?: PhotoResponse[];
 }
 
 @Component({
@@ -133,20 +137,23 @@ export class PhotoTimelineComponent implements OnInit, OnDestroy {
   }
 
   isGroupFullySelected(group: PhotoGroup): boolean {
-    return group.photos.length > 0 && group.photos.every(p => this.selectedIds().has(p.id));
+    const photos = group.selectionPhotos ?? group.photos;
+    return photos.length > 0 && photos.every(p => this.selectedIds().has(p.id));
   }
 
   isGroupPartiallySelected(group: PhotoGroup): boolean {
-    return group.photos.some(p => this.selectedIds().has(p.id)) && !this.isGroupFullySelected(group);
+    const photos = group.selectionPhotos ?? group.photos;
+    return photos.some(p => this.selectedIds().has(p.id)) && !this.isGroupFullySelected(group);
   }
 
   toggleGroupSelection(group: PhotoGroup): void {
-    const allSelected = group.photos.every(p => this.selectedIds().has(p.id));
+    const photos = group.selectionPhotos ?? group.photos;
+    const allSelected = photos.every(p => this.selectedIds().has(p.id));
     const next = new Set(this.selectedIds());
     if (allSelected) {
-      group.photos.forEach(p => next.delete(p.id));
+      photos.forEach(p => next.delete(p.id));
     } else {
-      group.photos.forEach(p => next.add(p.id));
+      photos.forEach(p => next.add(p.id));
     }
     this.selectionChanged.emit(next);
   }

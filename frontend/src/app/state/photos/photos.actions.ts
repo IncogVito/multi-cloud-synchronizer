@@ -60,3 +60,10 @@ export class ClearPhotosPendingDeletion {
 export class ClearDeletedPhotos {
   static readonly type = '[Photos] Clear Deleted';
 }
+
+export class SetGroupingMode {
+  static readonly type = '[Photos] Set grouping mode';
+  constructor(public readonly mode: GroupingMode) {}
+}
+
+export type GroupingMode = 'none' | 'day' | 'hour';

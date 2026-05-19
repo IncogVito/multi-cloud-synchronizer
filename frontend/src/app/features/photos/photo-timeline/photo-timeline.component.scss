@@ -16,6 +16,10 @@
 
 .timeline {
   margin-bottom: var(--spacing-6);
+
+  &--primary {
+    margin-bottom: 0;
+  }
 }
 
 .group-header {
@@ -25,6 +29,15 @@
   background: var(--color-bg-secondary);
   padding: var(--spacing-2) 0;
   z-index: 10;
+
+  &--secondary {
+    top: 0;
+    z-index: 9;
+    padding: var(--spacing-3) 0 var(--spacing-2) var(--spacing-6);
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--spacing-4);
+    margin-bottom: var(--spacing-2);
+  }
 }
 
 .group-title-row {
@@ -37,17 +50,28 @@
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+
+  &--secondary {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+    letter-spacing: 0.02em;
+  }
 }
 
 .group-count {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
+
+  &--secondary {
+    font-size: var(--font-size-xs);
+  }
 }
 
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(var(--columns-per-row, 7), 1fr);
-  gap: 2px;
+  gap: 0;
 }
 
 .photo-thumb {
@@ -57,7 +81,7 @@
   border-radius: 2px;
   cursor: pointer;
   background: var(--color-bg-tertiary);
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   transition: border-color var(--transition-fast);
 
   &.selected {

@@ -7,6 +7,7 @@ import { MonthSummaryResponse } from '../../core/api/generated/model/monthSummar
 import {
   ClearDeletedPhotos,
   ClearPhotosPendingDeletion,
+  GroupingMode,
   LoadMonthsSummary,
   LoadMorePhotos,
   LoadPhotos,
@@ -15,6 +16,7 @@ import {
   ResetPhotos,
   SetActiveMonth,
   SetColumnsPerRow,
+  SetGroupingMode,
   SetShowDetails,
 } from './photos.actions';
 
@@ -38,6 +40,7 @@ export interface PhotosStateModel {
   error: string | null;
   showDetails: boolean;
   columnsPerRow: number;
+  groupingMode: GroupingMode;
 }
 
 @State<PhotosStateModel>({
@@ -54,6 +57,7 @@ export interface PhotosStateModel {
     error: null,
     showDetails: false,
     columnsPerRow: 7,
+    groupingMode: 'none',
     pendingDeletionIds: [],
     deletedIds: [],
   },
@@ -105,6 +109,11 @@ export class PhotosState {
   @Selector()
   static columnsPerRow(state: PhotosStateModel): number {
     return state.columnsPerRow;
+  }
+
+  @Selector()
+  static groupingMode(state: PhotosStateModel): GroupingMode {
+    return state.groupingMode;
   }
 
   @Selector()
@@ -245,6 +254,11 @@ export class PhotosState {
   @Action(SetColumnsPerRow)
   setColumnsPerRow(ctx: StateContext<PhotosStateModel>, action: SetColumnsPerRow): void {
     ctx.patchState({ columnsPerRow: action.columns });
+  }
+
+  @Action(SetGroupingMode)
+  setGroupingMode(ctx: StateContext<PhotosStateModel>, action: SetGroupingMode): void {
+    ctx.patchState({ groupingMode: action.mode });
   }
 
   @Action(ResetPhotos)

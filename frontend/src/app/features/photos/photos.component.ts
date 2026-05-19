@@ -18,7 +18,7 @@ import { ThumbnailSpriteService } from '../../core/services/thumbnail-sprite.ser
 import { ThumbnailJobStateService } from '../../core/services/thumbnail-job-state.service';
 import { SyncProgressEvent } from '../../core/models/sync-progress.model';
 import { PhotosState } from '../../state/photos/photos.state';
-import { ClearDeletedPhotos, LoadPhotos, LoadMorePhotos, LoadMonthsSummary, SetActiveMonth } from '../../state/photos/photos.actions';
+import { ClearDeletedPhotos, GroupingMode, LoadPhotos, LoadMorePhotos, LoadMonthsSummary, SetActiveMonth } from '../../state/photos/photos.actions';
 import { StartDeletionJob } from '../../state/jobs/jobs.actions';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -73,6 +73,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
   activeMonth = this.store.selectSignal(PhotosState.activeMonth);
   showDetails = this.store.selectSignal(PhotosState.showDetails);
   columnsPerRow = this.store.selectSignal(PhotosState.columnsPerRow);
+  groupingMode = this.store.selectSignal(PhotosState.groupingMode);
 
   filteredPhotos = computed(() => {
     const f = this.sourceFilter();
@@ -82,7 +83,7 @@ export class PhotosComponent implements OnInit, OnDestroy {
     return photos;
   });
 
-  groups = computed<PhotoGroup[]>(() => this.buildGroupsFromPhotos(this.filteredPhotos(), this.granularity()));
+  groups = computed<PhotoGroup[]>(() => this.buildGroupsFromPhotos(this.filteredPhotos(), this.granularity(), this.groupingMode()));
 
   private orderedPhotos = computed<PhotoResponse[]>(() =>
     this.groups().flatMap(g => g.photos)
@@ -351,13 +352,100 @@ export class PhotosComponent implements OnInit, OnDestroy {
     this.thumbnailSpriteService.reset();
   }
 
-  private buildGroupsFromPhotos(photos: PhotoResponse[], granularity: Granularity): PhotoGroup[] {
+  private readonly DAY_NAMES_PL = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
+  private readonly HOUR_SLOTS: ReadonlyArray<[number, number]> = [[0, 4], [4, 8], [8, 12], [12, 16], [16, 20], [20, 24]];
+
+  private dayKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  private dayLabel(date: Date): string {
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    return `${d}-${m}-${date.getFullYear()} (${this.DAY_NAMES_PL[date.getDay()]})`;
+  }
+
+  private hourSlotLabel(slotIdx: number): string {
+    const [start, end] = this.HOUR_SLOTS[slotIdx];
+    return `${String(start).padStart(2, '0')}:00 – ${String(end).padStart(2, '0')}:00`;
+  }
+
+  private parentKey(date: Date, granularity: Granularity): string {
+    return granularity === 'year'
+      ? String(date.getFullYear())
+      : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  private parentLabel(parentKey: string, granularity: Granularity, sampleDate: Date): string {
+    return granularity === 'year'
+      ? parentKey
+      : sampleDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  }
+
+  private sortPhotosByDate(photos: PhotoResponse[]): PhotoResponse[] {
+    return photos.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+  }
+
+  private buildGroupsFromPhotos(photos: PhotoResponse[], granularity: Granularity, groupingMode: GroupingMode): PhotoGroup[] {
+    if (groupingMode === 'day' || groupingMode === 'hour') {
+      const parentMap = new Map<string, PhotoResponse[]>();
+      for (const photo of photos) {
+        const key = this.parentKey(new Date(photo.createdDate), granularity);
+        if (!parentMap.has(key)) parentMap.set(key, []);
+        parentMap.get(key)!.push(photo);
+      }
+
+      const result: PhotoGroup[] = [];
+      for (const [pKey, parentPhotos] of Array.from(parentMap.entries()).sort((a, b) => b[0].localeCompare(a[0]))) {
+        result.push({
+          key: pKey,
+          label: this.parentLabel(pKey, granularity, new Date(parentPhotos[0].createdDate)),
+          photos: [],
+          level: 'primary',
+          selectionPhotos: parentPhotos,
+        });
+
+        if (groupingMode === 'day') {
+          const dayMap = new Map<string, PhotoResponse[]>();
+          for (const photo of parentPhotos) {
+            const key = this.dayKey(new Date(photo.createdDate));
+            if (!dayMap.has(key)) dayMap.set(key, []);
+            dayMap.get(key)!.push(photo);
+          }
+          for (const [dKey, dayPhotos] of Array.from(dayMap.entries()).sort((a, b) => b[0].localeCompare(a[0]))) {
+            result.push({
+              key: `${pKey}/${dKey}`,
+              label: this.dayLabel(new Date(dayPhotos[0].createdDate)),
+              photos: this.sortPhotosByDate(dayPhotos),
+              level: 'secondary',
+            });
+          }
+        } else {
+          const slotMap = new Map<string, PhotoResponse[]>();
+          for (const photo of parentPhotos) {
+            const date = new Date(photo.createdDate);
+            const key = `${this.dayKey(date)}-${Math.floor(date.getHours() / 4)}`;
+            if (!slotMap.has(key)) slotMap.set(key, []);
+            slotMap.get(key)!.push(photo);
+          }
+          for (const [sKey, slotPhotos] of Array.from(slotMap.entries()).sort((a, b) => b[0].localeCompare(a[0]))) {
+            const date = new Date(slotPhotos[0].createdDate);
+            const slotIdx = Math.floor(date.getHours() / 4);
+            result.push({
+              key: `${pKey}/${sKey}`,
+              label: `${this.dayLabel(date)} · ${this.hourSlotLabel(slotIdx)}`,
+              photos: this.sortPhotosByDate(slotPhotos),
+              level: 'secondary',
+            });
+          }
+        }
+      }
+      return result;
+    }
+
     const groupMap = new Map<string, PhotoResponse[]>();
     for (const photo of photos) {
-      const date = new Date(photo.createdDate);
-      const key = granularity === 'year'
-        ? String(date.getFullYear())
-        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const key = this.parentKey(new Date(photo.createdDate), granularity);
       if (!groupMap.has(key)) groupMap.set(key, []);
       groupMap.get(key)!.push(photo);
     }
@@ -365,10 +453,8 @@ export class PhotosComponent implements OnInit, OnDestroy {
       .sort((a, b) => b[0].localeCompare(a[0]))
       .map(([key, groupPhotos]) => ({
         key,
-        label: granularity === 'year' ? key : groupPhotos[0]
-          ? new Date(groupPhotos[0].createdDate).toLocaleString('default', { month: 'long' })
-          : key,
-        photos: groupPhotos.sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())
+        label: this.parentLabel(key, granularity, new Date(groupPhotos[0].createdDate)),
+        photos: this.sortPhotosByDate(groupPhotos),
       }));
   }
 
