@@ -9,6 +9,7 @@ class PhotoInfo(BaseModel):
     created_date: Optional[int] = None  # epoch milliseconds
     dimensions: dict
     asset_token: str
+    asset_record_name: Optional[str] = None
 
 
 class PhotoListResponse(BaseModel):

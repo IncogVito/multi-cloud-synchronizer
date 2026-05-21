@@ -2,6 +2,7 @@ package com.cloudsync.provider;
 
 import com.cloudsync.model.dto.ICloudBatchDeleteResult;
 import com.cloudsync.model.dto.PhotoAsset;
+import com.cloudsync.model.dto.PhotoDeleteItem;
 import com.cloudsync.model.dto.PrefetchStatus;
 
 import java.io.IOException;
@@ -35,13 +36,13 @@ public interface PhotoSyncProvider {
     void deletePhoto(String photoId, String sessionId);
 
     /** Batch delete photos. Returns per-photo results. Default: sequential single deletes. */
-    default List<ICloudBatchDeleteResult> batchDeletePhotos(List<String> photoIds, String sessionId) {
-        return photoIds.stream().map(id -> {
+    default List<ICloudBatchDeleteResult> batchDeletePhotos(List<PhotoDeleteItem> items, String sessionId) {
+        return items.stream().map(item -> {
             try {
-                deletePhoto(id, sessionId);
-                return new ICloudBatchDeleteResult(id, true, null);
+                deletePhoto(item.photoId(), sessionId);
+                return new ICloudBatchDeleteResult(item.photoId(), true, null);
             } catch (Exception e) {
-                return new ICloudBatchDeleteResult(id, false, e.getMessage());
+                return new ICloudBatchDeleteResult(item.photoId(), false, e.getMessage());
             }
         }).toList();
     }

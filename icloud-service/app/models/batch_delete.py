@@ -1,8 +1,14 @@
 from pydantic import BaseModel
+from typing import Optional
+
+
+class PhotoDeleteItem(BaseModel):
+    photo_id: str
+    asset_record_name: Optional[str] = None
 
 
 class BatchDeleteRequest(BaseModel):
-    photo_ids: list[str]
+    photos: list[PhotoDeleteItem]
 
 
 class BatchDeleteResult(BaseModel):

@@ -1,5 +1,9 @@
+import json
 import logging
 from typing import Generator
+from urllib.parse import urlencode
+
+from icloudpy.services.photos import PhotoAsset as ICloudPhotoAsset
 
 from app.exceptions import PhotoNotFoundException
 from app.services.icloud_session_manager import session_manager
@@ -53,8 +57,8 @@ class PhotoService:
                 "width": original.get("width", 0),
                 "height": original.get("height", 0),
             },
-            # OPEN: icloudpy exposes photo.id; a separate asset_token may differ.
             "asset_token": photo.id,
+            "asset_record_name": photo._asset_record.get("recordName"),
         }
 
     # ------------------------------------------------------------------
@@ -95,21 +99,37 @@ class PhotoService:
     # Delete
     # ------------------------------------------------------------------
 
-    def delete_photo(self, session_id: str, photo_id: str) -> bool:
-        """
-        Delete a photo from iCloud.
+    def delete_photo(self, session_id: str, photo_id: str, asset_record_name: str | None = None) -> bool:
+        logger.info("delete_photo: photo_id=%s asset_record_name=%s", photo_id, asset_record_name)
+        if not asset_record_name:
+            raise ValueError(f"asset_record_name required for delete, photo_id={photo_id}")
+        return self._delete_photo_direct(session_id, photo_id, asset_record_name)
 
-        OPEN: icloudpy's public API does not document a delete method for PhotoAsset.
-              This may raise AttributeError if the method does not exist.
-        """
-        logger.info("delete_photo: photo_id=%s", photo_id)
-        photo = self._find_photo(session_id, photo_id)
-        if not hasattr(photo, "delete"):
-            raise NotImplementedError(
-                "icloudpy does not expose a public delete method for PhotoAsset"
-            )
+    def _delete_photo_direct(self, session_id: str, master_record_name: str, asset_record_name: str) -> bool:
+        """O(1) delete via direct CloudKit records/lookup — no cache or full scan needed."""
+        api = session_manager.get_api(session_id)
+        album = api.photos.all
+        url = (
+            f"{album.service._service_endpoint}/records/lookup?"
+            + urlencode(album.service.params)
+        )
+        data = json.dumps({
+            "records": [
+                {"recordName": master_record_name},
+                {"recordName": asset_record_name},
+            ],
+            "zoneID": album.service.zone_id,
+        })
+        resp = album.service.session.post(url, data=data, headers={"Content-type": "text/plain"})
+        resp.raise_for_status()
+        records = resp.json().get("records", [])
+        master = next((r for r in records if r.get("recordType") == "CPLMaster"), None)
+        asset = next((r for r in records if r.get("recordType") == "CPLAsset"), None)
+        if not master or not asset:
+            raise PhotoNotFoundException(master_record_name)
+        photo = ICloudPhotoAsset(album.service, master, asset)
         photo.delete()
-        logger.info("delete_photo: success photo_id=%s", photo_id)
+        logger.info("delete_photo_direct: success photo_id=%s", master_record_name)
         return True
 
     # ------------------------------------------------------------------

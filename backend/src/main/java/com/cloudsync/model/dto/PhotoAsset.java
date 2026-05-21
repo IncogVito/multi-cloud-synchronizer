@@ -14,5 +14,6 @@ public record PhotoAsset(
     Instant createdDate,
     Integer width,
     Integer height,
-    String assetToken
+    String assetToken,
+    String assetRecordName
 ) {}

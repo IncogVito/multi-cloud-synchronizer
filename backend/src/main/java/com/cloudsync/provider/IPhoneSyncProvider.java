@@ -191,7 +191,8 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
                         ExifDateUtil.readCaptureDate(p, attrs.creationTime().toInstant()),
                         null,
                         null,
-                        relPath
+                        relPath,
+                        null
                 ));
                 int count = counter.incrementAndGet();
                 if (count % SCAN_PROGRESS_INTERVAL == 0) {

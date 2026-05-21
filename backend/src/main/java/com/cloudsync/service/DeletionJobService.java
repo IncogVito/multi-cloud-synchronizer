@@ -3,6 +3,7 @@ package com.cloudsync.service;
 import com.cloudsync.model.dto.DeletionJobStartResponse;
 import com.cloudsync.model.dto.ICloudBatchDeleteResult;
 import com.cloudsync.model.dto.JobSummary;
+import com.cloudsync.model.dto.PhotoDeleteItem;
 import com.cloudsync.model.entity.ICloudAccount;
 import com.cloudsync.model.entity.Photo;
 import com.cloudsync.provider.PhotoSyncProvider;
@@ -160,13 +161,15 @@ public class DeletionJobService {
     private void processSubChunk(DeletionJob job, List<Photo> subChunk, PhotoSyncProvider syncProvider,
                                   String provider, String sessionId) {
         // FIX: Use constant enum for provider
-        List<String> remoteIds = subChunk.stream()
-                .map(p -> "ICLOUD".equals(provider) ? p.getIcloudPhotoId() : p.getIphoneLocation())
+        List<PhotoDeleteItem> items = subChunk.stream()
+                .map(p -> "ICLOUD".equals(provider)
+                        ? new PhotoDeleteItem(p.getIcloudPhotoId(), p.getIcloudAssetRecordName())
+                        : new PhotoDeleteItem(p.getIphoneLocation(), null))
                 .toList();
 
         List<ICloudBatchDeleteResult> results;
         try {
-            results = syncProvider.batchDeletePhotos(remoteIds, sessionId);
+            results = syncProvider.batchDeletePhotos(items, sessionId);
         } catch (Exception e) {
             LOG.warn("Batch delete sub-chunk failed for job {}: {}", job.getJobId(), e.getMessage());
             job.recordFailure(subChunk.stream().map(Photo::getId).toList());

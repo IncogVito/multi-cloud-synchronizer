@@ -2,6 +2,7 @@ package com.cloudsync.service;
 
 import com.cloudsync.model.dto.DeletionJobStartResponse;
 import com.cloudsync.model.dto.ICloudBatchDeleteResult;
+import com.cloudsync.model.dto.PhotoDeleteItem;
 import com.cloudsync.model.entity.ICloudAccount;
 import com.cloudsync.model.entity.Photo;
 import com.cloudsync.provider.PhotoSyncProvider;
@@ -178,7 +179,7 @@ class DeletionJobServiceTest {
     @Test
     void runJob_eachSubChunkContainsAtMostFiveIds() throws InterruptedException {
         List<Photo> photoList = photos(12, true);
-        List<List<String>> capturedBatches = new ArrayList<>();
+        List<List<PhotoDeleteItem>> capturedBatches = new ArrayList<>();
         when(photoRepository.findByIdIn(any())).thenReturn(photoList);
         when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
                 .thenAnswer(inv -> {
@@ -285,9 +286,9 @@ class DeletionJobServiceTest {
         return photos.stream().map(Photo::getId).toList();
     }
 
-    private List<ICloudBatchDeleteResult> successResults(List<String> remoteIds) {
-        return remoteIds.stream()
-                .map(id -> new ICloudBatchDeleteResult(id, true, null))
+    private List<ICloudBatchDeleteResult> successResults(List<PhotoDeleteItem> items) {
+        return items.stream()
+                .map(item -> new ICloudBatchDeleteResult(item.photoId(), true, null))
                 .toList();
     }
 

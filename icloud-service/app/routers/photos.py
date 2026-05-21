@@ -4,7 +4,7 @@ import logging
 from fastapi import APIRouter, Header, Query
 from fastapi.responses import StreamingResponse
 
-from app.models.batch_delete import BatchDeleteRequest, BatchDeleteResponse, BatchDeleteResult
+from app.models.batch_delete import BatchDeleteRequest, BatchDeleteResponse, BatchDeleteResult, PhotoDeleteItem
 from app.models.photo import PhotoListResponse
 from app.services.photo_cache import photo_cache
 from app.services.photo_service import photo_service
@@ -65,11 +65,12 @@ async def get_photo(
 @router.delete("/delete")
 async def delete_photo(
     photo_id: str = Query(...),
+    asset_record_name: str = Query(None),
     x_session_id: str = Header(..., alias="X-Session-ID"),
 ):
     """Delete a photo from iCloud."""
     logger.info("delete_photo: photo_id=%s", photo_id)
-    await asyncio.to_thread(photo_service.delete_photo, x_session_id, photo_id)
+    await asyncio.to_thread(photo_service.delete_photo, x_session_id, photo_id, asset_record_name)
     logger.info("delete_photo: done photo_id=%s", photo_id)
     return {"deleted": True}
 
@@ -80,22 +81,24 @@ async def batch_delete_photos(
     x_session_id: str = Header(..., alias="X-Session-ID"),
 ):
     """Delete multiple photos sequentially. iCloud does not support concurrent deletions."""
-    logger.info("batch_delete_photos: %d photos", len(request.photo_ids))
+    logger.info("batch_delete_photos: %d photos", len(request.photos))
     results: list[BatchDeleteResult] = []
-    for photo_id in request.photo_ids:
+    for item in request.photos:
         for attempt in range(4):
             try:
-                await asyncio.to_thread(photo_service.delete_photo, x_session_id, photo_id)
-                results.append(BatchDeleteResult(photo_id=photo_id, deleted=True))
-                logger.info("batch_delete_photos: deleted photo_id=%s", photo_id)
+                await asyncio.to_thread(
+                    photo_service.delete_photo, x_session_id, item.photo_id, item.asset_record_name
+                )
+                results.append(BatchDeleteResult(photo_id=item.photo_id, deleted=True))
+                logger.info("batch_delete_photos: deleted photo_id=%s", item.photo_id)
                 break
             except Exception as e:
                 if "TRY_AGAIN_LATER" in str(e) and attempt < 3:
-                    logger.warning("batch_delete_photos: TRY_AGAIN_LATER photo_id=%s attempt=%d", photo_id, attempt)
+                    logger.warning("batch_delete_photos: TRY_AGAIN_LATER photo_id=%s attempt=%d", item.photo_id, attempt)
                     await asyncio.sleep(2 ** attempt)
                     continue
-                logger.warning("batch_delete_photos: failed photo_id=%s: %s", photo_id, e)
-                results.append(BatchDeleteResult(photo_id=photo_id, deleted=False, error=str(e)))
+                logger.warning("batch_delete_photos: failed photo_id=%s: %s", item.photo_id, e)
+                results.append(BatchDeleteResult(photo_id=item.photo_id, deleted=False, error=str(e)))
                 break
     logger.info("batch_delete_photos: done, %d results", len(results))
     return BatchDeleteResponse(results=list(results))

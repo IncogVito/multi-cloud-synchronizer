@@ -7,9 +7,11 @@ import com.cloudsync.model.dto.ICloudBatchDeleteRequest;
 import com.cloudsync.model.dto.ICloudBatchDeleteResponse;
 import com.cloudsync.model.dto.ICloudBatchDeleteResult;
 import com.cloudsync.model.dto.ICloudPhotoAsset;
+import com.cloudsync.model.dto.ICloudPhotoDeleteItem;
 import com.cloudsync.model.dto.ICloudPhotoListResponse;
 import com.cloudsync.model.dto.ICloudPrefetchStatus;
 import com.cloudsync.model.dto.PhotoAsset;
+import com.cloudsync.model.dto.PhotoDeleteItem;
 import com.cloudsync.model.dto.PrefetchStatus;
 import io.micronaut.http.HttpResponse;
 import jakarta.inject.Named;
@@ -66,7 +68,7 @@ public class ICloudSyncProvider implements PhotoSyncProvider {
             ICloudPhotoListResponse page = resp.body();
             List<ICloudPhotoAsset> batch = (page != null && page.photos() != null) ? page.photos() : List.of();
             batch.stream()
-                    .map(a -> new PhotoAsset(a.id(), a.filename(), a.size(), a.createdDate(), a.width(), a.height(), a.assetToken()))
+                    .map(a -> new PhotoAsset(a.id(), a.filename(), a.size(), a.createdDate(), a.width(), a.height(), a.assetToken(), a.assetRecordName()))
                     .forEach(all::add);
             if (batch.size() < PAGE_SIZE) break;
             offset += PAGE_SIZE;
@@ -102,18 +104,21 @@ public class ICloudSyncProvider implements PhotoSyncProvider {
     }
 
     @Override
-    public List<ICloudBatchDeleteResult> batchDeletePhotos(List<String> photoIds, String sessionId) {
+    public List<ICloudBatchDeleteResult> batchDeletePhotos(List<PhotoDeleteItem> items, String sessionId) {
         try {
+            List<ICloudPhotoDeleteItem> payload = items.stream()
+                    .map(i -> new ICloudPhotoDeleteItem(i.photoId(), i.assetRecordName()))
+                    .toList();
             ICloudBatchDeleteResponse body = deleteClient.batchDeletePhotos(
-                    new ICloudBatchDeleteRequest(photoIds), sessionId).body();
+                    new ICloudBatchDeleteRequest(payload), sessionId).body();
             if (body == null || body.results() == null) {
-                LOG.warn("Empty batch-delete response for {} photos", photoIds.size());
-                return photoIds.stream().map(id -> new ICloudBatchDeleteResult(id, false, "empty response")).toList();
+                LOG.warn("Empty batch-delete response for {} photos", items.size());
+                return items.stream().map(i -> new ICloudBatchDeleteResult(i.photoId(), false, "empty response")).toList();
             }
             return body.results();
         } catch (Exception e) {
             LOG.warn("Batch delete failed: {}", e.getMessage());
-            return photoIds.stream().map(id -> new ICloudBatchDeleteResult(id, false, e.getMessage())).toList();
+            return items.stream().map(i -> new ICloudBatchDeleteResult(i.photoId(), false, e.getMessage())).toList();
         }
     }
 }

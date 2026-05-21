@@ -499,6 +499,11 @@ public class SyncService {
             existing.setCreatedDate(asset.createdDate());
             changed = true;
         }
+        if ("ICLOUD".equals(providerType) && asset.assetRecordName() != null
+                && !asset.assetRecordName().equals(existing.getIcloudAssetRecordName())) {
+            existing.setIcloudAssetRecordName(asset.assetRecordName());
+            changed = true;
+        }
         if (changed && !toUpdate.contains(existing)) {
             toUpdate.add(existing);
         }
@@ -842,6 +847,7 @@ public class SyncService {
         Photo p = new Photo();
         p.setId(UUID.randomUUID().toString());
         p.setIcloudPhotoId(asset.id());
+        p.setIcloudAssetRecordName(asset.assetRecordName());
         p.setAccountId(accountId);
         p.setFilename(sanitizeFilename(asset.filename()));
         p.setFileSize(asset.size());

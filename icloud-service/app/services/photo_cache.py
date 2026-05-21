@@ -296,6 +296,7 @@ class PhotoCache:
                 "height": original.get("height", 0),
             },
             "asset_token": photo.id,
+            "asset_record_name": photo._asset_record.get("recordName"),
         }
 
 

@@ -35,6 +35,8 @@ public class Photo {
     private String sourceProvider;
     /** Relative path of this photo on the mounted iPhone (e.g. "DCIM/100APPLE/IMG_1234.jpg"). */
     private String iphoneLocation;
+    /** CloudKit CPLAsset recordName — used for O(1) direct delete without cache or full scan. */
+    private String icloudAssetRecordName;
 
     public Photo() {
         this.syncedToDisk = false;
@@ -105,4 +107,7 @@ public class Photo {
 
     public String getIphoneLocation() { return iphoneLocation; }
     public void setIphoneLocation(String iphoneLocation) { this.iphoneLocation = iphoneLocation; }
+
+    public String getIcloudAssetRecordName() { return icloudAssetRecordName; }
+    public void setIcloudAssetRecordName(String icloudAssetRecordName) { this.icloudAssetRecordName = icloudAssetRecordName; }
 }
