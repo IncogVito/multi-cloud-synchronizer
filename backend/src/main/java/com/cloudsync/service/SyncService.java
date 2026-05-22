@@ -406,10 +406,11 @@ public class SyncService {
         Map<String, Long> result = new HashMap<>();
         try (var stream = Files.walk(dir)) {
             stream.filter(Files::isRegularFile).forEach(p -> {
+                String key = p.getFileName().toString().toLowerCase(Locale.ROOT);
                 try {
-                    result.put(p.getFileName().toString(), Files.size(p));
+                    result.put(key, Files.size(p));
                 } catch (IOException e) {
-                    result.put(p.getFileName().toString(), -1L);
+                    result.put(key, -1L);
                 }
             });
         }
@@ -429,7 +430,7 @@ public class SyncService {
     private Map<String, Photo> loadSyncedPhotosByFilename(String accountId) {
         return photoRepository.findByAccountIdAndSyncedToDisk(accountId, true).stream()
                 .filter(p -> p.getFilename() != null)
-                .collect(Collectors.toMap(Photo::getFilename, p -> p, (a, b) -> a));
+                .collect(Collectors.toMap(p -> p.getFilename().toLowerCase(Locale.ROOT), p -> p, (a, b) -> a));
     }
 
     /**
@@ -440,7 +441,14 @@ public class SyncService {
     private void updateCrossProviderFlag(Map<String, Photo> syncedByFilename, PhotoAsset asset,
                                          String providerType, List<Photo> toUpdate) {
         String sanitized = sanitizeFilename(asset.filename());
-        Photo existing = syncedByFilename.get(sanitized);
+        if (sanitized == null) return;
+        Photo existing = syncedByFilename.get(sanitized.toLowerCase(Locale.ROOT));
+        if (existing == null) {
+            String legacy = stripVideoSuffix(sanitized);
+            if (legacy != null) {
+                existing = syncedByFilename.get(legacy.toLowerCase(Locale.ROOT));
+            }
+        }
         if (existing == null) return;
         // Guard against size mismatch (shouldn't happen — isAlreadyOnDisk already verified it, but be safe)
         if (existing.getFileSize() != null && asset.size() != null && !existing.getFileSize().equals(asset.size())) {
@@ -530,10 +538,29 @@ public class SyncService {
         return count;
     }
 
-    private boolean isAlreadyOnDisk(Map<String, Long> diskFiles, PhotoAsset asset) {
+    static boolean isAlreadyOnDisk(Map<String, Long> diskFiles, PhotoAsset asset) {
         String sanitized = sanitizeFilename(asset.filename());
-        Long diskSize = diskFiles.get(sanitized);
-        return diskSize != null && asset.size() != null && diskSize.equals(asset.size());
+        if (sanitized == null || asset.size() == null) return false;
+
+        Long diskSize = diskFiles.get(sanitized.toLowerCase(Locale.ROOT));
+        if (diskSize != null && diskSize.equals(asset.size())) return true;
+
+        // Live Photo MOV: asset filename may carry _VIDEO suffix while disk holds the legacy
+        // unsuffixed copy (downloaded before the suffix scheme existed). Match by name+size.
+        String legacy = stripVideoSuffix(sanitized);
+        if (legacy != null) {
+            diskSize = diskFiles.get(legacy.toLowerCase(Locale.ROOT));
+            return diskSize != null && diskSize.equals(asset.size());
+        }
+        return false;
+    }
+
+    static String stripVideoSuffix(String filename) {
+        int dot = filename.lastIndexOf('.');
+        if (dot < 0) return null;
+        String base = filename.substring(0, dot);
+        if (!base.endsWith("_VIDEO")) return null;
+        return base.substring(0, base.length() - "_VIDEO".length()) + filename.substring(dot);
     }
 
     private void classifyAsset(PhotoAsset asset, String accountId, String storageDeviceId,
@@ -847,7 +874,7 @@ public class SyncService {
     /**
      * Replace "/" in filename to prevent path traversal issues and broken icloud-service lookups.
      */
-    private String sanitizeFilename(String filename) {
+    static String sanitizeFilename(String filename) {
         if (filename == null) return null;
         return filename.replace("/", "_");
     }

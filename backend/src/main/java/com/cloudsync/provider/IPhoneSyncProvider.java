@@ -178,7 +178,8 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
                 if (VIDEO_EXTENSIONS.contains(ext)) {
                     String stem = p.getParent().toString() + "/" + fileBaseName(filename).toLowerCase();
                     if (stillStems.contains(stem)) {
-                        filename = fileBaseName(filename) + "_VIDEO." + ext;
+                        String origExt = filename.substring(filename.lastIndexOf('.') + 1);
+                        filename = fileBaseName(filename) + "_VIDEO." + origExt;
                     }
                 }
 
