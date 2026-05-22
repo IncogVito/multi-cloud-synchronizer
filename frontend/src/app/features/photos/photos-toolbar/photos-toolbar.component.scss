@@ -12,7 +12,7 @@
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: var(--spacing-4);
+  gap: var(--spacing-3);
 }
 
 .toolbar-right {
@@ -21,56 +21,107 @@
   gap: var(--spacing-3);
 }
 
-.account-select {
-  padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-sm);
-  font-family: var(--font-family-base);
-  color: var(--color-text-primary);
-  background: var(--color-bg-primary);
-  min-width: 200px;
-  outline: none;
-  cursor: pointer;
+/* ===== Segmented control with sliding indicator ===== */
 
-  &:focus {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--color-primary-bg);
-  }
+.seg {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  background: color-mix(in srgb, var(--color-bg-secondary) 70%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  isolation: isolate;
+  backdrop-filter: blur(6px);
 }
 
-.toggle-group {
+.seg-track {
+  position: absolute;
+  inset: 3px;
   display: flex;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
 }
 
-.toggle-btn {
-  padding: var(--spacing-2) var(--spacing-4);
+.seg-indicator {
+  flex: 1 1 0;
+  background: var(--color-bg-primary);
+  border-radius: 7px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 2px 6px rgba(0, 0, 0, 0.05),
+    0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.seg--2 .seg-indicator { max-width: 50%; }
+.seg--3 .seg-indicator { max-width: 33.3333%; }
+
+.seg[data-active="0"] .seg-indicator { transform: translateX(0%); }
+.seg[data-active="1"] .seg-indicator { transform: translateX(100%); }
+.seg[data-active="2"] .seg-indicator { transform: translateX(200%); }
+
+.seg-btn {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  min-width: 78px;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   font-family: var(--font-family-base);
-  background: var(--color-bg-primary);
-  color: var(--color-text-secondary);
+  background: transparent;
   border: none;
+  border-radius: 7px;
+  color: var(--color-text-secondary);
   cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+  transition: color 0.2s ease, transform 0.12s ease;
 
-  &:not(:last-child) {
-    border-right: 1px solid var(--color-border);
+  svg {
+    flex-shrink: 0;
+    opacity: 0.85;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  &:not(.active):hover {
+    color: var(--color-text-primary);
+
+    svg { opacity: 1; }
+  }
+
+  &:active:not(.active) {
+    transform: scale(0.96);
   }
 
   &.active {
-    background: var(--color-primary);
-    color: white;
+    color: var(--color-primary);
+
+    svg {
+      opacity: 1;
+      transform: scale(1.05);
+    }
   }
 
-  &:hover:not(.active) {
-    background: var(--color-bg-secondary);
-    color: var(--color-text-primary);
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
   }
 }
+
+/* Source-specific tint when active */
+.seg-btn--icloud.active {
+  color: #0a84ff;
+}
+
+.seg-btn--iphone.active {
+  color: #5e5ce6;
+}
+
+/* ===== View options dropdown ===== */
 
 .view-options {
   position: relative;
@@ -240,4 +291,9 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seg-indicator { transition: none; }
+  .seg-btn, .seg-btn svg { transition: none; }
 }

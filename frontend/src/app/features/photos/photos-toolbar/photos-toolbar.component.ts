@@ -1,4 +1,4 @@
-import { Component, HostListener, inject, input, output, signal } from '@angular/core';
+import { Component, HostListener, computed, inject, input, output, signal } from '@angular/core';
 import { Store } from '@ngxs/store';
 import { PhotosState } from '../../../state/photos/photos.state';
 import { GroupingMode, SetColumnsPerRow, SetGroupingMode, SetShowDetails } from '../../../state/photos/photos.actions';
@@ -28,6 +28,12 @@ export class PhotosToolbarComponent {
   groupingMode = this.store.selectSignal(PhotosState.groupingMode);
   viewOptionsOpen = signal(false);
   readonly columnOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+  granularityIdx = computed(() => this.granularity() === 'year' ? 0 : 1);
+  sourceIdx = computed(() => {
+    const f = this.sourceFilter();
+    return f === 'all' ? 0 : f === 'icloud' ? 1 : 2;
+  });
 
   setGranularity(g: 'year' | 'month'): void {
     this.granularityChanged.emit(g);

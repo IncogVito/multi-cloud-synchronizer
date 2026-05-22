@@ -22,6 +22,24 @@ export class SyncService {
     );
   }
 
+  /**
+   * On app/component init, pick up an already-running sync (e.g. after page reload).
+   * If backend has non-terminal cached state for accountId, push it into syncProgress$
+   * and re-open the SSE stream.
+   */
+  resumeIfActive(accountId: string): void {
+    if (!accountId) return;
+    this.apiService.getSyncStatus<SyncProgressEvent | null>(accountId).subscribe({
+      next: (state) => {
+        if (!state) return;
+        if (state.phase === 'DONE' || state.phase === 'ERROR' || state.phase === 'CANCELLED') return;
+        this._progress.next(state);
+        this.subscribeToEvents(accountId);
+      },
+      error: () => { /* no active sync */ }
+    });
+  }
+
   private subscribeToEvents(accountId: string): void {
     this.closeEvents();
     this.abortController = new AbortController();

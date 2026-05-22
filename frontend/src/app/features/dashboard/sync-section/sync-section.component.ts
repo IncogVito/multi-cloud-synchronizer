@@ -61,7 +61,7 @@ interface DeviceReadiness {
         </div>
       } @else {
         <div class="sync-card">
-          @if (!activeProgress()) {
+          @if (!activeProgress() && !starting()) {
             <p class="sync-title">Gotowe do synchronizacji</p>
             <p class="sync-sub">{{ syncNeededText() }}</p>
             <p class="sync-sub muted">
@@ -97,7 +97,7 @@ interface DeviceReadiness {
             @if (selectedProvider() === 'IPHONE' && readiness().iphone) {
               <p class="sync-sub muted">Synchronizacja bezpośrednia z iPhone (USB) — funkcja w przygotowaniu.</p>
             }
-          } @else if (activeProgress()!.phase === 'AWAITING_CONFIRMATION') {
+          } @else if (activeProgress()?.phase === 'AWAITING_CONFIRMATION' && !confirming()) {
             <p class="sync-title">Gotowe do pobrania</p>
             <p class="sync-sub">Znaleziono zdjęcia ({{ selectedProvider() === 'IPHONE' ? 'iPhone' : 'iCloud' }}). Czy chcesz je skopiować na dysk zewnętrzny?</p>
             <ul class="stats">
@@ -116,11 +116,11 @@ interface DeviceReadiness {
             </div>
           } @else {
             <p class="sync-title"
-               [class.sync-title--error]="activeProgress()!.phase === 'ERROR'"
-               [class.sync-title--cancelled]="activeProgress()!.phase === 'CANCELLED'">
-              Status: {{ phaseLabel(activeProgress()!.phase) }}
+               [class.sync-title--error]="activeProgress()?.phase === 'ERROR'"
+               [class.sync-title--cancelled]="activeProgress()?.phase === 'CANCELLED'">
+              Status: {{ progressTitle() }}
             </p>
-            @if (activeProgress()!.phase !== 'ERROR' && activeProgress()!.phase !== 'CANCELLED') {
+            @if (!isErrorOrCancelled()) {
               <div class="progress-wrap">
                 <div class="progress-bar">
                   <div class="progress-fill"
@@ -134,33 +134,35 @@ interface DeviceReadiness {
                 }
               </div>
             }
-            <ul class="stats">
-              @if (activeProgress()!.phase === 'FETCHING_METADATA') {
-                <li>Pobrano metadane: <strong>{{ activeProgress()!.metadataFetched }}</strong>{{ activeProgress()!.totalOnCloud > 0 ? ' / ' + activeProgress()!.totalOnCloud : '' }}</li>
-              } @else if (activeProgress()!.phase !== 'ERROR' && activeProgress()!.phase !== 'CANCELLED' && activeProgress()!.phase !== 'PERSISTING_METADATA') {
-                <li>Zsynchronizowane: <strong>{{ activeProgress()!.synced }}</strong> / {{ activeProgress()!.totalOnCloud || '—' }}</li>
-              }
-              @if (activeProgress()!.pending > 0) {
-                <li>Oczekujące: <strong>{{ activeProgress()!.pending }}</strong></li>
-              }
-              @if (activeProgress()!.failed > 0) {
-                <li class="err">Błędy: <strong>{{ activeProgress()!.failed }}</strong></li>
-              }
-              @if (etaText()) {
-                <li>Pozostały czas: <strong>{{ etaText() }}</strong></li>
-              }
-            </ul>
-            @if (activeProgress()!.phase === 'DOWNLOADING' && (activeProgress()!.diskFreeBytes != null || activeProgress()!.diskPhotoCount != null)) {
-              <ul class="stats disk-stats">
-                @if (activeProgress()!.diskPhotoCount != null) {
-                  <li>Zdjęcia na dysku: <strong>{{ activeProgress()!.diskPhotoCount }}</strong></li>
+            @if (activeProgress(); as ap) {
+              <ul class="stats">
+                @if (ap.phase === 'FETCHING_METADATA') {
+                  <li>Pobrano metadane: <strong>{{ ap.metadataFetched }}</strong>{{ ap.totalOnCloud > 0 ? ' / ' + ap.totalOnCloud : '' }}</li>
+                } @else if (ap.phase !== 'ERROR' && ap.phase !== 'CANCELLED' && ap.phase !== 'PERSISTING_METADATA') {
+                  <li>Zsynchronizowane: <strong>{{ ap.synced }}</strong> / {{ ap.totalOnCloud || '—' }}</li>
                 }
-                @if (activeProgress()!.diskFreeBytes != null) {
-                  <li>Wolne miejsce: <strong>{{ formatBytes(activeProgress()!.diskFreeBytes!) }}</strong></li>
+                @if (ap.pending > 0) {
+                  <li>Oczekujące: <strong>{{ ap.pending }}</strong></li>
+                }
+                @if (ap.failed > 0) {
+                  <li class="err">Błędy: <strong>{{ ap.failed }}</strong></li>
+                }
+                @if (etaText()) {
+                  <li>Pozostały czas: <strong>{{ etaText() }}</strong></li>
                 }
               </ul>
+              @if (ap.phase === 'DOWNLOADING' && (ap.diskFreeBytes != null || ap.diskPhotoCount != null)) {
+                <ul class="stats disk-stats">
+                  @if (ap.diskPhotoCount != null) {
+                    <li>Zdjęcia na dysku: <strong>{{ ap.diskPhotoCount }}</strong></li>
+                  }
+                  @if (ap.diskFreeBytes != null) {
+                    <li>Wolne miejsce: <strong>{{ formatBytes(ap.diskFreeBytes!) }}</strong></li>
+                  }
+                </ul>
+              }
             }
-            @if (isActivelySyncing()) {
+            @if (isActivelySyncing() && !isErrorOrCancelled()) {
               <div class="actions">
                 <button class="btn btn-ghost btn-danger" (click)="cancelSync()">Przerwij synchronizację</button>
               </div>
@@ -234,6 +236,7 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
 
   private syncStartTime: number | null = null;
   private progressSub?: Subscription;
+  private resumedFor = new Set<string>();
 
   constructor() {
     // When only one source is available, auto-select it
@@ -241,6 +244,15 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
       const r = this.readiness();
       if (r.icloud && !r.iphone) this.selectedProvider.set('ICLOUD');
       if (r.iphone && !r.icloud) this.selectedProvider.set('IPHONE');
+    });
+
+    // After accounts load, resume any in-flight sync (e.g. after page reload).
+    effect(() => {
+      const acc = this.primaryAccount();
+      if (acc && !this.resumedFor.has(acc.id)) {
+        this.resumedFor.add(acc.id);
+        this.syncService.resumeIfActive(acc.id);
+      }
     });
   }
 
@@ -274,11 +286,17 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
   );
 
   isActivelySyncing = computed<boolean>(() => {
+    if (this.starting() || this.confirming()) return true;
     const phase = this.activeProgress()?.phase;
     return phase === 'FETCHING_METADATA'
       || phase === 'PERSISTING_METADATA'
       || phase === 'COMPARING'
       || phase === 'DOWNLOADING';
+  });
+
+  isErrorOrCancelled = computed<boolean>(() => {
+    const phase = this.activeProgress()?.phase;
+    return phase === 'ERROR' || phase === 'CANCELLED';
   });
 
   displayPercent = computed<number>(() => {
@@ -292,10 +310,22 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
 
   isIndeterminate = computed<boolean>(() => {
     const p = this.activeProgress();
+    // Optimistic UI: between click and first real SSE event, show indeterminate bar.
+    if (this.starting() && !p) return true;
+    if (this.confirming() && (!p || p.phase === 'AWAITING_CONFIRMATION')) return true;
     if (!p) return false;
-    if (p.phase === 'FETCHING_METADATA' && p.totalOnCloud === 0) return true;
+    if (p.phase === 'FETCHING_METADATA' && (p.totalOnCloud === 0 || p.metadataFetched === 0)) return true;
     if (p.phase === 'PERSISTING_METADATA' && p.percentComplete === 0) return true;
+    if (p.phase === 'COMPARING') return true;
     return false;
+  });
+
+  progressTitle = computed<string>(() => {
+    const p = this.activeProgress();
+    if (this.confirming() && (!p || p.phase === 'AWAITING_CONFIRMATION')) return 'Rozpoczynanie pobierania...';
+    if (this.starting() && !p) return 'Uruchamianie synchronizacji...';
+    if (!p) return 'Synchronizacja';
+    return this.phaseLabel(p.phase);
   });
 
   driveLabel = computed<string>(() => {
@@ -339,7 +369,12 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     this.progressSub = this.syncService.syncProgress$.subscribe(evt => {
       if (evt) {
         this.starting.set(false);
-        this.confirming.set(false);
+        // Only clear `confirming` once backend phase advances past AWAITING_CONFIRMATION,
+        // otherwise the SSE replay of the cached AWAITING_CONFIRMATION state would
+        // bounce the user back to the confirm view right after they clicked "Pobierz".
+        if (evt.phase !== 'AWAITING_CONFIRMATION') {
+          this.confirming.set(false);
+        }
         if (!this.syncStartTime) this.syncStartTime = Date.now();
         this.activeProgress.set(evt);
         if (evt.phase === 'DONE' || evt.phase === 'ERROR' || evt.phase === 'CANCELLED') {

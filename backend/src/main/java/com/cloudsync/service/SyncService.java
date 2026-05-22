@@ -14,6 +14,7 @@ import com.cloudsync.model.enums.SyncStatus;
 import com.cloudsync.provider.PhotoSyncProvider;
 import com.cloudsync.repository.AccountRepository;
 import com.cloudsync.repository.PhotoRepository;
+import com.cloudsync.util.ExifDateUtil;
 import com.cloudsync.util.Messages;
 import io.micronaut.context.annotation.Value;
 import jakarta.inject.Named;
@@ -604,12 +605,41 @@ public class SyncService {
                 .thenRun(() -> {
                     String thumbnailJobId = null;
                     if (!isCancelled(accountId)) {
+                        if ("IPHONE".equals(providerType)) {
+                            backfillIPhoneExifDates(accountId);
+                        }
                         thumbnailJobId = startThumbnailJobForSync(accountId);
                     }
                     if (!isCancelled(accountId)) {
                         emitDoneEvent(accountId, thumbnailJobId);
                     }
                 });
+    }
+
+    private void backfillIPhoneExifDates(String accountId) {
+        List<Photo> iphonePhotos = photoRepository.findByAccountIdAndSyncedToDisk(accountId, true).stream()
+                .filter(p -> "IPHONE".equals(p.getSourceProvider()))
+                .filter(p -> p.getFilePath() != null)
+                .toList();
+        if (iphonePhotos.isEmpty()) return;
+        LOG.info("EXIF backfill start: {} iPhone photos [account={}]", iphonePhotos.size(), accountId);
+        int updated = 0;
+        for (Photo photo : iphonePhotos) {
+            if (isCancelled(accountId)) return;
+            try {
+                Path file = Path.of(photo.getFilePath());
+                if (!Files.exists(file)) continue;
+                Instant exifDate = ExifDateUtil.readCaptureDate(file, null);
+                if (exifDate != null && !exifDate.equals(photo.getCreatedDate())) {
+                    photo.setCreatedDate(exifDate);
+                    photoRepository.update(photo);
+                    updated++;
+                }
+            } catch (Exception e) {
+                LOG.warn("EXIF backfill failed for {}: {}", photo.getId(), e.getMessage());
+            }
+        }
+        LOG.info("EXIF backfill done: {} updated [account={}]", updated, accountId);
     }
 
     private void downloadWithSemaphore(Photo photo, ICloudAccount account, String accountId, AppContext ctx) {

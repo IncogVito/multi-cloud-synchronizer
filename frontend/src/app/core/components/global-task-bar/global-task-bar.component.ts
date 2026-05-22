@@ -6,6 +6,8 @@ import { SyncService } from '../../services/sync.service';
 import { SyncProgressEvent } from '../../models/sync-progress.model';
 import { Subscription } from 'rxjs';
 
+
+// TODO: Check if it's used anywhere - if not remove
 @Component({
   selector: 'app-global-task-bar',
   standalone: true,
@@ -78,6 +80,8 @@ import { Subscription } from 'rxjs';
       </div>
     }
   `,
+
+  // TODO: Separate styles.
   styles: [`
     .task-bar {
       position: fixed;
@@ -227,7 +231,7 @@ export class GlobalTaskBarComponent implements OnInit, OnDestroy {
 
   syncLabel(sp: SyncProgressEvent): string {
     switch (sp.phase) {
-      case 'FETCHING_METADATA': return 'Pobieranie listy z iCloud';
+      case 'FETCHING_METADATA': return 'Pobieranie metadanych';
       case 'PERSISTING_METADATA': return 'Zapisywanie metadanych';
       case 'COMPARING': return 'Porównywanie zdjęć';
       case 'DOWNLOADING': return 'Pobieranie zdjęć';
