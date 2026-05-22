@@ -323,6 +323,31 @@ export class PhotosComponent implements OnInit, OnDestroy {
 
   clearSelection(): void { this.selectedIds.set(new Set()); }
 
+  onSelectVideoPreviews(): void {
+    const photos = this.filteredPhotos();
+    const staticPhotoNames = new Set<string>();
+    for (const p of photos) {
+      const ext = p.filename.split('.').pop()?.toUpperCase() ?? '';
+      if (ext === 'HEIC' || ext === 'JPG' || ext === 'JPEG') {
+        const base = p.filename.substring(0, p.filename.lastIndexOf('.')).toUpperCase();
+        staticPhotoNames.add(base);
+      }
+    }
+
+    const videoPreviewIds = new Set<string>();
+    for (const p of photos) {
+      const ext = p.filename.split('.').pop()?.toUpperCase() ?? '';
+      if (ext !== 'MOV') continue;
+      const baseFull = p.filename.substring(0, p.filename.lastIndexOf('.')).toUpperCase();
+      const baseStripped = baseFull.endsWith('_VIDEO') ? baseFull.slice(0, -6) : baseFull;
+      if (staticPhotoNames.has(baseStripped) || staticPhotoNames.has(baseFull)) {
+        videoPreviewIds.add(p.id);
+      }
+    }
+
+    this.selectedIds.set(videoPreviewIds);
+  }
+
   private reloadCurrent(): void {
     const deviceId = this.storageDeviceId();
     if (!deviceId) return;

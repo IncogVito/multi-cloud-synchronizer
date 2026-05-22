@@ -217,6 +217,31 @@
   margin: var(--spacing-1) 0;
 }
 
+.view-option-action-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+  user-select: none;
+
+  &:hover {
+    background: var(--color-bg-secondary);
+  }
+
+  svg {
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+  }
+}
+
 .view-option-columns {
   padding: var(--spacing-2) var(--spacing-3);
   display: flex;

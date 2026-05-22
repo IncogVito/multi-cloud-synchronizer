@@ -21,6 +21,7 @@ export class PhotosToolbarComponent {
   granularityChanged = output<'year' | 'month'>();
   syncRequested = output<void>();
   sourceFilterChanged = output<SourceFilter>();
+  selectVideoPreviewsRequested = output<void>();
 
   private store = inject(Store);
   showDetails = this.store.selectSignal(PhotosState.showDetails);
@@ -70,6 +71,11 @@ export class PhotosToolbarComponent {
     const current = this.groupingMode();
     const next: GroupingMode = current === 'hour' ? 'day' : 'hour';
     this.store.dispatch(new SetGroupingMode(next));
+  }
+
+  onSelectVideoPreviews(event: MouseEvent): void {
+    event.stopPropagation();
+    this.selectVideoPreviewsRequested.emit();
   }
 
   @HostListener('document:click')
