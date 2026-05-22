@@ -2,10 +2,13 @@ import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular
 import { CommonModule, DatePipe } from '@angular/common';
 import { JobsService } from '../../core/api/generated/jobs/jobs.service';
 import { RepairThumbnailsService } from '../../core/services/repair-thumbnails.service';
+import { RepairIPhoneService } from '../../core/services/repair-iphone.service';
 import { TaskHistoryDto } from '../../core/api/generated/model/taskHistoryDto';
 import { TaskHistoryDetailDto } from '../../core/api/generated/model/taskHistoryDetailDto';
+import { Store } from '@ngxs/store';
+import { AccountsState } from '../../state/accounts/accounts.state';
 
-type FilterType = 'ALL' | 'SYNC' | 'DELETION' | 'THUMBNAIL';
+type FilterType = 'ALL' | 'SYNC' | 'DELETION' | 'THUMBNAIL' | 'IPHONE_REPAIR';
 type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 @Component({
@@ -48,6 +51,12 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
                     </svg>
                     Fix broken thumbnails
                   </button>
+                  <button class="cs-option" type="button" (click)="repairIPhonePhotos()" [disabled]="repairIPhoneService.running() || !primaryAccountId()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+                    </svg>
+                    Find missing iPhone photos
+                  </button>
                 </div>
               }
             </div>
@@ -60,6 +69,15 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
               }
             } @else if (repairDoneMessage()) {
               <span class="action-msg">{{ repairDoneMessage() }}</span>
+            }
+            @if (repairIPhoneService.running()) {
+              @if (repairIPhoneService.progress(); as p) {
+                <span class="action-msg">Scanning iPhone... {{ p.checked }}/{{ p.total }}</span>
+              } @else {
+                <span class="action-msg">Connecting to iPhone...</span>
+              }
+            } @else if (iphoneRepairDoneMessage()) {
+              <span class="action-msg">{{ iphoneRepairDoneMessage() }}</span>
             }
           </div>
         </div>
@@ -259,7 +277,9 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 })
 export class TasksComponent implements OnInit, OnDestroy {
   private jobsService = inject(JobsService);
+  private store = inject(Store);
   readonly repairService = inject(RepairThumbnailsService);
+  readonly repairIPhoneService = inject(RepairIPhoneService);
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
   tasks = signal<TaskHistoryDto[]>([]);
@@ -284,11 +304,24 @@ export class TasksComponent implements OnInit, OnDestroy {
     return `Fixed ${p.fixed} broken thumbnail(s) (checked ${p.total}).`;
   });
 
+  readonly iphoneRepairDoneMessage = computed(() => {
+    const p = this.repairIPhoneService.progress();
+    if (!p?.done) return null;
+    if (p.newPending === 0 && p.missingFixed === 0) return `iPhone scan done — no missing files found (${p.total} checked).`;
+    return `Found ${p.newPending} new + ${p.missingFixed} missing files — run iPhone sync to download.`;
+  });
+
+  readonly primaryAccountId = computed<string | null>(() => {
+    const accounts = this.store.selectSnapshot(AccountsState.accounts);
+    return accounts.find(a => a.hasActiveSession)?.id ?? accounts[0]?.id ?? null;
+  });
+
   typeOptions: { value: FilterType; label: string }[] = [
     { value: 'ALL', label: 'All' },
     { value: 'SYNC', label: 'Sync' },
     { value: 'DELETION', label: 'Deletion' },
     { value: 'THUMBNAIL', label: 'Thumbnails' },
+    { value: 'IPHONE_REPAIR', label: 'iPhone Repair' },
   ];
 
   statusOptions: { value: FilterStatus; label: string }[] = [
@@ -360,6 +393,7 @@ export class TasksComponent implements OnInit, OnDestroy {
       case 'SYNC': return '↓';
       case 'DELETION': return '✕';
       case 'THUMBNAIL': return '▣';
+      case 'IPHONE_REPAIR': return '⚙';
       default: return '·';
     }
   }
@@ -369,6 +403,7 @@ export class TasksComponent implements OnInit, OnDestroy {
       case 'SYNC': return `Sync (${task.provider ?? 'unknown'})`;
       case 'DELETION': return `Delete photos (${task.provider ?? 'unknown'})`;
       case 'THUMBNAIL': return 'Generate thumbnails';
+      case 'IPHONE_REPAIR': return 'Find missing iPhone photos';
       default: return task.type;
     }
   }
@@ -384,6 +419,13 @@ export class TasksComponent implements OnInit, OnDestroy {
   repairBrokenThumbnails(): void {
     this.actionsOpen.set(false);
     this.repairService.startJob().then(() => this.refresh());
+  }
+
+  repairIPhonePhotos(): void {
+    const accountId = this.primaryAccountId();
+    if (!accountId) return;
+    this.actionsOpen.set(false);
+    this.repairIPhoneService.startJob(accountId).then(() => this.refresh());
   }
 
   private load(page: number, silent = false): void {

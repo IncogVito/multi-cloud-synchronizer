@@ -1,13 +1,18 @@
 package com.cloudsync.controller;
 
+import com.cloudsync.model.dto.IPhoneRepairProgress;
+import com.cloudsync.model.dto.IPhoneRepairResult;
 import com.cloudsync.model.dto.SyncProgressEvent;
 import com.cloudsync.model.dto.SyncStartResponse;
 import com.cloudsync.model.enums.ProviderType;
+import com.cloudsync.service.IPhoneRepairJobService;
 import com.cloudsync.service.SyncService;
 import com.cloudsync.service.SyncStateHolder;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
 import io.micronaut.http.annotation.QueryValue;
+import io.micronaut.http.exceptions.HttpStatusException;
 import io.micronaut.http.sse.Event;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
@@ -25,10 +30,14 @@ public class SyncController {
 
     private final SyncService syncService;
     private final SyncStateHolder syncStateHolder;
+    private final IPhoneRepairJobService iPhoneRepairJobService;
 
-    public SyncController(SyncService syncService, SyncStateHolder syncStateHolder) {
+    public SyncController(SyncService syncService,
+                          SyncStateHolder syncStateHolder,
+                          IPhoneRepairJobService iPhoneRepairJobService) {
         this.syncService = syncService;
         this.syncStateHolder = syncStateHolder;
+        this.iPhoneRepairJobService = iPhoneRepairJobService;
     }
 
     @Post("/{accountId}")
@@ -77,5 +86,19 @@ public class SyncController {
     @Produces(MediaType.APPLICATION_JSON)
     public Map<String, Object> reorganize(@PathVariable String accountId) {
         return syncService.reorganize(accountId);
+    }
+
+    @Post("/{accountId}/iphone-repair")
+    @ExecuteOn(TaskExecutors.BLOCKING)
+    @Produces(MediaType.APPLICATION_JSON)
+    public IPhoneRepairResult startIPhoneRepair(@PathVariable String accountId) {
+        return iPhoneRepairJobService.startJob(accountId);
+    }
+
+    @Get(value = "/iphone-repair/{jobId}/progress", produces = MediaType.TEXT_EVENT_STREAM)
+    public Publisher<Event<IPhoneRepairProgress>> getIPhoneRepairProgress(@PathVariable String jobId) {
+        return iPhoneRepairJobService.getJob(jobId)
+                .map(job -> (Publisher<Event<IPhoneRepairProgress>>) Flux.from(job.subscribe()).map(Event::of))
+                .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Repair job not found: " + jobId));
     }
 }

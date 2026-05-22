@@ -706,6 +706,43 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/MonthSummaryResponse"
+  /api/photos/repair-thumbnails:
+    post:
+      tags:
+      - Photos
+      summary: Start repair-thumbnails job
+      description: "Checks all photos with a thumbnail_path set, removes the path\
+        \ (and file) for any that are missing or empty. Runs in background, returns\
+        \ jobId."
+      operationId: startRepairThumbnailsJob
+      responses:
+        "200":
+          description: Job started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepairThumbnailsResult"
+  /api/photos/repair-thumbnails/{jobId}/progress:
+    get:
+      tags:
+      - Photos
+      summary: Stream repair-thumbnails job progress (SSE)
+      operationId: getRepairThumbnailsProgress
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: SSE progress stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_RepairProgress_"
+        "404":
+          description: Job not found
   /api/photos/sprite-manifest:
     post:
       tags:
@@ -1051,6 +1088,22 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  /api/sync/iphone-repair/{jobId}/progress:
+    get:
+      operationId: getIPhoneRepairProgress
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: getIPhoneRepairProgress 200 response
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_IPhoneRepairProgress_"
   /api/sync/{accountId}:
     post:
       operationId: startSync
@@ -1111,6 +1164,22 @@ paths:
             text/event-stream:
               schema:
                 $ref: "#/components/schemas/Event_SyncProgressEvent_"
+  /api/sync/{accountId}/iphone-repair:
+    post:
+      operationId: startIPhoneRepair
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: startIPhoneRepair 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IPhoneRepairResult"
   /api/sync/{accountId}/reorganize:
     post:
       operationId: reorganize_2
@@ -1460,6 +1529,32 @@ components:
           type: string
         retry:
           type: string
+    Event_IPhoneRepairProgress_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/IPhoneRepairProgress"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
+    Event_RepairProgress_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/RepairProgress"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
     Event_SyncProgressEvent_:
       type: object
       properties:
@@ -1537,6 +1632,39 @@ components:
           type: string
         version:
           type: string
+    IPhoneRepairProgress:
+      required:
+      - checked
+      - done
+      - missingFixed
+      - newPending
+      - total
+      type: object
+      properties:
+        checked:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        newPending:
+          type: integer
+          format: int32
+        missingFixed:
+          type: integer
+          format: int32
+        done:
+          type: boolean
+    IPhoneRepairResult:
+      required:
+      - jobId
+      - progress
+      type: object
+      properties:
+        jobId:
+          type: string
+        progress:
+          $ref: "#/components/schemas/IPhoneRepairProgress"
     JobSummary:
       required:
       - done
@@ -1639,8 +1767,6 @@ components:
         iphoneOnlyCount:
           type: integer
           format: int64
-      description: Summary of photos for a single calendar month. Used by the month-based
-        browsing UI to build the TOC sidebar.
     PhotoListResponse:
       required:
       - page
@@ -1724,6 +1850,35 @@ components:
       enum:
       - ICLOUD
       - IPHONE
+    RepairProgress:
+      required:
+      - checked
+      - done
+      - fixed
+      - total
+      type: object
+      properties:
+        checked:
+          type: integer
+          format: int32
+        fixed:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        done:
+          type: boolean
+    RepairThumbnailsResult:
+      required:
+      - jobId
+      - progress
+      type: object
+      properties:
+        jobId:
+          type: string
+        progress:
+          $ref: "#/components/schemas/RepairProgress"
     SpriteManifest:
       required:
       - slots
@@ -1842,6 +1997,7 @@ components:
       - COMPARING
       - AWAITING_CONFIRMATION
       - DOWNLOADING
+      - EXIF_BACKFILL
       - GENERATING_THUMBNAILS
       - DONE
       - ERROR

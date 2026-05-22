@@ -4,6 +4,7 @@ export type SyncPhase =
   | 'COMPARING'
   | 'AWAITING_CONFIRMATION'
   | 'DOWNLOADING'
+  | 'EXIF_BACKFILL'
   | 'DONE'
   | 'ERROR'
   | 'CANCELLED'

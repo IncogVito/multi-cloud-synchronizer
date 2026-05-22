@@ -137,7 +137,13 @@ interface DeviceReadiness {
             @if (activeProgress(); as ap) {
               <ul class="stats">
                 @if (ap.phase === 'FETCHING_METADATA') {
-                  <li>Pobrano metadane: <strong>{{ ap.metadataFetched }}</strong>{{ ap.totalOnCloud > 0 ? ' / ' + ap.totalOnCloud : '' }}</li>
+                  @if (ap.currentFile === 'MOUNTING') {
+                    <li>Nawiązywanie połączenia z iPhone przez USB...</li>
+                  } @else {
+                    <li>Znalezione pliki: <strong>{{ ap.metadataFetched }}</strong></li>
+                  }
+                } @else if (ap.phase === 'EXIF_BACKFILL') {
+                  <li>Odczytano daty EXIF: <strong>{{ ap.metadataFetched }}</strong> / {{ ap.totalOnCloud }}</li>
                 } @else if (ap.phase !== 'ERROR' && ap.phase !== 'CANCELLED' && ap.phase !== 'PERSISTING_METADATA') {
                   <li>Zsynchronizowane: <strong>{{ ap.synced }}</strong> / {{ ap.totalOnCloud || '—' }}</li>
                 }
@@ -291,7 +297,8 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     return phase === 'FETCHING_METADATA'
       || phase === 'PERSISTING_METADATA'
       || phase === 'COMPARING'
-      || phase === 'DOWNLOADING';
+      || phase === 'DOWNLOADING'
+      || phase === 'EXIF_BACKFILL';
   });
 
   isErrorOrCancelled = computed<boolean>(() => {
@@ -305,6 +312,9 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     if (p.phase === 'FETCHING_METADATA' && p.totalOnCloud > 0 && p.metadataFetched > 0) {
       return Math.round((p.metadataFetched / p.totalOnCloud) * 100);
     }
+    if (p.phase === 'EXIF_BACKFILL' && p.totalOnCloud > 0) {
+      return Math.round((p.metadataFetched / p.totalOnCloud) * 100);
+    }
     return p.percentComplete;
   });
 
@@ -314,9 +324,10 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     if (this.starting() && !p) return true;
     if (this.confirming() && (!p || p.phase === 'AWAITING_CONFIRMATION')) return true;
     if (!p) return false;
-    if (p.phase === 'FETCHING_METADATA' && (p.totalOnCloud === 0 || p.metadataFetched === 0)) return true;
+    if (p.phase === 'FETCHING_METADATA' && (p.currentFile === 'MOUNTING' || p.totalOnCloud === 0 || p.metadataFetched === 0)) return true;
     if (p.phase === 'PERSISTING_METADATA' && p.percentComplete === 0) return true;
     if (p.phase === 'COMPARING') return true;
+    if (p.phase === 'EXIF_BACKFILL' && p.totalOnCloud === 0) return true;
     return false;
   });
 
@@ -325,6 +336,7 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     if (this.confirming() && (!p || p.phase === 'AWAITING_CONFIRMATION')) return 'Rozpoczynanie pobierania...';
     if (this.starting() && !p) return 'Uruchamianie synchronizacji...';
     if (!p) return 'Synchronizacja';
+    if (p.phase === 'FETCHING_METADATA' && p.currentFile === 'MOUNTING') return 'Montowanie iPhone...';
     return this.phaseLabel(p.phase);
   });
 
@@ -449,11 +461,12 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
 
   phaseLabel(phase: string): string {
     switch (phase) {
-      case 'FETCHING_METADATA': return 'Pobieranie metadanych';
+      case 'FETCHING_METADATA': return 'Skanowanie iPhone';
       case 'PERSISTING_METADATA': return 'Zapisywanie do bazy';
       case 'COMPARING': return 'Porównywanie';
       case 'AWAITING_CONFIRMATION': return 'Oczekiwanie na potwierdzenie';
       case 'DOWNLOADING': return 'Pobieranie zdjęć';
+      case 'EXIF_BACKFILL': return 'Uzupełnianie dat EXIF';
       case 'DONE': return 'Zakończone';
       case 'ERROR': return 'Błąd';
       case 'CANCELLED': return 'Anulowano';

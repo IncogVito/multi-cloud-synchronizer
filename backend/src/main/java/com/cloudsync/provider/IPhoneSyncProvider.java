@@ -70,6 +70,7 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
         SessionState state = sessions.get(sessionId);
         if (state == null) return null;
         return switch (state) {
+            case SessionState.Mounting ignored  -> new PrefetchStatus("mounting", 0, null);
             case SessionState.Scanning s        -> new PrefetchStatus("scanning", s.fetched(), null);
             case SessionState.Ready r           -> new PrefetchStatus("ready", r.photos().size(), r.photos().size());
             case SessionState.Failed ignored    -> new PrefetchStatus("error", 0, null);
@@ -104,14 +105,11 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
 
     // ── private ───────────────────────────────────────────────────────────────
 
-    /**
-     * iPhone is expected to be already mounted by the device-check flow (status tile).
-     * This method only verifies the mount is active and scans DCIM.
-     */
     private void doScan(String sessionId) {
         try {
             Path dcimPath = Path.of(iphoneContainerPath, DCIM_SUBDIR);
             if (!Files.isDirectory(dcimPath)) {
+                sessions.put(sessionId, SessionState.mounting());
                 try {
                     var mountResult = hostAgent.iphoneMount(iphoneHostMountPath);
                     if (!mountResult.mounted()) {
@@ -127,9 +125,10 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
                 }
             }
 
-            LOG.info("Scanning DCIM [session={}]…", sessionId);
-            List<PhotoAsset> photos = scanDcim(sessionId);
-            LOG.info("DCIM scan complete [session={}]: {} photos", sessionId, photos.size());
+            sessions.put(sessionId, SessionState.scanning(0));
+            LOG.info("Scanning iPhone mount [session={}]…", sessionId);
+            List<PhotoAsset> photos = scanMount(sessionId);
+            LOG.info("Mount scan complete [session={}]: {} photos", sessionId, photos.size());
             sessions.put(sessionId, SessionState.ready(photos));
         } catch (Exception e) {
             LOG.error("iPhone scan failed [session={}]", sessionId, e);
@@ -140,18 +139,20 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
     private static final int SCAN_PROGRESS_INTERVAL = 50;
     private static final Set<String> VIDEO_EXTENSIONS = Set.of("mov", "mp4", "m4v");
 
-    private List<PhotoAsset> scanDcim(String sessionId) throws IOException {
-        Path dcimPath = Path.of(iphoneContainerPath, DCIM_SUBDIR);
-        if (!Files.isDirectory(dcimPath)) {
-            LOG.warn("DCIM directory not found at {}", dcimPath);
+    private List<PhotoAsset> scanMount(String sessionId) throws IOException {
+        Path mountRoot = Path.of(iphoneContainerPath);
+        if (!Files.isDirectory(mountRoot)) {
+            LOG.warn("iPhone mount root not found at {}", mountRoot);
             return List.of();
         }
 
         List<Path> allFiles;
-        try (Stream<Path> stream = Files.walk(dcimPath)) {
-            allFiles = stream.filter(Files::isRegularFile)
-                             .filter(p -> isPhotoExtension(p.getFileName().toString()))
-                             .toList();
+        try (Stream<Path> stream = Files.walk(mountRoot)) {
+            allFiles = stream
+                    .filter(Files::isRegularFile)
+                    .filter(p -> !isHidden(p))
+                    .filter(p -> isPhotoExtension(p.getFileName().toString()))
+                    .toList();
         }
 
         // Collect "parentPath/stem" for still images to detect Live Photo pairs
@@ -164,7 +165,6 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
         }
 
         List<PhotoAsset> photos = new ArrayList<>();
-        Path mountRoot = Path.of(iphoneContainerPath);
         AtomicInteger counter = new AtomicInteger(0);
 
         for (Path p : allFiles) {
@@ -234,15 +234,24 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
         return PHOTO_EXTENSIONS.contains(filename.substring(dot + 1).toLowerCase());
     }
 
+    private static boolean isHidden(Path p) {
+        for (Path part : p) {
+            if (part.toString().startsWith(".")) return true;
+        }
+        return false;
+    }
+
     // ── session state ─────────────────────────────────────────────────────────
 
     private sealed interface SessionState
-            permits SessionState.Scanning, SessionState.Ready, SessionState.Failed {
+            permits SessionState.Mounting, SessionState.Scanning, SessionState.Ready, SessionState.Failed {
 
+        record Mounting() implements SessionState {}
         record Scanning(int fetched) implements SessionState {}
         record Ready(List<PhotoAsset> photos) implements SessionState {}
         record Failed(String error) implements SessionState {}
 
+        static SessionState mounting() { return new Mounting(); }
         static SessionState scanning(int fetched) { return new Scanning(fetched); }
         static SessionState ready(List<PhotoAsset> photos) { return new Ready(photos); }
         static SessionState failed(String error) { return new Failed(error); }

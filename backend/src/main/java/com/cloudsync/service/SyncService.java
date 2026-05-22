@@ -351,6 +351,9 @@ public class SyncService {
         emitEvent(accountId, SyncPhase.FETCHING_METADATA, e -> {
             e.setMetadataFetched(status.fetched());
             e.setTotalOnCloud(status.total() != null ? status.total() : 0);
+            if ("mounting".equals(status.status())) {
+                e.setCurrentFile("MOUNTING");
+            }
         });
     }
 
@@ -643,19 +646,30 @@ public class SyncService {
                 });
     }
 
+    private static final int EXIF_BACKFILL_EMIT_INTERVAL = 200;
+
     private void backfillIPhoneExifDates(String accountId) {
         List<Photo> iphonePhotos = photoRepository.findByAccountIdAndSyncedToDisk(accountId, true).stream()
                 .filter(p -> "IPHONE".equals(p.getSourceProvider()))
                 .filter(p -> p.getFilePath() != null)
                 .toList();
         if (iphonePhotos.isEmpty()) return;
-        LOG.info("EXIF backfill start: {} iPhone photos [account={}]", iphonePhotos.size(), accountId);
+
+        int total = iphonePhotos.size();
+        LOG.info("EXIF backfill start: {} iPhone photos [account={}]", total, accountId);
+        emitEvent(accountId, SyncPhase.EXIF_BACKFILL, e -> {
+            e.setTotalOnCloud(total);
+            e.setMetadataFetched(0);
+            e.setPercentComplete(0);
+        });
+
         int updated = 0;
+        int processed = 0;
         for (Photo photo : iphonePhotos) {
             if (isCancelled(accountId)) return;
             try {
                 Path file = Path.of(photo.getFilePath());
-                if (!Files.exists(file)) continue;
+                if (!Files.exists(file)) { processed++; continue; }
                 Instant exifDate = ExifDateUtil.readCaptureDate(file, null);
                 if (exifDate != null && !exifDate.equals(photo.getCreatedDate())) {
                     photo.setCreatedDate(exifDate);
@@ -664,6 +678,15 @@ public class SyncService {
                 }
             } catch (Exception e) {
                 LOG.warn("EXIF backfill failed for {}: {}", photo.getId(), e.getMessage());
+            }
+            processed++;
+            if (processed % EXIF_BACKFILL_EMIT_INTERVAL == 0) {
+                final int proc = processed;
+                emitEvent(accountId, SyncPhase.EXIF_BACKFILL, e -> {
+                    e.setTotalOnCloud(total);
+                    e.setMetadataFetched(proc);
+                    e.setPercentComplete((double) proc / total * 100);
+                });
             }
         }
         LOG.info("EXIF backfill done: {} updated [account={}]", updated, accountId);
