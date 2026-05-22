@@ -1,11 +1,15 @@
 package com.cloudsync.controller;
 
+import com.cloudsync.model.dto.DatabaseBackupProgress;
+import com.cloudsync.model.dto.DatabaseBackupResult;
 import com.cloudsync.model.dto.DeletionProgress;
 import com.cloudsync.model.dto.JobSummary;
 import com.cloudsync.model.dto.JobsListResponse;
 import com.cloudsync.model.dto.TaskHistoryDetailDto;
 import com.cloudsync.model.dto.TaskHistoryPageDto;
 import com.cloudsync.model.dto.ThumbnailProgress;
+import com.cloudsync.service.DatabaseBackupJob;
+import com.cloudsync.service.DatabaseBackupJobService;
 import com.cloudsync.service.DeletionJob;
 import com.cloudsync.service.DeletionJobService;
 import com.cloudsync.service.TaskHistoryService;
@@ -16,6 +20,7 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
 import io.micronaut.http.annotation.PathVariable;
+import io.micronaut.http.annotation.Post;
 import io.micronaut.http.annotation.QueryValue;
 import io.micronaut.http.exceptions.HttpStatusException;
 import io.micronaut.http.sse.Event;
@@ -41,13 +46,16 @@ public class JobsController {
     private final DeletionJobService deletionJobService;
     private final ThumbnailJobService thumbnailJobService;
     private final TaskHistoryService taskHistoryService;
+    private final DatabaseBackupJobService databaseBackupJobService;
 
     public JobsController(DeletionJobService deletionJobService,
                           ThumbnailJobService thumbnailJobService,
-                          TaskHistoryService taskHistoryService) {
+                          TaskHistoryService taskHistoryService,
+                          DatabaseBackupJobService databaseBackupJobService) {
         this.deletionJobService = deletionJobService;
         this.thumbnailJobService = thumbnailJobService;
         this.taskHistoryService = taskHistoryService;
+        this.databaseBackupJobService = databaseBackupJobService;
     }
 
     @Operation(summary = "List all active and recent jobs")
@@ -95,5 +103,19 @@ public class JobsController {
     public TaskHistoryDetailDto getTaskDetail(@PathVariable String taskId) {
         return taskHistoryService.getDetail(taskId)
                 .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Task not found: " + taskId));
+    }
+
+    @Operation(summary = "Start a database backup job")
+    @Post("/backup")
+    public DatabaseBackupResult startBackup() {
+        return databaseBackupJobService.startJob();
+    }
+
+    @Operation(summary = "Stream progress for a database backup job (SSE)")
+    @Get(value = "/backup/{jobId}/progress", produces = MediaType.TEXT_EVENT_STREAM)
+    public Publisher<Event<DatabaseBackupProgress>> getBackupProgress(@PathVariable String jobId) {
+        DatabaseBackupJob job = databaseBackupJobService.getJob(jobId)
+                .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Backup job not found: " + jobId));
+        return (Publisher<Event<DatabaseBackupProgress>>) Flux.from(job.subscribe()).map(Event::of);
     }
 }

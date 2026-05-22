@@ -3,12 +3,13 @@ import { CommonModule, DatePipe } from '@angular/common';
 import { JobsService } from '../../core/api/generated/jobs/jobs.service';
 import { RepairThumbnailsService } from '../../core/services/repair-thumbnails.service';
 import { RepairIPhoneService } from '../../core/services/repair-iphone.service';
+import { BackupDatabaseService } from '../../core/services/backup-database.service';
 import { TaskHistoryDto } from '../../core/api/generated/model/taskHistoryDto';
 import { TaskHistoryDetailDto } from '../../core/api/generated/model/taskHistoryDetailDto';
 import { Store } from '@ngxs/store';
 import { AccountsState } from '../../state/accounts/accounts.state';
 
-type FilterType = 'ALL' | 'SYNC' | 'DELETION' | 'THUMBNAIL' | 'IPHONE_REPAIR';
+type FilterType = 'ALL' | 'SYNC' | 'DELETION' | 'THUMBNAIL' | 'IPHONE_REPAIR' | 'DB_BACKUP';
 type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 @Component({
@@ -57,6 +58,12 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
                     </svg>
                     Find missing iPhone photos
                   </button>
+                  <button class="cs-option" type="button" (click)="backupDatabase()" [disabled]="backupService.running()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                    </svg>
+                    Backup bazy danych
+                  </button>
                 </div>
               }
             </div>
@@ -78,6 +85,11 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
               }
             } @else if (iphoneRepairDoneMessage()) {
               <span class="action-msg">{{ iphoneRepairDoneMessage() }}</span>
+            }
+            @if (backupService.running()) {
+              <span class="action-msg">Tworzenie backupu...</span>
+            } @else if (backupDoneMessage()) {
+              <span class="action-msg">{{ backupDoneMessage() }}</span>
             }
           </div>
         </div>
@@ -280,6 +292,7 @@ export class TasksComponent implements OnInit, OnDestroy {
   private store = inject(Store);
   readonly repairService = inject(RepairThumbnailsService);
   readonly repairIPhoneService = inject(RepairIPhoneService);
+  readonly backupService = inject(BackupDatabaseService);
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
   tasks = signal<TaskHistoryDto[]>([]);
@@ -311,6 +324,13 @@ export class TasksComponent implements OnInit, OnDestroy {
     return `Found ${p.newPending} new + ${p.missingFixed} missing files — run iPhone sync to download.`;
   });
 
+  readonly backupDoneMessage = computed(() => {
+    const p = this.backupService.progress();
+    if (!p?.done) return null;
+    if (p.error) return `Backup nie powiódł się: ${p.error}`;
+    return `Backup zapisany: ${p.backupPath}`;
+  });
+
   readonly primaryAccountId = computed<string | null>(() => {
     const accounts = this.store.selectSnapshot(AccountsState.accounts);
     return accounts.find(a => a.hasActiveSession)?.id ?? accounts[0]?.id ?? null;
@@ -322,6 +342,7 @@ export class TasksComponent implements OnInit, OnDestroy {
     { value: 'DELETION', label: 'Deletion' },
     { value: 'THUMBNAIL', label: 'Thumbnails' },
     { value: 'IPHONE_REPAIR', label: 'iPhone Repair' },
+    { value: 'DB_BACKUP', label: 'Backup bazy' },
   ];
 
   statusOptions: { value: FilterStatus; label: string }[] = [
@@ -394,6 +415,7 @@ export class TasksComponent implements OnInit, OnDestroy {
       case 'DELETION': return '✕';
       case 'THUMBNAIL': return '▣';
       case 'IPHONE_REPAIR': return '⚙';
+      case 'DB_BACKUP': return '▦';
       default: return '·';
     }
   }
@@ -404,6 +426,7 @@ export class TasksComponent implements OnInit, OnDestroy {
       case 'DELETION': return `Delete photos (${task.provider ?? 'unknown'})`;
       case 'THUMBNAIL': return 'Generate thumbnails';
       case 'IPHONE_REPAIR': return 'Find missing iPhone photos';
+      case 'DB_BACKUP': return 'Backup bazy danych';
       default: return task.type;
     }
   }
@@ -426,6 +449,11 @@ export class TasksComponent implements OnInit, OnDestroy {
     if (!accountId) return;
     this.actionsOpen.set(false);
     this.repairIPhoneService.startJob(accountId).then(() => this.refresh());
+  }
+
+  backupDatabase(): void {
+    this.actionsOpen.set(false);
+    this.backupService.startJob().then(() => this.refresh());
   }
 
   private load(page: number, silent = false): void {

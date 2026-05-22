@@ -15,7 +15,9 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -139,6 +141,13 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
     private static final int SCAN_PROGRESS_INTERVAL = 50;
     private static final Set<String> VIDEO_EXTENSIONS = Set.of("mov", "mp4", "m4v");
 
+    /**
+     * Only media directories on the AFC mount.
+     * PhotoData/ contains thumbnails and edits for every photo — scanning it would
+     * produce thousands of duplicates with the same filenames as originals.
+     */
+    private static final Set<String> SCAN_SUBDIRS = Set.of("DCIM", "Recordings");
+
     private List<PhotoAsset> scanMount(String sessionId) throws IOException {
         Path mountRoot = Path.of(iphoneContainerPath);
         if (!Files.isDirectory(mountRoot)) {
@@ -146,13 +155,37 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
             return List.of();
         }
 
-        List<Path> allFiles;
-        try (Stream<Path> stream = Files.walk(mountRoot)) {
-            allFiles = stream
-                    .filter(Files::isRegularFile)
-                    .filter(p -> !isHidden(p))
-                    .filter(p -> isPhotoExtension(p.getFileName().toString()))
-                    .toList();
+        List<Path> allFiles = new ArrayList<>();
+        for (String subdir : SCAN_SUBDIRS) {
+            Path dir = mountRoot.resolve(subdir);
+            if (!Files.isDirectory(dir)) continue;
+            try (Stream<Path> stream = Files.walk(dir)) {
+                stream.filter(Files::isRegularFile)
+                      .filter(p -> !isHidden(p))
+                      .filter(p -> isPhotoExtension(p.getFileName().toString()))
+                      .forEach(allFiles::add);
+            }
+        }
+
+        // Deduplicate by filename+size — keeps first occurrence (DCIM wins over thumbnails/edits).
+        Map<String, Path> seen = new LinkedHashMap<>();
+        List<String> duplicateLog = new ArrayList<>();
+        for (Path p : allFiles) {
+            try {
+                long size = Files.size(p);
+                String key = p.getFileName().toString().toLowerCase() + ":" + size;
+                Path existing = seen.putIfAbsent(key, p);
+                if (existing != null) {
+                    duplicateLog.add(p.getFileName() + " (" + size + " B) — kept: " + mountRoot.relativize(existing) + ", skipped: " + mountRoot.relativize(p));
+                }
+            } catch (IOException e) {
+                seen.putIfAbsent(p.toString(), p);
+            }
+        }
+        allFiles = new ArrayList<>(seen.values());
+        if (!duplicateLog.isEmpty()) {
+            LOG.info("Deduplication removed {} file(s) [session={}]:", duplicateLog.size(), sessionId);
+            duplicateLog.forEach(msg -> LOG.info("  dup: {}", msg));
         }
 
         // Collect "parentPath/stem" for still images to detect Live Photo pairs
