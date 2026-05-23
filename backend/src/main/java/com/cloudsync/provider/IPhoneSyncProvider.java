@@ -97,11 +97,18 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
     @Override
     public void deletePhoto(String photoId, String sessionId) {
         Path photoPath = resolveAndValidatePath(photoId);
+        boolean exists = Files.exists(photoPath);
+        boolean writable = exists && Files.isWritable(photoPath);
         try {
             Files.delete(photoPath);
             LOG.info("Deleted iPhone photo: {}", photoPath);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to delete iPhone photo: " + photoId, e);
+            String detail = String.format(
+                    "Failed to delete iPhone photo %s at %s [exists=%s, writable=%s]: %s - %s",
+                    photoId, photoPath, exists, writable,
+                    e.getClass().getSimpleName(), e.getMessage());
+            LOG.warn(detail, e);
+            throw new RuntimeException(detail, e);
         }
     }
 
