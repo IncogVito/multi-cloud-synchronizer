@@ -1,6 +1,7 @@
 package com.cloudsync.controller;
 
 import com.cloudsync.model.dto.BatchPhotoRequest;
+import com.cloudsync.model.dto.DeletePendingResult;
 import com.cloudsync.model.dto.GenerateThumbnailsRequest;
 import com.cloudsync.model.dto.MissingThumbnailsCount;
 import com.cloudsync.model.dto.MonthSummaryResponse;
@@ -223,6 +224,15 @@ public class PhotoController {
         return repairThumbnailsJobService.getJob(jobId)
                 .map(job -> (Publisher<Event<RepairProgress>>) Flux.from(job.subscribe()).map(Event::of))
                 .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Job not found: " + jobId));
+    }
+
+    @Operation(summary = "Delete PENDING photo records not on disk",
+            description = "Removes DB records stuck in sync_status=PENDING that never reached disk. DB-only; on-disk files are never touched.")
+    @ApiResponse(responseCode = "200", description = "Deleted count")
+    @Delete("/pending")
+    @Produces(MediaType.APPLICATION_JSON)
+    public DeletePendingResult deletePending() {
+        return new DeletePendingResult(photoService.deletePendingNotOnDisk());
     }
 
 // FIX: Remove these two methods

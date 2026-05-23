@@ -437,6 +437,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/JobsListResponse"
+  /api/jobs/backup:
+    post:
+      tags:
+      - Jobs
+      summary: Start a database backup job
+      operationId: startBackup
+      responses:
+        "200":
+          description: startBackup 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseBackupResult"
+  /api/jobs/backup/{jobId}/progress:
+    get:
+      tags:
+      - Jobs
+      summary: Stream progress for a database backup job (SSE)
+      operationId: getBackupProgress
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: getBackupProgress 200 response
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_DatabaseBackupProgress_"
   /api/jobs/history:
     get:
       tags:
@@ -706,6 +738,21 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/MonthSummaryResponse"
+  /api/photos/pending:
+    delete:
+      tags:
+      - Photos
+      summary: Delete PENDING photo records not on disk
+      description: Removes DB records stuck in sync_status=PENDING that never reached
+        disk. DB-only; on-disk files are never touched.
+      operationId: deletePending
+      responses:
+        "200":
+          description: Deleted count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletePendingResult"
   /api/photos/repair-thumbnails:
     post:
       tags:
@@ -1300,6 +1347,37 @@ components:
         sortOrder:
           type: integer
           format: int32
+    DatabaseBackupProgress:
+      required:
+      - backupPath
+      - done
+      - error
+      type: object
+      properties:
+        done:
+          type: boolean
+        backupPath:
+          type: string
+        error:
+          type: string
+    DatabaseBackupResult:
+      required:
+      - jobId
+      - progress
+      type: object
+      properties:
+        jobId:
+          type: string
+        progress:
+          $ref: "#/components/schemas/DatabaseBackupProgress"
+    DeletePendingResult:
+      required:
+      - deleted
+      type: object
+      properties:
+        deleted:
+          type: integer
+          format: int64
     DeletionJobRequest:
       required:
       - accountId
@@ -1482,6 +1560,19 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/AgentStepEvent"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
+    Event_DatabaseBackupProgress_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/DatabaseBackupProgress"
         id:
           type: string
         name:

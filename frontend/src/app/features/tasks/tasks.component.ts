@@ -4,6 +4,7 @@ import { JobsService } from '../../core/api/generated/jobs/jobs.service';
 import { RepairThumbnailsService } from '../../core/services/repair-thumbnails.service';
 import { RepairIPhoneService } from '../../core/services/repair-iphone.service';
 import { BackupDatabaseService } from '../../core/services/backup-database.service';
+import { DeletePendingService } from '../../core/services/delete-pending.service';
 import { TaskHistoryDto } from '../../core/api/generated/model/taskHistoryDto';
 import { TaskHistoryDetailDto } from '../../core/api/generated/model/taskHistoryDetailDto';
 import { Store } from '@ngxs/store';
@@ -64,6 +65,12 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
                     </svg>
                     Backup bazy danych
                   </button>
+                  <button class="cs-option" type="button" (click)="removePending()" [disabled]="deletePendingService.running()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+                    </svg>
+                    Usuń pending (stuck)
+                  </button>
                 </div>
               }
             </div>
@@ -90,6 +97,11 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
               <span class="action-msg">Tworzenie backupu...</span>
             } @else if (backupDoneMessage()) {
               <span class="action-msg">{{ backupDoneMessage() }}</span>
+            }
+            @if (deletePendingService.running()) {
+              <span class="action-msg">Usuwanie pending...</span>
+            } @else if (deletePendingMessage()) {
+              <span class="action-msg">{{ deletePendingMessage() }}</span>
             }
           </div>
         </div>
@@ -293,6 +305,7 @@ export class TasksComponent implements OnInit, OnDestroy {
   readonly repairService = inject(RepairThumbnailsService);
   readonly repairIPhoneService = inject(RepairIPhoneService);
   readonly backupService = inject(BackupDatabaseService);
+  readonly deletePendingService = inject(DeletePendingService);
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
   tasks = signal<TaskHistoryDto[]>([]);
@@ -329,6 +342,14 @@ export class TasksComponent implements OnInit, OnDestroy {
     if (!p?.done) return null;
     if (p.error) return `Backup nie powiódł się: ${p.error}`;
     return `Backup zapisany: ${p.backupPath}`;
+  });
+
+  readonly deletePendingMessage = computed(() => {
+    const err = this.deletePendingService.error();
+    if (err) return `Błąd: ${err}`;
+    const n = this.deletePendingService.lastDeleted();
+    if (n === null) return null;
+    return n === 0 ? 'Brak pending do usunięcia.' : `Usunięto ${n} pending rekordów.`;
   });
 
   readonly primaryAccountId = computed<string | null>(() => {
@@ -454,6 +475,11 @@ export class TasksComponent implements OnInit, OnDestroy {
   backupDatabase(): void {
     this.actionsOpen.set(false);
     this.backupService.startJob().then(() => this.refresh());
+  }
+
+  removePending(): void {
+    this.actionsOpen.set(false);
+    this.deletePendingService.run().then(() => this.refresh());
   }
 
   private load(page: number, silent = false): void {

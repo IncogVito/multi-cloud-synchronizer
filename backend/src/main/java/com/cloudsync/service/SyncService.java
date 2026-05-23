@@ -524,15 +524,23 @@ public class SyncService {
 
     private int markPhotosDeletedFromCloud(String providerType, List<PhotoAsset> remotePhotos,
                                            Map<String, Photo> existingByExternalId, List<Photo> toUpdate) {
-        if (!"ICLOUD".equals(providerType)) return 0;
         Set<String> remoteIds = remotePhotos.stream().map(PhotoAsset::id).collect(Collectors.toSet());
         Set<String> alreadyQueued = toUpdate.stream().map(Photo::getId).collect(Collectors.toSet());
         int count = 0;
         for (Photo photo : existingByExternalId.values()) {
-            if (photo.isExistsOnIcloud()
-                    && !remoteIds.contains(photo.getIcloudPhotoId())
-                    && !alreadyQueued.contains(photo.getId())) {
+            if (alreadyQueued.contains(photo.getId())) continue;
+            if ("ICLOUD".equals(providerType)
+                    && photo.isExistsOnIcloud()
+                    && !remoteIds.contains(photo.getIcloudPhotoId())) {
                 photo.setExistsOnIcloud(false);
+                toUpdate.add(photo);
+                count++;
+            } else if ("IPHONE".equals(providerType)
+                    && Boolean.TRUE.equals(photo.getExistsOnIphone())
+                    && !remoteIds.contains(photo.getIphoneLocation())
+                    && !remoteIds.contains(photo.getIcloudPhotoId())) {
+                photo.setExistsOnIphone(false);
+                photo.setIphoneLocation(null);
                 toUpdate.add(photo);
                 count++;
             }

@@ -109,4 +109,10 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
 
     @Query("SELECT * FROM photos WHERE thumbnail_path IS NOT NULL AND thumbnail_path != ''")
     List<Photo> findAllWithThumbnailPath();
+
+    @Query("SELECT COUNT(*) FROM photos WHERE sync_status = 'PENDING' AND synced_to_disk = false")
+    long countPendingNotOnDisk();
+
+    @Query("DELETE FROM photos WHERE sync_status = 'PENDING' AND synced_to_disk = false")
+    void deletePendingNotOnDisk();
 }

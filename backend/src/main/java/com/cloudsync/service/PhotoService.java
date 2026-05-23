@@ -38,6 +38,16 @@ public class PhotoService {
     }
 
     /**
+     * Delete photo records stuck in PENDING that never reached disk.
+     * DB-only operation: filter `synced_to_disk = false` guarantees no on-disk file is touched.
+     */
+    public long deletePendingNotOnDisk() {
+        long count = photoRepository.countPendingNotOnDisk();
+        if (count > 0) photoRepository.deletePendingNotOnDisk();
+        return count;
+    }
+
+    /**
      * Groups synced photos by calendar month and returns a summary for each.
      * Results are sorted newest-month-first.
      *
