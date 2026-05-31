@@ -6,6 +6,8 @@ import {
   ClearPhotosPendingDeletion,
   MarkPhotosDeleted,
   MarkPhotosPendingDeletion,
+  SetGroupingMode,
+  SetSortMode,
 } from './photos.actions';
 
 const defaults: PhotosStateModel = {
@@ -20,6 +22,8 @@ const defaults: PhotosStateModel = {
   error: null,
   showDetails: false,
   columnsPerRow: 7,
+  groupingMode: 'none',
+  sortMode: 'date',
   pendingDeletionIds: [],
   deletedIds: [],
 };
@@ -161,5 +165,55 @@ describe('PhotosState — ClearDeletedPhotos', () => {
 
     expect(ctx.currentState().photos).toHaveLength(1);
     expect(ctx.currentState().deletedIds).toHaveLength(0);
+  });
+});
+
+describe('PhotosState — SetSortMode', () => {
+  it('default sortMode is date', () => {
+    const ctx = makeCtx();
+    expect(ctx.currentState().sortMode).toBe('date');
+  });
+
+  it('switches to size', () => {
+    const ctx = makeCtx();
+    state.setSortMode(ctx as any, new SetSortMode('size'));
+    expect(ctx.currentState().sortMode).toBe('size');
+  });
+
+  it('switches back to date', () => {
+    const ctx = makeCtx({ sortMode: 'size' });
+    state.setSortMode(ctx as any, new SetSortMode('date'));
+    expect(ctx.currentState().sortMode).toBe('date');
+  });
+
+  it('does not touch groupingMode', () => {
+    const ctx = makeCtx({ groupingMode: 'day' });
+    state.setSortMode(ctx as any, new SetSortMode('size'));
+    expect(ctx.currentState().groupingMode).toBe('day');
+  });
+});
+
+describe('PhotosState — SetGroupingMode', () => {
+  it('default groupingMode is none', () => {
+    const ctx = makeCtx();
+    expect(ctx.currentState().groupingMode).toBe('none');
+  });
+
+  it('switches to day', () => {
+    const ctx = makeCtx();
+    state.setGroupingMode(ctx as any, new SetGroupingMode('day'));
+    expect(ctx.currentState().groupingMode).toBe('day');
+  });
+
+  it('switches to hour', () => {
+    const ctx = makeCtx();
+    state.setGroupingMode(ctx as any, new SetGroupingMode('hour'));
+    expect(ctx.currentState().groupingMode).toBe('hour');
+  });
+
+  it('does not touch sortMode', () => {
+    const ctx = makeCtx({ sortMode: 'size' });
+    state.setGroupingMode(ctx as any, new SetGroupingMode('day'));
+    expect(ctx.currentState().sortMode).toBe('size');
   });
 });

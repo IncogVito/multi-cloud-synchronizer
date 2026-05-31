@@ -67,3 +67,10 @@ export class SetGroupingMode {
 }
 
 export type GroupingMode = 'none' | 'day' | 'hour';
+
+export class SetSortMode {
+  static readonly type = '[Photos] Set sort mode';
+  constructor(public readonly mode: SortMode) {}
+}
+
+export type SortMode = 'date' | 'size';

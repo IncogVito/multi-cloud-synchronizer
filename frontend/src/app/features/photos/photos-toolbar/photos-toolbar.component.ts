@@ -1,7 +1,7 @@
 import { Component, HostListener, computed, inject, input, output, signal } from '@angular/core';
 import { Store } from '@ngxs/store';
 import { PhotosState } from '../../../state/photos/photos.state';
-import { GroupingMode, SetColumnsPerRow, SetGroupingMode, SetShowDetails } from '../../../state/photos/photos.actions';
+import { GroupingMode, SetColumnsPerRow, SetGroupingMode, SetShowDetails, SetSortMode, SortMode } from '../../../state/photos/photos.actions';
 
 export type SourceFilter = 'all' | 'icloud' | 'iphone';
 
@@ -27,6 +27,7 @@ export class PhotosToolbarComponent {
   showDetails = this.store.selectSignal(PhotosState.showDetails);
   columnsPerRow = this.store.selectSignal(PhotosState.columnsPerRow);
   groupingMode = this.store.selectSignal(PhotosState.groupingMode);
+  sortMode = this.store.selectSignal(PhotosState.sortMode);
   viewOptionsOpen = signal(false);
   readonly columnOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
@@ -71,6 +72,12 @@ export class PhotosToolbarComponent {
     const current = this.groupingMode();
     const next: GroupingMode = current === 'hour' ? 'day' : 'hour';
     this.store.dispatch(new SetGroupingMode(next));
+  }
+
+  toggleSortBySize(event: MouseEvent): void {
+    event.stopPropagation();
+    const next: SortMode = this.sortMode() === 'size' ? 'date' : 'size';
+    this.store.dispatch(new SetSortMode(next));
   }
 
   onSelectVideoPreviews(event: MouseEvent): void {

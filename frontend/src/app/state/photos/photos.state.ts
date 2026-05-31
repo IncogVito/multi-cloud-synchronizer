@@ -18,6 +18,8 @@ import {
   SetColumnsPerRow,
   SetGroupingMode,
   SetShowDetails,
+  SetSortMode,
+  SortMode,
 } from './photos.actions';
 
 const DEFAULT_PAGE_SIZE = 2000;
@@ -41,6 +43,7 @@ export interface PhotosStateModel {
   showDetails: boolean;
   columnsPerRow: number;
   groupingMode: GroupingMode;
+  sortMode: SortMode;
 }
 
 @State<PhotosStateModel>({
@@ -58,6 +61,7 @@ export interface PhotosStateModel {
     showDetails: false,
     columnsPerRow: 7,
     groupingMode: 'none',
+    sortMode: 'date',
     pendingDeletionIds: [],
     deletedIds: [],
   },
@@ -114,6 +118,11 @@ export class PhotosState {
   @Selector()
   static groupingMode(state: PhotosStateModel): GroupingMode {
     return state.groupingMode;
+  }
+
+  @Selector()
+  static sortMode(state: PhotosStateModel): SortMode {
+    return state.sortMode;
   }
 
   @Selector()
@@ -259,6 +268,11 @@ export class PhotosState {
   @Action(SetGroupingMode)
   setGroupingMode(ctx: StateContext<PhotosStateModel>, action: SetGroupingMode): void {
     ctx.patchState({ groupingMode: action.mode });
+  }
+
+  @Action(SetSortMode)
+  setSortMode(ctx: StateContext<PhotosStateModel>, action: SetSortMode): void {
+    ctx.patchState({ sortMode: action.mode });
   }
 
   @Action(ResetPhotos)
