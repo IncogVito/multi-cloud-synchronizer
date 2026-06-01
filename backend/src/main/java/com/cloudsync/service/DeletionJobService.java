@@ -37,6 +37,7 @@ public class DeletionJobService {
     private final Map<String, PhotoSyncProvider> providers;
     private final int chunkSize;
     private final ConcurrentHashMap<String, DeletionJob> jobs = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, DeletionJob> activeJobByProvider = new ConcurrentHashMap<>();
 
 // FIX:  Use constant enums for Named.
     public DeletionJobService(
@@ -53,7 +54,7 @@ public class DeletionJobService {
         this.chunkSize = chunkSize;
     }
 
-// FIX: add logs 
+// FIX: add logs
     public DeletionJobStartResponse startJob(String accountId, List<String> photoIds, String provider) {
         List<Photo> candidates = photoRepository.findByIdIn(photoIds);
 
@@ -62,14 +63,23 @@ public class DeletionJobService {
                 .toList();
 
         int skipped = photoIds.size() - eligible.size();
-        List<String> eligibleIds = eligible.stream().map(Photo::getId).toList();
 
+        String providerKey = accountId + ":" + provider;
+        DeletionJob existing = activeJobByProvider.get(providerKey);
+        if (existing != null && !existing.isDone()) {
+            existing.mergePhotos(eligible);
+            return new DeletionJobStartResponse(existing.getJobId(), eligible.size(), skipped);
+        }
+
+        List<String> eligibleIds = eligible.stream().map(Photo::getId).toList();
         DeletionJob job = new DeletionJob(UUID.randomUUID().toString(), accountId, provider, eligibleIds);
         jobs.put(job.getJobId(), job);
+        activeJobByProvider.put(providerKey, job);
 
         taskHistoryService.createTask(job.getJobId(), "DELETION", accountId, provider, eligible.size());
 
-        Thread.ofVirtual().start(() -> runJob(job, eligible, provider));
+        job.enqueuePhotos(eligible);
+        Thread.ofVirtual().start(() -> runJob(job, provider, providerKey));
 
         return new DeletionJobStartResponse(job.getJobId(), eligible.size(), skipped);
     }
@@ -112,29 +122,33 @@ public class DeletionJobService {
         if (removed > 0) LOG.debug("Cleaned up {} completed deletion jobs", removed);
     }
 
-    private void runJob(DeletionJob job, List<Photo> photos, String provider) {
+    private void runJob(DeletionJob job, String provider, String providerKey) {
         PhotoSyncProvider syncProvider = providers.get(provider);
         if (syncProvider == null) {
             LOG.error("No provider registered for: {}", provider);
             job.markFailed();
+            activeJobByProvider.remove(providerKey, job);
+            taskHistoryService.completeTask(job.getJobId(), "FAILED", job.getDeleted(), job.getFailed(), "No provider");
             return;
         }
 
         try {
-            List<List<Photo>> chunks = partition(photos, chunkSize);
-            for (List<Photo> chunk : chunks) {
-                if (job.isCancelled()) break;
-                processChunk(job, chunk, syncProvider);
+            while (!job.isCancelled()) {
+                List<Photo> batch = job.pollBatch(chunkSize, 200);
+                if (batch.isEmpty()) break;
+                processChunk(job, batch, syncProvider);
             }
         } catch (Exception e) {
             LOG.error("Deletion job {} failed: {}", job.getJobId(), e.getMessage(), e);
             job.markFailed();
+            activeJobByProvider.remove(providerKey, job);
             taskHistoryService.completeTask(job.getJobId(), "FAILED", job.getDeleted(), job.getFailed(), e.getMessage());
             return;
         }
 
         String finalStatus = job.isCancelled() ? "CANCELLED" : "COMPLETED";
         job.markDone();
+        activeJobByProvider.remove(providerKey, job);
         taskHistoryService.completeTask(job.getJobId(), finalStatus, job.getDeleted(), job.getFailed(), null);
     }
 

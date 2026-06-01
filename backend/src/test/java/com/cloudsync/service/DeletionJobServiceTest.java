@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -263,6 +264,137 @@ class DeletionJobServiceTest {
 
         verify(iCloudProvider, never()).batchDeletePhotos(anyList(), anyString());
         assertThat(service.getJob(resp.jobId()).orElseThrow().getFailed()).isEqualTo(5);
+    }
+
+    // --- job merging ---
+
+    @Test
+    void startJob_whenRunningJobExistsForSameProvider_returnsSameJobId() throws InterruptedException {
+        CountDownLatch firstBatchStarted = new CountDownLatch(1);
+        when(photoRepository.findByIdIn(List.of("p1"))).thenReturn(List.of(photo("p1", true, null)));
+        when(photoRepository.findByIdIn(List.of("p2"))).thenReturn(List.of(photo("p2", true, null)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenAnswer(inv -> {
+                    firstBatchStarted.countDown();
+                    Thread.sleep(500);
+                    return successResults(inv.getArgument(0));
+                });
+
+        DeletionJobStartResponse first = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        firstBatchStarted.await(2, TimeUnit.SECONDS);
+
+        DeletionJobStartResponse second = service.startJob("acc1", List.of("p2"), "ICLOUD");
+
+        assertThat(second.jobId()).isEqualTo(first.jobId());
+    }
+
+    @Test
+    void startJob_whenRunningJobExistsForSameProvider_allPhotosAreProcessed() throws InterruptedException {
+        CountDownLatch firstBatchStarted = new CountDownLatch(1);
+        when(photoRepository.findByIdIn(List.of("p1"))).thenReturn(List.of(photo("p1", true, null)));
+        when(photoRepository.findByIdIn(List.of("p2"))).thenReturn(List.of(photo("p2", true, null)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenAnswer(inv -> {
+                    firstBatchStarted.countDown();
+                    Thread.sleep(100);
+                    return successResults(inv.getArgument(0));
+                })
+                .thenAnswer(inv -> successResults(inv.getArgument(0)));
+
+        DeletionJobStartResponse first = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        firstBatchStarted.await(2, TimeUnit.SECONDS);
+        service.startJob("acc1", List.of("p2"), "ICLOUD");
+
+        awaitDone(first.jobId());
+
+        var job = service.getJob(first.jobId()).orElseThrow();
+        assertThat(job.getTotal()).isEqualTo(2);
+        assertThat(job.getDeleted()).isEqualTo(2);
+    }
+
+    @Test
+    void startJob_whenRunningJobExistsForSameProvider_mergedPhotoIdsAreTrackedInJob() throws InterruptedException {
+        CountDownLatch firstBatchStarted = new CountDownLatch(1);
+        when(photoRepository.findByIdIn(List.of("p1"))).thenReturn(List.of(photo("p1", true, null)));
+        when(photoRepository.findByIdIn(List.of("p2"))).thenReturn(List.of(photo("p2", true, null)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenAnswer(inv -> {
+                    firstBatchStarted.countDown();
+                    Thread.sleep(100);
+                    return successResults(inv.getArgument(0));
+                })
+                .thenAnswer(inv -> successResults(inv.getArgument(0)));
+
+        DeletionJobStartResponse first = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        firstBatchStarted.await(2, TimeUnit.SECONDS);
+        service.startJob("acc1", List.of("p2"), "ICLOUD");
+
+        awaitDone(first.jobId());
+
+        var job = service.getJob(first.jobId()).orElseThrow();
+        assertThat(job.getPhotoIds()).containsExactlyInAnyOrder("p1", "p2");
+    }
+
+    @Test
+    void startJob_whenExistingJobForSameProviderIsDone_createsNewJob() throws InterruptedException {
+        when(photoRepository.findByIdIn(any())).thenReturn(List.of(photo("p1", true, null)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenAnswer(inv -> successResults(inv.getArgument(0)));
+
+        DeletionJobStartResponse first = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        awaitDone(first.jobId());
+
+        when(photoRepository.findByIdIn(List.of("p2"))).thenReturn(List.of(photo("p2", true, null)));
+        DeletionJobStartResponse second = service.startJob("acc1", List.of("p2"), "ICLOUD");
+
+        assertThat(second.jobId()).isNotEqualTo(first.jobId());
+    }
+
+    @Test
+    void startJob_differentProviders_eachGetsOwnJob() throws InterruptedException {
+        CountDownLatch icloudStarted = new CountDownLatch(1);
+        when(photoRepository.findByIdIn(List.of("p1"))).thenReturn(List.of(photo("p1", true, null)));
+        when(photoRepository.findByIdIn(List.of("p2"))).thenReturn(List.of(photo("p2", null, true)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenAnswer(inv -> {
+                    icloudStarted.countDown();
+                    Thread.sleep(500);
+                    return successResults(inv.getArgument(0));
+                });
+        when(iPhoneProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenAnswer(inv -> { Thread.sleep(500); return successResults(inv.getArgument(0)); });
+
+        DeletionJobStartResponse icloud = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        icloudStarted.await(2, TimeUnit.SECONDS);
+        DeletionJobStartResponse iphone = service.startJob("acc1", List.of("p2"), "IPHONE");
+
+        assertThat(iphone.jobId()).isNotEqualTo(icloud.jobId());
+    }
+
+    @Test
+    void startJob_multipleSequentialMerges_allPhotosProcessed() throws InterruptedException {
+        AtomicInteger callCount = new AtomicInteger(0);
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        when(photoRepository.findByIdIn(List.of("p1"))).thenReturn(List.of(photo("p1", true, null)));
+        when(photoRepository.findByIdIn(List.of("p2"))).thenReturn(List.of(photo("p2", true, null)));
+        when(photoRepository.findByIdIn(List.of("p3"))).thenReturn(List.of(photo("p3", true, null)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenAnswer(inv -> {
+                    if (callCount.getAndIncrement() == 0) firstStarted.countDown();
+                    Thread.sleep(50);
+                    return successResults(inv.getArgument(0));
+                });
+
+        DeletionJobStartResponse first = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        firstStarted.await(2, TimeUnit.SECONDS);
+        service.startJob("acc1", List.of("p2"), "ICLOUD");
+        service.startJob("acc1", List.of("p3"), "ICLOUD");
+
+        awaitDone(first.jobId());
+
+        var job = service.getJob(first.jobId()).orElseThrow();
+        assertThat(job.getTotal()).isEqualTo(3);
+        assertThat(job.getDeleted()).isEqualTo(3);
     }
 
     // --- helpers ---

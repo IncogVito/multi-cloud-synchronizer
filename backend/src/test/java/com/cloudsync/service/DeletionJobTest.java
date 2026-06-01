@@ -134,4 +134,24 @@ class DeletionJobTest {
 
         assertThat(ids).containsExactly("p1", "p2");
     }
+
+    // --- addPhotoIds ---
+
+    @Test
+    void addPhotoIds_increasesTotal() {
+        DeletionJob job = new DeletionJob("j1", "acc1", "ICLOUD", List.of("p1"));
+
+        job.addPhotoIds(List.of("p2", "p3"));
+
+        assertThat(job.getTotal()).isEqualTo(3);
+    }
+
+    @Test
+    void addPhotoIds_appendsToTrackedIds() {
+        DeletionJob job = new DeletionJob("j1", "acc1", "ICLOUD", List.of("p1"));
+
+        job.addPhotoIds(List.of("p2"));
+
+        assertThat(job.getPhotoIds()).containsExactlyInAnyOrder("p1", "p2");
+    }
 }
