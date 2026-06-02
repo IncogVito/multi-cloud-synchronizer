@@ -644,7 +644,11 @@ public class SyncService {
                     String thumbnailJobId = null;
                     if (!isCancelled(accountId)) {
                         if ("IPHONE".equals(providerType)) {
-                            backfillIPhoneExifDates(accountId);
+                            List<Photo> newlyDownloaded = pending.stream()
+                                    .filter(p -> SyncStatus.SYNCED.name().equals(p.getSyncStatus()))
+                                    .filter(p -> p.getFilePath() != null)
+                                    .toList();
+                            backfillIPhoneExifDates(accountId, newlyDownloaded);
                         }
                         thumbnailJobId = startThumbnailJobForSync(accountId);
                     }
@@ -656,11 +660,7 @@ public class SyncService {
 
     private static final int EXIF_BACKFILL_EMIT_INTERVAL = 200;
 
-    private void backfillIPhoneExifDates(String accountId) {
-        List<Photo> iphonePhotos = photoRepository.findByAccountIdAndSyncedToDisk(accountId, true).stream()
-                .filter(p -> "IPHONE".equals(p.getSourceProvider()))
-                .filter(p -> p.getFilePath() != null)
-                .toList();
+    void backfillIPhoneExifDates(String accountId, List<Photo> iphonePhotos) {
         if (iphonePhotos.isEmpty()) return;
 
         int total = iphonePhotos.size();

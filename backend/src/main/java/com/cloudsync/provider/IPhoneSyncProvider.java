@@ -162,6 +162,7 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
             return List.of();
         }
 
+        AtomicInteger walkCounter = new AtomicInteger(0);
         List<Path> allFiles = new ArrayList<>();
         for (String subdir : SCAN_SUBDIRS) {
             Path dir = mountRoot.resolve(subdir);
@@ -170,6 +171,12 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
                 stream.filter(Files::isRegularFile)
                       .filter(p -> !isHidden(p))
                       .filter(p -> isPhotoExtension(p.getFileName().toString()))
+                      .peek(p -> {
+                          int cnt = walkCounter.incrementAndGet();
+                          if (cnt % SCAN_PROGRESS_INTERVAL == 0) {
+                              sessions.put(sessionId, SessionState.scanning(cnt));
+                          }
+                      })
                       .forEach(allFiles::add);
             }
         }
