@@ -186,12 +186,15 @@ public class DeletionJobService {
             results = syncProvider.batchDeletePhotos(items, sessionId);
         } catch (Exception e) {
             LOG.warn("Batch delete sub-chunk failed for job {}: {}", job.getJobId(), e.getMessage());
-            job.recordFailure(subChunk.stream().map(Photo::getId).toList());
+            List<Photo> permanent = job.requeueRetriable(subChunk);
+            if (!permanent.isEmpty()) {
+                job.recordFailure(permanent.stream().map(Photo::getId).toList());
+            }
             return;
         }
 
         List<String> succeeded = new ArrayList<>();
-        List<String> failed = new ArrayList<>();
+        List<Photo> failed = new ArrayList<>();
 
         for (int i = 0; i < subChunk.size(); i++) {
             Photo photo = subChunk.get(i);
@@ -204,7 +207,7 @@ public class DeletionJobService {
             } else {
                 String err = result != null ? result.error() : "no result";
                 LOG.warn("Failed to delete photo {} from {}: {}", photo.getId(), provider, err);
-                failed.add(photo.getId());
+                failed.add(photo);
             }
         }
 
@@ -217,12 +220,13 @@ public class DeletionJobService {
             taskHistoryService.addTaskItems(job.getJobId(), succeeded, succeededNames, "DELETED", null);
         }
         if (!failed.isEmpty()) {
-            job.recordFailure(failed);
-            List<String> failedNames = subChunk.stream()
-                    .filter(p -> failed.contains(p.getId()))
-                    .map(Photo::getFilename)
-                    .toList();
-            taskHistoryService.addTaskItems(job.getJobId(), failed, failedNames, "FAILED", "Deletion failed");
+            List<Photo> permanent = job.requeueRetriable(failed);
+            if (!permanent.isEmpty()) {
+                List<String> permanentIds = permanent.stream().map(Photo::getId).toList();
+                job.recordFailure(permanentIds);
+                List<String> permanentNames = permanent.stream().map(Photo::getFilename).toList();
+                taskHistoryService.addTaskItems(job.getJobId(), permanentIds, permanentNames, "FAILED", "Deletion failed");
+            }
         }
     }
 

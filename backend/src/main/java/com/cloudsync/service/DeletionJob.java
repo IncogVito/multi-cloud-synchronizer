@@ -9,11 +9,14 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class DeletionJob {
+
+    private static final int MAX_ATTEMPTS = 3;
 
     private final String jobId;
     private final String accountId;
@@ -28,6 +31,7 @@ public class DeletionJob {
     private volatile String status = "RUNNING";
 
     private final LinkedBlockingQueue<Photo> pendingQueue = new LinkedBlockingQueue<>();
+    private final ConcurrentHashMap<String, AtomicInteger> attemptCounts = new ConcurrentHashMap<>();
     private final Sinks.Many<DeletionProgress> sink = Sinks.many().replay().all();
 
     public DeletionJob(String jobId, String accountId, String provider, List<String> initialPhotoIds) {
@@ -59,6 +63,20 @@ public class DeletionJob {
         batch.add(first);
         pendingQueue.drainTo(batch, maxSize - 1);
         return batch;
+    }
+
+    /** Re-enqueues photos that still have attempts left; returns those permanently failed (exhausted MAX_ATTEMPTS). */
+    List<Photo> requeueRetriable(List<Photo> photos) {
+        List<Photo> permanent = new ArrayList<>();
+        for (Photo photo : photos) {
+            int attempts = attemptCounts.computeIfAbsent(photo.getId(), k -> new AtomicInteger(0)).incrementAndGet();
+            if (attempts < MAX_ATTEMPTS) {
+                pendingQueue.add(photo);
+            } else {
+                permanent.add(photo);
+            }
+        }
+        return permanent;
     }
 
     void recordSuccess(List<String> ids) {

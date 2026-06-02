@@ -226,9 +226,10 @@ class DeletionJobServiceTest {
         DeletionJobStartResponse resp = service.startJob("acc1", ids(photoList), "ICLOUD");
         awaitDone(resp.jobId());
 
+        // first sub-chunk re-queued after exception and eventually succeeds → all 10 deleted
         var job = service.getJob(resp.jobId()).orElseThrow();
-        assertThat(job.getFailed()).isEqualTo(5);
-        assertThat(job.getDeleted()).isEqualTo(5);
+        assertThat(job.getFailed()).isEqualTo(0);
+        assertThat(job.getDeleted()).isEqualTo(10);
     }
 
     @Test
@@ -395,6 +396,85 @@ class DeletionJobServiceTest {
         var job = service.getJob(first.jobId()).orElseThrow();
         assertThat(job.getTotal()).isEqualTo(3);
         assertThat(job.getDeleted()).isEqualTo(3);
+    }
+
+    // --- retry ---
+
+    @Test
+    void runJob_retriesPhotoThreeTimesOnResultFailureBeforeCountingAsFailed() throws InterruptedException {
+        when(photoRepository.findByIdIn(any())).thenReturn(List.of(photo("p1", true, null)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenReturn(List.of(new ICloudBatchDeleteResult("icloud-p1", false, "iCloud error")));
+
+        DeletionJobStartResponse resp = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        awaitDone(resp.jobId());
+
+        verify(iCloudProvider, times(3)).batchDeletePhotos(anyList(), anyString());
+        var job = service.getJob(resp.jobId()).orElseThrow();
+        assertThat(job.getFailed()).isEqualTo(1);
+        assertThat(job.getDeleted()).isEqualTo(0);
+    }
+
+    @Test
+    void runJob_successOnSecondAttempt_countsAsDeletedNotFailed() throws InterruptedException {
+        when(photoRepository.findByIdIn(any())).thenReturn(List.of(photo("p1", true, null)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenReturn(List.of(new ICloudBatchDeleteResult("icloud-p1", false, "transient")))
+                .thenAnswer(inv -> successResults(inv.getArgument(0)));
+
+        DeletionJobStartResponse resp = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        awaitDone(resp.jobId());
+
+        var job = service.getJob(resp.jobId()).orElseThrow();
+        assertThat(job.getDeleted()).isEqualTo(1);
+        assertThat(job.getFailed()).isEqualTo(0);
+    }
+
+    @Test
+    void runJob_retriesPhotoThreeTimesOnExceptionBeforeCountingAsFailed() throws InterruptedException {
+        when(photoRepository.findByIdIn(any())).thenReturn(List.of(photo("p1", true, null)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenThrow(new RuntimeException("network error"));
+
+        DeletionJobStartResponse resp = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        awaitDone(resp.jobId());
+
+        verify(iCloudProvider, times(3)).batchDeletePhotos(anyList(), anyString());
+        var job = service.getJob(resp.jobId()).orElseThrow();
+        assertThat(job.getFailed()).isEqualTo(1);
+        assertThat(job.getDeleted()).isEqualTo(0);
+    }
+
+    @Test
+    void runJob_exceptionThenSuccess_onRetry_countsAsDeleted() throws InterruptedException {
+        when(photoRepository.findByIdIn(any())).thenReturn(List.of(photo("p1", true, null)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenThrow(new RuntimeException("transient"))
+                .thenAnswer(inv -> successResults(inv.getArgument(0)));
+
+        DeletionJobStartResponse resp = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        awaitDone(resp.jobId());
+
+        var job = service.getJob(resp.jobId()).orElseThrow();
+        assertThat(job.getDeleted()).isEqualTo(1);
+        assertThat(job.getFailed()).isEqualTo(0);
+    }
+
+    @Test
+    void runJob_intermediateRetries_doNotAppearAsFailedInProgress() throws InterruptedException {
+        when(photoRepository.findByIdIn(any())).thenReturn(List.of(photo("p1", true, null)));
+        when(iCloudProvider.batchDeletePhotos(anyList(), anyString()))
+                .thenReturn(List.of(new ICloudBatchDeleteResult("icloud-p1", false, "err")))
+                .thenReturn(List.of(new ICloudBatchDeleteResult("icloud-p1", false, "err")))
+                .thenAnswer(inv -> successResults(inv.getArgument(0)));
+
+        DeletionJobStartResponse resp = service.startJob("acc1", List.of("p1"), "ICLOUD");
+        awaitDone(resp.jobId());
+
+        // two failures then success: photo should end up deleted, never counted as permanently failed
+        var job = service.getJob(resp.jobId()).orElseThrow();
+        assertThat(job.getFailed()).isEqualTo(0);
+        assertThat(job.getDeleted()).isEqualTo(1);
     }
 
     // --- helpers ---

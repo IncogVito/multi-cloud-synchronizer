@@ -1,6 +1,7 @@
 package com.cloudsync.service;
 
 import com.cloudsync.model.dto.DeletionProgress;
+import com.cloudsync.model.entity.Photo;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -153,5 +154,85 @@ class DeletionJobTest {
         job.addPhotoIds(List.of("p2"));
 
         assertThat(job.getPhotoIds()).containsExactlyInAnyOrder("p1", "p2");
+    }
+
+    // --- requeueRetriable ---
+
+    @Test
+    void requeueRetriable_firstFailure_returnsEmptyPermanentList() {
+        DeletionJob job = new DeletionJob("j1", "acc1", "ICLOUD", List.of("p1"));
+
+        List<Photo> permanent = job.requeueRetriable(List.of(photo("p1")));
+
+        assertThat(permanent).isEmpty();
+    }
+
+    @Test
+    void requeueRetriable_secondFailure_returnsEmptyPermanentList() {
+        DeletionJob job = new DeletionJob("j1", "acc1", "ICLOUD", List.of("p1"));
+        Photo p = photo("p1");
+
+        job.requeueRetriable(List.of(p));
+        List<Photo> permanent = job.requeueRetriable(List.of(p));
+
+        assertThat(permanent).isEmpty();
+    }
+
+    @Test
+    void requeueRetriable_thirdFailure_returnsPermanentList() {
+        DeletionJob job = new DeletionJob("j1", "acc1", "ICLOUD", List.of("p1"));
+        Photo p = photo("p1");
+
+        job.requeueRetriable(List.of(p));
+        job.requeueRetriable(List.of(p));
+        List<Photo> permanent = job.requeueRetriable(List.of(p));
+
+        assertThat(permanent).containsExactly(p);
+    }
+
+    @Test
+    void requeueRetriable_photoIsAvailableInQueueAfterRequeue() throws InterruptedException {
+        DeletionJob job = new DeletionJob("j1", "acc1", "ICLOUD", List.of("p1"));
+        Photo p = photo("p1");
+
+        job.requeueRetriable(List.of(p));
+
+        List<Photo> batch = job.pollBatch(10, 100);
+        assertThat(batch).containsExactly(p);
+    }
+
+    @Test
+    void requeueRetriable_doesNotIncrementFailedOrDeletedCount() {
+        DeletionJob job = new DeletionJob("j1", "acc1", "ICLOUD", List.of("p1"));
+
+        job.requeueRetriable(List.of(photo("p1")));
+        job.requeueRetriable(List.of(photo("p1")));
+
+        assertThat(job.getFailed()).isEqualTo(0);
+        assertThat(job.getDeleted()).isEqualTo(0);
+    }
+
+    @Test
+    void requeueRetriable_onlyExhaustedPhotosReturnedAsPermanent() {
+        DeletionJob job = new DeletionJob("j1", "acc1", "ICLOUD", List.of("p1", "p2"));
+        Photo p1 = photo("p1");
+        Photo p2 = photo("p2");
+
+        // exhaust p1 to attempt 2, leave p2 untouched
+        job.requeueRetriable(List.of(p1));
+        job.requeueRetriable(List.of(p1));
+
+        // third call: p1 at attempt 3 → permanent; p2 at attempt 1 → re-queued
+        List<Photo> permanent = job.requeueRetriable(List.of(p1, p2));
+
+        assertThat(permanent).containsExactly(p1);
+    }
+
+    // --- helpers ---
+
+    private static Photo photo(String id) {
+        Photo p = new Photo();
+        p.setId(id);
+        return p;
     }
 }
