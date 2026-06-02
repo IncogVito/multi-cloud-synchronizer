@@ -137,16 +137,11 @@ class PhotoService:
     # ------------------------------------------------------------------
 
     def _find_photo(self, session_id: str, photo_id: str):
-        """O(1) lookup from cache. Falls back to full iteration if cache not ready."""
+        """O(1) lookup from cache only. No fallback scan — if not in cache, photo is not found."""
         from app.services.photo_cache import photo_cache  # local import to avoid circular
         index = photo_cache.get_index(session_id)
-        if index and photo_id in index:
+        if photo_id in index:
             return index[photo_id]
-        logger.warning("_find_photo: cache miss for photo_id=%s, falling back to full scan", photo_id)
-        api = session_manager.get_api(session_id)
-        for photo in api.photos.all:
-            if photo.id == photo_id:
-                return photo
         raise PhotoNotFoundException(photo_id)
 
 

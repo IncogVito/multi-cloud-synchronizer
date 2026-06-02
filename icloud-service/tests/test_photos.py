@@ -54,3 +54,36 @@ def test_get_thumbnail_streams_thumb_version():
     assert response.content == b"abc"
     assert "image/jpeg" in response.headers.get("content-type", "")
 
+
+def test_find_photo_cache_miss_raises_not_found_no_scan():
+    """Cache miss must raise PhotoNotFoundException — no fallback full scan."""
+    from app.exceptions import PhotoNotFoundException
+    from app.services.photo_service import PhotoService
+
+    svc = PhotoService()
+
+    with patch("app.services.photo_cache.photo_cache.get_index", return_value={}):
+        try:
+            list(svc.download_photo_stream("sess1", "nonexistent"))
+            assert False, "Expected PhotoNotFoundException"
+        except PhotoNotFoundException:
+            pass
+
+
+def test_find_photo_cache_miss_does_not_iterate_album():
+    """Verify iCloud album is never iterated on cache miss."""
+    from app.exceptions import PhotoNotFoundException
+    from app.services.photo_service import PhotoService
+    from app.services.icloud_session_manager import session_manager
+
+    svc = PhotoService()
+    mock_api = patch("app.services.icloud_session_manager.session_manager.get_api")
+
+    with patch("app.services.photo_cache.photo_cache.get_index", return_value={}):
+        with mock_api as mock_get_api:
+            try:
+                list(svc.download_photo_stream("sess1", "nonexistent"))
+            except PhotoNotFoundException:
+                pass
+            mock_get_api.assert_not_called()
+
