@@ -78,8 +78,8 @@ export class PhotosComponent implements OnInit, OnDestroy {
   filteredPhotos = computed(() => {
     const f = this.sourceFilter();
     const photos = this.allPhotos();
-    if (f === 'icloud') return photos.filter(p => p.existsOnIcloud && !p.existsOnIphone);
-    if (f === 'iphone') return photos.filter(p => p.existsOnIphone && !p.existsOnIcloud);
+    if (f === 'icloud') return photos.filter(p => p.existsOnIcloud);
+    if (f === 'iphone') return photos.filter(p => p.existsOnIphone);
     return photos;
   });
 
