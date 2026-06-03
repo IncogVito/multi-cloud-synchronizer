@@ -25,15 +25,18 @@ public class MergeDuplicatesJobService {
     private static final Logger LOG = LoggerFactory.getLogger(MergeDuplicatesJobService.class);
 
     private final PhotoRepository photoRepository;
+    private final TaskHistoryService taskHistoryService;
     private final ConcurrentHashMap<String, MergeDuplicatesJob> jobs = new ConcurrentHashMap<>();
 
-    public MergeDuplicatesJobService(PhotoRepository photoRepository) {
+    public MergeDuplicatesJobService(PhotoRepository photoRepository, TaskHistoryService taskHistoryService) {
         this.photoRepository = photoRepository;
+        this.taskHistoryService = taskHistoryService;
     }
 
     public MergeDuplicatesResult startJob(String accountId) {
         MergeDuplicatesJob job = new MergeDuplicatesJob(UUID.randomUUID().toString());
         jobs.put(job.getId(), job);
+        taskHistoryService.createTask(job.getId(), "MERGE_DUPLICATES", accountId, null, 0);
         Thread.ofVirtual().name("merge-duplicates-" + job.getId()).start(() -> runJob(job, accountId));
         return new MergeDuplicatesResult(job.getId(), job.currentProgress());
     }
@@ -78,9 +81,13 @@ public class MergeDuplicatesJobService {
 
         } catch (Exception e) {
             LOG.error("Merge-duplicates job {} failed: {}", job.getId(), e.getMessage(), e);
+            job.markDone();
+            taskHistoryService.completeTask(job.getId(), "FAILED", 0, 0, e.getMessage());
+            return;
         }
         job.markDone();
         MergeDuplicatesProgress p = job.currentProgress();
+        taskHistoryService.completeTask(job.getId(), "COMPLETED", p.merged(), p.deleted(), null);
         LOG.info("Merge-duplicates job {} done: merged={} deleted={}", job.getId(), p.merged(), p.deleted());
     }
 

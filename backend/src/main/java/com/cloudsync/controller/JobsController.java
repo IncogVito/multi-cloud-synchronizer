@@ -5,6 +5,7 @@ import com.cloudsync.model.dto.DatabaseBackupResult;
 import com.cloudsync.model.dto.DeletionProgress;
 import com.cloudsync.model.dto.JobSummary;
 import com.cloudsync.model.dto.JobsListResponse;
+import com.cloudsync.model.dto.MergeDuplicatesProgress;
 import com.cloudsync.model.dto.TaskHistoryDetailDto;
 import com.cloudsync.model.dto.TaskHistoryPageDto;
 import com.cloudsync.model.dto.ThumbnailProgress;
@@ -12,6 +13,8 @@ import com.cloudsync.service.DatabaseBackupJob;
 import com.cloudsync.service.DatabaseBackupJobService;
 import com.cloudsync.service.DeletionJob;
 import com.cloudsync.service.DeletionJobService;
+import com.cloudsync.service.MergeDuplicatesJob;
+import com.cloudsync.service.MergeDuplicatesJobService;
 import com.cloudsync.service.TaskHistoryService;
 import com.cloudsync.service.ThumbnailJob;
 import com.cloudsync.service.ThumbnailJobService;
@@ -47,15 +50,18 @@ public class JobsController {
     private final ThumbnailJobService thumbnailJobService;
     private final TaskHistoryService taskHistoryService;
     private final DatabaseBackupJobService databaseBackupJobService;
+    private final MergeDuplicatesJobService mergeDuplicatesJobService;
 
     public JobsController(DeletionJobService deletionJobService,
                           ThumbnailJobService thumbnailJobService,
                           TaskHistoryService taskHistoryService,
-                          DatabaseBackupJobService databaseBackupJobService) {
+                          DatabaseBackupJobService databaseBackupJobService,
+                          MergeDuplicatesJobService mergeDuplicatesJobService) {
         this.deletionJobService = deletionJobService;
         this.thumbnailJobService = thumbnailJobService;
         this.taskHistoryService = taskHistoryService;
         this.databaseBackupJobService = databaseBackupJobService;
+        this.mergeDuplicatesJobService = mergeDuplicatesJobService;
     }
 
     @Operation(summary = "List all active and recent jobs")
@@ -83,6 +89,12 @@ public class JobsController {
         if (thumbnail.isPresent()) {
             ThumbnailJob job = thumbnail.get();
             return (Publisher<Event<ThumbnailProgress>>) Flux.from(job.subscribe()).map(Event::of);
+        }
+
+        var merge = mergeDuplicatesJobService.getJob(jobId);
+        if (merge.isPresent()) {
+            MergeDuplicatesJob job = merge.get();
+            return (Publisher<Event<MergeDuplicatesProgress>>) Flux.from(job.subscribe()).map(Event::of);
         }
 
         throw new HttpStatusException(HttpStatus.NOT_FOUND, "Job not found: " + jobId);

@@ -5,12 +5,13 @@ import { RepairThumbnailsService } from '../../core/services/repair-thumbnails.s
 import { RepairIPhoneService } from '../../core/services/repair-iphone.service';
 import { BackupDatabaseService } from '../../core/services/backup-database.service';
 import { DeletePendingService } from '../../core/services/delete-pending.service';
+import { MergeDuplicatesService } from '../../core/services/merge-duplicates.service';
 import { TaskHistoryDto } from '../../core/api/generated/model/taskHistoryDto';
 import { TaskHistoryDetailDto } from '../../core/api/generated/model/taskHistoryDetailDto';
 import { Store } from '@ngxs/store';
 import { AccountsState } from '../../state/accounts/accounts.state';
 
-type FilterType = 'ALL' | 'SYNC' | 'DELETION' | 'THUMBNAIL' | 'IPHONE_REPAIR' | 'DB_BACKUP';
+type FilterType = 'ALL' | 'SYNC' | 'DELETION' | 'THUMBNAIL' | 'IPHONE_REPAIR' | 'DB_BACKUP' | 'MERGE_DUPLICATES';
 type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 @Component({
@@ -71,6 +72,13 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
                     </svg>
                     Usuń pending (stuck)
                   </button>
+                  <button class="cs-option" type="button" (click)="mergeDuplicates()" [disabled]="mergeDuplicatesService.running() || !primaryAccountId()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                      <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                    Scal duplikaty
+                  </button>
                 </div>
               }
             </div>
@@ -102,6 +110,15 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
               <span class="action-msg">Usuwanie pending...</span>
             } @else if (deletePendingMessage()) {
               <span class="action-msg">{{ deletePendingMessage() }}</span>
+            }
+            @if (mergeDuplicatesService.running()) {
+              @if (mergeDuplicatesService.progress(); as p) {
+                <span class="action-msg">Scalanie... {{ p.checked }}/{{ p.total }}</span>
+              } @else {
+                <span class="action-msg">Scalanie duplikatów...</span>
+              }
+            } @else if (mergeDuplicatesDoneMessage()) {
+              <span class="action-msg">{{ mergeDuplicatesDoneMessage() }}</span>
             }
           </div>
         </div>
@@ -306,6 +323,7 @@ export class TasksComponent implements OnInit, OnDestroy {
   readonly repairIPhoneService = inject(RepairIPhoneService);
   readonly backupService = inject(BackupDatabaseService);
   readonly deletePendingService = inject(DeletePendingService);
+  readonly mergeDuplicatesService = inject(MergeDuplicatesService);
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
   tasks = signal<TaskHistoryDto[]>([]);
@@ -344,6 +362,13 @@ export class TasksComponent implements OnInit, OnDestroy {
     return `Backup zapisany: ${p.backupPath}`;
   });
 
+  readonly mergeDuplicatesDoneMessage = computed(() => {
+    const p = this.mergeDuplicatesService.progress();
+    if (!p?.done) return null;
+    if (p.merged === 0) return 'Brak duplikatów do scalenia.';
+    return `Scalono ${p.merged} grup, usunięto ${p.deleted} rekordów.`;
+  });
+
   readonly deletePendingMessage = computed(() => {
     const err = this.deletePendingService.error();
     if (err) return `Błąd: ${err}`;
@@ -364,6 +389,7 @@ export class TasksComponent implements OnInit, OnDestroy {
     { value: 'THUMBNAIL', label: 'Thumbnails' },
     { value: 'IPHONE_REPAIR', label: 'iPhone Repair' },
     { value: 'DB_BACKUP', label: 'Backup bazy' },
+    { value: 'MERGE_DUPLICATES', label: 'Scalanie duplikatów' },
   ];
 
   statusOptions: { value: FilterStatus; label: string }[] = [
@@ -437,6 +463,7 @@ export class TasksComponent implements OnInit, OnDestroy {
       case 'THUMBNAIL': return '▣';
       case 'IPHONE_REPAIR': return '⚙';
       case 'DB_BACKUP': return '▦';
+      case 'MERGE_DUPLICATES': return '⊕';
       default: return '·';
     }
   }
@@ -448,6 +475,7 @@ export class TasksComponent implements OnInit, OnDestroy {
       case 'THUMBNAIL': return 'Generate thumbnails';
       case 'IPHONE_REPAIR': return 'Find missing iPhone photos';
       case 'DB_BACKUP': return 'Backup bazy danych';
+      case 'MERGE_DUPLICATES': return 'Scalanie duplikatów';
       default: return task.type;
     }
   }
@@ -480,6 +508,13 @@ export class TasksComponent implements OnInit, OnDestroy {
   removePending(): void {
     this.actionsOpen.set(false);
     this.deletePendingService.run().then(() => this.refresh());
+  }
+
+  mergeDuplicates(): void {
+    const accountId = this.primaryAccountId();
+    if (!accountId) return;
+    this.actionsOpen.set(false);
+    this.mergeDuplicatesService.startJob(accountId).then(() => this.refresh());
   }
 
   private load(page: number, silent = false): void {
