@@ -7,11 +7,8 @@ import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.sql.DataSource;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.Statement;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -26,15 +23,15 @@ public class DatabaseBackupJobService {
     private static final Logger LOG = LoggerFactory.getLogger(DatabaseBackupJobService.class);
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("ddMMyyyy");
 
-    private final DataSource dataSource;
+    private final DatabaseBackupExecutor backupExecutor;
     private final String externalDrivePath;
     private final TaskHistoryService taskHistoryService;
     private final ConcurrentHashMap<String, DatabaseBackupJob> jobs = new ConcurrentHashMap<>();
 
-    public DatabaseBackupJobService(DataSource dataSource,
+    public DatabaseBackupJobService(DatabaseBackupExecutor backupExecutor,
                                     @Value("${app.external-drive-path}") String externalDrivePath,
                                     TaskHistoryService taskHistoryService) {
-        this.dataSource = dataSource;
+        this.backupExecutor = backupExecutor;
         this.externalDrivePath = externalDrivePath;
         this.taskHistoryService = taskHistoryService;
     }
@@ -67,10 +64,7 @@ public class DatabaseBackupJobService {
             // VACUUM INTO fails if dest exists — remove first
             Files.deleteIfExists(backupFile);
 
-            try (Connection conn = dataSource.getConnection();
-                 Statement stmt = conn.createStatement()) {
-                stmt.execute("VACUUM INTO '" + backupFile.toString().replace("'", "''") + "'");
-            }
+            backupExecutor.vacuum(backupFile);
 
             job.markDone(backupFile.toString());
             taskHistoryService.completeTask(job.getId(), "COMPLETED", 1, 0, null);

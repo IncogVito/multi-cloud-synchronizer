@@ -33,8 +33,8 @@ export class MonthsNavComponent {
 
   countForMonth(month: MonthSummaryResponse): number {
     const f = this.sourceFilter();
-    if (f === 'icloud') return month.photoCount - month.iphoneOnlyCount;
-    if (f === 'iphone') return month.photoCount - month.icloudOnlyCount;
+    if (f === 'icloud') return month.icloudOnlyCount;
+    if (f === 'iphone') return month.iphoneOnlyCount;
     return month.photoCount;
   }
 

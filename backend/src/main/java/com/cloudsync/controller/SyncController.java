@@ -2,10 +2,13 @@ package com.cloudsync.controller;
 
 import com.cloudsync.model.dto.IPhoneRepairProgress;
 import com.cloudsync.model.dto.IPhoneRepairResult;
+import com.cloudsync.model.dto.MergeDuplicatesProgress;
+import com.cloudsync.model.dto.MergeDuplicatesResult;
 import com.cloudsync.model.dto.SyncProgressEvent;
 import com.cloudsync.model.dto.SyncStartResponse;
 import com.cloudsync.model.enums.ProviderType;
 import com.cloudsync.service.IPhoneRepairJobService;
+import com.cloudsync.service.MergeDuplicatesJobService;
 import com.cloudsync.service.SyncService;
 import com.cloudsync.service.SyncStateHolder;
 import io.micronaut.http.HttpStatus;
@@ -31,13 +34,16 @@ public class SyncController {
     private final SyncService syncService;
     private final SyncStateHolder syncStateHolder;
     private final IPhoneRepairJobService iPhoneRepairJobService;
+    private final MergeDuplicatesJobService mergeDuplicatesJobService;
 
     public SyncController(SyncService syncService,
                           SyncStateHolder syncStateHolder,
-                          IPhoneRepairJobService iPhoneRepairJobService) {
+                          IPhoneRepairJobService iPhoneRepairJobService,
+                          MergeDuplicatesJobService mergeDuplicatesJobService) {
         this.syncService = syncService;
         this.syncStateHolder = syncStateHolder;
         this.iPhoneRepairJobService = iPhoneRepairJobService;
+        this.mergeDuplicatesJobService = mergeDuplicatesJobService;
     }
 
     @Post("/{accountId}")
@@ -100,5 +106,19 @@ public class SyncController {
         return iPhoneRepairJobService.getJob(jobId)
                 .map(job -> (Publisher<Event<IPhoneRepairProgress>>) Flux.from(job.subscribe()).map(Event::of))
                 .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Repair job not found: " + jobId));
+    }
+
+    @Post("/{accountId}/merge-duplicates")
+    @ExecuteOn(TaskExecutors.BLOCKING)
+    @Produces(MediaType.APPLICATION_JSON)
+    public MergeDuplicatesResult startMergeDuplicates(@PathVariable String accountId) {
+        return mergeDuplicatesJobService.startJob(accountId);
+    }
+
+    @Get(value = "/merge-duplicates/{jobId}/progress", produces = MediaType.TEXT_EVENT_STREAM)
+    public Publisher<Event<MergeDuplicatesProgress>> getMergeDuplicatesProgress(@PathVariable String jobId) {
+        return mergeDuplicatesJobService.getJob(jobId)
+                .map(job -> (Publisher<Event<MergeDuplicatesProgress>>) Flux.from(job.subscribe()).map(Event::of))
+                .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Merge-duplicates job not found: " + jobId));
     }
 }

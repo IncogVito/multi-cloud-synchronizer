@@ -434,9 +434,12 @@ public class SyncService {
     }
 
     private Map<String, Photo> loadSyncedPhotosByFilename(String accountId) {
-        return photoRepository.findByAccountIdAndSyncedToDisk(accountId, true).stream()
+        // Include pending (synced_to_disk=false) records so cross-provider flag update fires before
+        // a duplicate record can be created for the same physical file.
+        return photoRepository.findByAccountId(accountId).stream()
                 .filter(p -> p.getFilename() != null)
-                .collect(Collectors.toMap(p -> p.getFilename().toLowerCase(Locale.ROOT), p -> p, (a, b) -> a));
+                .collect(Collectors.toMap(p -> p.getFilename().toLowerCase(Locale.ROOT), p -> p, (a, b) ->
+                        b.isSyncedToDisk() ? b : a));
     }
 
     /**
@@ -474,9 +477,23 @@ public class SyncService {
                 existing.setIphoneLocation(asset.id());
                 changed = true;
             }
-        } else if ("ICLOUD".equals(providerType) && !existing.isExistsOnIcloud()) {
-            existing.setExistsOnIcloud(true);
-            changed = true;
+        } else if ("ICLOUD".equals(providerType)) {
+            if (!existing.isExistsOnIcloud()) {
+                existing.setExistsOnIcloud(true);
+                changed = true;
+            }
+            if (existing.getIcloudPhotoId() == null) {
+                existing.setIcloudPhotoId(asset.id());
+                changed = true;
+            }
+            if (asset.assetRecordName() != null && existing.getIcloudAssetRecordName() == null) {
+                existing.setIcloudAssetRecordName(asset.assetRecordName());
+                changed = true;
+            }
+            if (asset.assetToken() != null && existing.getAssetToken() == null) {
+                existing.setAssetToken(asset.assetToken());
+                changed = true;
+            }
         }
         if (asset.createdDate() != null && !asset.createdDate().equals(existing.getCreatedDate())) {
             existing.setCreatedDate(asset.createdDate());
