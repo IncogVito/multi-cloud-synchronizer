@@ -83,6 +83,8 @@ export class JobsState {
 
   @Action(TrackJob)
   trackJob(ctx: StateContext<JobsStateModel>, action: TrackJob) {
+    if (ctx.getState().jobs.some(j => j.jobId === action.jobId)) return;
+
     const job: Job = {
       jobId: action.jobId,
       type: action.type,

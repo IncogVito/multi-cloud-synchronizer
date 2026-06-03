@@ -28,10 +28,14 @@
     (click)="monthSelected.emit(null)"
   >
     <span class="months-nav__label">All photos</span>
+    <span class="months-nav__count">{{ allPhotosCount() }}</span>
   </button>
 
   @for (group of yearGroups(); track group.year) {
-    <div class="months-nav__year">{{ group.year }}</div>
+    <div class="months-nav__year">
+      {{ group.year }}
+      <span class="months-nav__year-count">{{ group.total }}</span>
+    </div>
     @for (month of group.months; track month.yearMonth) {
       <button
         class="months-nav__item"
@@ -39,17 +43,15 @@
         (click)="monthSelected.emit(month.yearMonth)"
       >
         <span class="months-nav__label">{{ month.label }}</span>
-        @if (sourceFilter() === 'icloud') {
-          <span class="months-nav__count">{{ month.icloudOnlyCount }}</span>
-        } @else if (sourceFilter() === 'iphone') {
-          <span class="months-nav__count">{{ month.iphoneOnlyCount }}</span>
-        } @else {
+        @if (sourceFilter() === 'all') {
           <span class="months-nav__count">
             {{ month.photoCount }}
             @if (month.icloudOnlyCount > 0 || month.iphoneOnlyCount > 0) {
               <span class="months-nav__breakdown">☁ {{ month.icloudOnlyCount }} · &#x1F4F1;&#xFE0E; {{ month.iphoneOnlyCount }}</span>
             }
           </span>
+        } @else {
+          <span class="months-nav__count">{{ countForMonth(month) }}</span>
         }
       </button>
     }

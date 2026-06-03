@@ -157,7 +157,7 @@ interface DeviceReadiness {
                   <li>Pozostały czas: <strong>{{ etaText() }}</strong></li>
                 }
               </ul>
-              @if (ap.phase === 'DOWNLOADING' && (ap.diskFreeBytes != null || ap.diskPhotoCount != null)) {
+              @if ((ap.phase === 'DOWNLOADING' || ap.phase === 'DOWNLOADING_LARGE') && (ap.diskFreeBytes != null || ap.diskPhotoCount != null)) {
                 <ul class="stats disk-stats">
                   @if (ap.diskPhotoCount != null) {
                     <li>Zdjęcia na dysku: <strong>{{ ap.diskPhotoCount }}</strong></li>
@@ -298,6 +298,7 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
       || phase === 'PERSISTING_METADATA'
       || phase === 'COMPARING'
       || phase === 'DOWNLOADING'
+      || phase === 'DOWNLOADING_LARGE'
       || phase === 'EXIF_BACKFILL';
   });
 
@@ -466,6 +467,7 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
       case 'COMPARING': return 'Porównywanie';
       case 'AWAITING_CONFIRMATION': return 'Oczekiwanie na potwierdzenie';
       case 'DOWNLOADING': return 'Pobieranie zdjęć';
+      case 'DOWNLOADING_LARGE': return 'Pobieranie filmów (.MOV)';
       case 'EXIF_BACKFILL': return 'Uzupełnianie dat EXIF';
       case 'DONE': return 'Zakończone';
       case 'ERROR': return 'Błąd';

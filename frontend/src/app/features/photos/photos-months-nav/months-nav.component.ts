@@ -5,6 +5,7 @@ import { SourceFilter } from '../photos-toolbar/photos-toolbar.component';
 export interface YearGroup {
   year: number;
   months: MonthSummaryResponse[];
+  total: number;
 }
 
 @Component({
@@ -30,6 +31,13 @@ export class MonthsNavComponent {
     return String(year).slice(2);
   }
 
+  countForMonth(month: MonthSummaryResponse): number {
+    const f = this.sourceFilter();
+    if (f === 'icloud') return month.photoCount - month.iphoneOnlyCount;
+    if (f === 'iphone') return month.photoCount - month.icloudOnlyCount;
+    return month.photoCount;
+  }
+
   yearGroups = computed<YearGroup[]>(() => {
     const groups = new Map<number, MonthSummaryResponse[]>();
     for (const month of this.monthsSummary()) {
@@ -39,6 +47,10 @@ export class MonthsNavComponent {
     }
     return Array.from(groups.entries())
       .sort((a, b) => b[0] - a[0])
-      .map(([year, months]) => ({ year, months }));
+      .map(([year, months]) => ({ year, months, total: months.reduce((s, m) => s + this.countForMonth(m), 0) }));
   });
+
+  allPhotosCount = computed(() =>
+    this.monthsSummary().reduce((s, m) => s + this.countForMonth(m), 0)
+  );
 }

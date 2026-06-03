@@ -235,6 +235,7 @@ export class GlobalTaskBarComponent implements OnInit, OnDestroy {
       case 'PERSISTING_METADATA': return 'Zapisywanie metadanych';
       case 'COMPARING': return 'Porównywanie zdjęć';
       case 'DOWNLOADING': return 'Pobieranie zdjęć';
+      case 'DOWNLOADING_LARGE': return 'Pobieranie filmów (.MOV)';
       case 'REORGANIZING': return 'Reorganizacja plików';
       default: return 'Synchronizacja';
     }
@@ -243,7 +244,7 @@ export class GlobalTaskBarComponent implements OnInit, OnDestroy {
   syncPercent(sp: SyncProgressEvent): number {
     if (sp.phase === 'FETCHING_METADATA' && sp.totalOnCloud > 0)
       return Math.round((sp.metadataFetched / sp.totalOnCloud) * 100);
-    if (sp.phase === 'DOWNLOADING' && sp.totalOnCloud > 0)
+    if ((sp.phase === 'DOWNLOADING' || sp.phase === 'DOWNLOADING_LARGE') && sp.totalOnCloud > 0)
       return Math.round((sp.synced / sp.totalOnCloud) * 100);
     return 0;
   }
@@ -252,7 +253,7 @@ export class GlobalTaskBarComponent implements OnInit, OnDestroy {
     if (sp.phase === 'FETCHING_METADATA') {
       return sp.totalOnCloud > 0 ? `${sp.metadataFetched} / ${sp.totalOnCloud}` : `${sp.metadataFetched}`;
     }
-    if (sp.phase === 'DOWNLOADING') {
+    if (sp.phase === 'DOWNLOADING' || sp.phase === 'DOWNLOADING_LARGE') {
       return `${sp.synced} / ${sp.totalOnCloud}`;
     }
     if (sp.phase === 'COMPARING') {

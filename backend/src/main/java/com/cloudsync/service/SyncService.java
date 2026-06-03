@@ -75,6 +75,9 @@ public class SyncService {
     private final ConcurrentHashMap<String, String> activeProviderType = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> downloadTotalCache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> activeSyncTaskId = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AtomicInteger> largeCompletedCount = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AtomicInteger> largeFailedCount = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> largeTotalCount = new ConcurrentHashMap<>();
 
     public SyncService(PhotoRepository photoRepository,
                        AccountRepository accountRepository,
@@ -629,33 +632,75 @@ public class SyncService {
                 .filter(p -> providerType.equals(p.getSourceProvider()))
                 .distinct()
                 .toList();
+
+        List<Photo> regularPending = pending.stream().filter(p -> !isLargeVideoFile(p)).toList();
+        List<Photo> largePending = pending.stream().filter(SyncService::isLargeVideoFile).toList();
+
         long alreadySynced = photoRepository.countByAccountIdAndSyncStatusAndSourceProvider(
                 accountId, SyncStatus.SYNCED.name(), providerType);
-        downloadTotalCache.put(accountId, pending.size() + alreadySynced);
+        downloadTotalCache.put(accountId, regularPending.size() + alreadySynced);
 
-        List<CompletableFuture<Void>> futures = pending.stream()
+        List<CompletableFuture<Void>> regularFutures = regularPending.stream()
                 .map(photo -> CompletableFuture.runAsync(
-                        () -> downloadWithSemaphore(photo, account, accountId, ctx),
+                        () -> downloadWithSemaphore(photo, account, accountId, ctx, false),
                         syncVirtualThreadExecutor))
                 .toList();
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+        CompletableFuture.allOf(regularFutures.toArray(new CompletableFuture[0]))
                 .thenRun(() -> {
-                    String thumbnailJobId = null;
                     if (!isCancelled(accountId)) {
-                        if ("IPHONE".equals(providerType)) {
-                            List<Photo> newlyDownloaded = pending.stream()
-                                    .filter(p -> SyncStatus.SYNCED.name().equals(p.getSyncStatus()))
-                                    .filter(p -> p.getFilePath() != null)
-                                    .toList();
-                            backfillIPhoneExifDates(accountId, newlyDownloaded);
-                        }
-                        thumbnailJobId = startThumbnailJobForSync(accountId);
-                    }
-                    if (!isCancelled(accountId)) {
-                        emitDoneEvent(accountId, thumbnailJobId);
+                        startLargeFilesPhase(accountId, account, ctx, providerType, largePending, pending);
                     }
                 });
+    }
+
+    private void startLargeFilesPhase(String accountId, ICloudAccount account, AppContext ctx,
+                                       String providerType, List<Photo> largePending, List<Photo> allPending) {
+        if (largePending.isEmpty()) {
+            finishDownload(accountId, providerType, allPending);
+            return;
+        }
+
+        largeCompletedCount.put(accountId, new AtomicInteger(0));
+        largeFailedCount.put(accountId, new AtomicInteger(0));
+        largeTotalCount.put(accountId, largePending.size());
+
+        emitEvent(accountId, SyncPhase.DOWNLOADING_LARGE, e -> {
+            e.setSynced(0);
+            e.setFailed(0);
+            e.setPending(largePending.size());
+            e.setTotalOnCloud(largePending.size());
+            e.setPercentComplete(0);
+        });
+
+        List<CompletableFuture<Void>> largeFutures = largePending.stream()
+                .map(photo -> CompletableFuture.runAsync(
+                        () -> downloadWithSemaphore(photo, account, accountId, ctx, true),
+                        syncVirtualThreadExecutor))
+                .toList();
+
+        CompletableFuture.allOf(largeFutures.toArray(new CompletableFuture[0]))
+                .thenRun(() -> {
+                    if (!isCancelled(accountId)) {
+                        finishDownload(accountId, providerType, allPending);
+                    }
+                });
+    }
+
+    private void finishDownload(String accountId, String providerType, List<Photo> allPending) {
+        if (isCancelled(accountId)) return;
+        String thumbnailJobId = null;
+        if ("IPHONE".equals(providerType)) {
+            List<Photo> newlyDownloaded = allPending.stream()
+                    .filter(p -> SyncStatus.SYNCED.name().equals(p.getSyncStatus()))
+                    .filter(p -> p.getFilePath() != null)
+                    .toList();
+            backfillIPhoneExifDates(accountId, newlyDownloaded);
+        }
+        thumbnailJobId = startThumbnailJobForSync(accountId);
+        if (!isCancelled(accountId)) {
+            emitDoneEvent(accountId, thumbnailJobId);
+        }
     }
 
     private static final int EXIF_BACKFILL_EMIT_INTERVAL = 200;
@@ -700,14 +745,14 @@ public class SyncService {
         LOG.info("EXIF backfill done: {} updated [account={}]", updated, accountId);
     }
 
-    private void downloadWithSemaphore(Photo photo, ICloudAccount account, String accountId, AppContext ctx) {
+    private void downloadWithSemaphore(Photo photo, ICloudAccount account, String accountId, AppContext ctx, boolean isLarge) {
         if (isCancelled(accountId)) return;
         Semaphore semaphore = "IPHONE".equals(photo.getSourceProvider()) ? iphoneDownloadSemaphore : downloadSemaphore;
         try {
             semaphore.acquire();
             try {
                 if (isCancelled(accountId)) return;
-                downloadOne(photo, account, accountId, ctx);
+                downloadOne(photo, account, accountId, ctx, isLarge);
             } finally {
                 semaphore.release();
             }
@@ -716,7 +761,7 @@ public class SyncService {
         }
     }
 
-    private void downloadOne(Photo photo, ICloudAccount account, String accountId, AppContext ctx) {
+    private void downloadOne(Photo photo, ICloudAccount account, String accountId, AppContext ctx, boolean isLarge) {
         try {
             markDownloading(photo);
 
@@ -729,7 +774,9 @@ public class SyncService {
             } else {
                 photoId = photo.getIcloudPhotoId() != null ? photo.getIcloudPhotoId() : photo.getId();
             }
-            byte[] data = provider.downloadPhoto(photoId, account.getSessionId());
+            byte[] data = isLarge
+                    ? provider.downloadLargePhoto(photoId, account.getSessionId())
+                    : provider.downloadPhoto(photoId, account.getSessionId());
 
             if (isCancelled(accountId)) {
                 photo.setSyncStatus(SyncStatus.PENDING.name());
@@ -742,7 +789,8 @@ public class SyncService {
             Path destFile = writePhotoToDisk(data, destDir, filename);
 
             markSynced(photo, destFile, (long) data.length);
-            maybeEmitDownloadProgress(accountId);
+            if (isLarge) emitLargeProgress(accountId, true);
+            else maybeEmitDownloadProgress(accountId);
         } catch (Exception e) {
             if (isCancelled(accountId)) {
                 photo.setSyncStatus(SyncStatus.PENDING.name());
@@ -750,7 +798,7 @@ public class SyncService {
                 return;
             }
             LOG.error(Messages.LOG_MOVE_FAILED, photo.getId(), e.getMessage());
-            markFailed(photo, accountId);
+            markFailed(photo, accountId, isLarge);
         }
     }
 
@@ -779,10 +827,27 @@ public class SyncService {
         photoRepository.update(photo);
     }
 
-    private void markFailed(Photo photo, String accountId) {
+    private void markFailed(Photo photo, String accountId, boolean isLarge) {
         photo.setSyncStatus(SyncStatus.FAILED.name());
         photoRepository.update(photo);
-        maybeEmitDownloadProgress(accountId);
+        if (isLarge) emitLargeProgress(accountId, false);
+        else maybeEmitDownloadProgress(accountId);
+    }
+
+    private void emitLargeProgress(String accountId, boolean synced) {
+        AtomicInteger completed = largeCompletedCount.computeIfAbsent(accountId, k -> new AtomicInteger());
+        AtomicInteger failed = largeFailedCount.computeIfAbsent(accountId, k -> new AtomicInteger());
+        if (synced) completed.incrementAndGet();
+        else failed.incrementAndGet();
+        int total = largeTotalCount.getOrDefault(accountId, 0);
+        int done = completed.get() + failed.get();
+        emitEvent(accountId, SyncPhase.DOWNLOADING_LARGE, e -> {
+            e.setSynced(completed.get());
+            e.setFailed(failed.get());
+            e.setPending(Math.max(0, total - done));
+            e.setTotalOnCloud(total);
+            e.setPercentComplete(total > 0 ? (double) done / total * 100 : 0);
+        });
     }
 
     private void maybeEmitDownloadProgress(String accountId) {
@@ -930,6 +995,10 @@ public class SyncService {
     }
 
     private static final Set<String> VIDEO_EXTENSIONS = Set.of("mp4", "m4v", "mov", "avi", "mkv");
+
+    private static boolean isLargeVideoFile(Photo photo) {
+        return photo.getFilename() != null && photo.getFilename().toLowerCase(Locale.ROOT).endsWith(".mov");
+    }
 
     private Photo buildPhoto(PhotoAsset asset, String accountId, String storageDeviceId, String providerType) {
         Photo p = new Photo();

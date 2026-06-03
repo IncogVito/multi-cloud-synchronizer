@@ -2,6 +2,7 @@ package com.cloudsync.provider;
 
 import com.cloudsync.client.ICloudDeleteClient;
 import com.cloudsync.client.ICloudDownloadRetryClient;
+import com.cloudsync.client.ICloudLargeDownloadClient;
 import com.cloudsync.client.ICloudServiceClient;
 import com.cloudsync.model.dto.ICloudBatchDeleteRequest;
 import com.cloudsync.model.dto.ICloudBatchDeleteResponse;
@@ -34,11 +35,14 @@ public class ICloudSyncProvider implements PhotoSyncProvider {
     private final ICloudServiceClient client;
     private final ICloudDownloadRetryClient retryClient;
     private final ICloudDeleteClient deleteClient;
+    private final ICloudLargeDownloadClient largeClient;
 
-    public ICloudSyncProvider(ICloudServiceClient client, ICloudDownloadRetryClient retryClient, ICloudDeleteClient deleteClient) {
+    public ICloudSyncProvider(ICloudServiceClient client, ICloudDownloadRetryClient retryClient,
+                               ICloudDeleteClient deleteClient, ICloudLargeDownloadClient largeClient) {
         this.client = client;
         this.retryClient = retryClient;
         this.deleteClient = deleteClient;
+        this.largeClient = largeClient;
     }
 
     @Override
@@ -96,6 +100,26 @@ public class ICloudSyncProvider implements PhotoSyncProvider {
             }
         }
         throw new IOException("Download failed after " + MAX_DOWNLOAD_ATTEMPTS + " attempts for photo " + photoId, lastException);
+    }
+
+    @Override
+    public byte[] downloadLargePhoto(String photoId, String sessionId) throws IOException {
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_DOWNLOAD_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<byte[]> response = largeClient.downloadPhoto(photoId, sessionId);
+                byte[] data = response.body();
+                if (data == null) throw new IOException("Empty response for photo " + photoId);
+                if (attempt > 1) {
+                    LOG.info("Large download succeeded on attempt {} for photo {}", attempt, photoId);
+                }
+                return data;
+            } catch (Exception e) {
+                lastException = e;
+                LOG.warn("Large download attempt {}/{} failed for photo {}: {}", attempt, MAX_DOWNLOAD_ATTEMPTS, photoId, e.getMessage());
+            }
+        }
+        throw new IOException("Large download failed after " + MAX_DOWNLOAD_ATTEMPTS + " attempts for photo " + photoId, lastException);
     }
 
     @Override

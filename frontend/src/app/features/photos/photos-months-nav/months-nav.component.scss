@@ -9,6 +9,9 @@
 
 .months-nav {
   &__year {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
     font-size: 0.65rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -19,6 +22,19 @@
     position: sticky;
     top: 0;
     z-index: 1;
+  }
+
+  &__year-count {
+    font-size: 0.6rem;
+    font-weight: 500;
+    color: #9ca3af;
+    letter-spacing: 0;
+    text-transform: none;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    padding: 0.05rem 0.4rem;
+    line-height: 1.6;
   }
 
   &__item {

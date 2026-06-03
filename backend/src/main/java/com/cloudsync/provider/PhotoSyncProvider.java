@@ -32,6 +32,11 @@ public interface PhotoSyncProvider {
     /** Download the raw bytes of a single photo. */
     byte[] downloadPhoto(String photoId, String sessionId) throws IOException;
 
+    /** Download a large video file (e.g. .MOV) with an extended timeout. Default delegates to {@link #downloadPhoto}. */
+    default byte[] downloadLargePhoto(String photoId, String sessionId) throws IOException {
+        return downloadPhoto(photoId, sessionId);
+    }
+
     /** Permanently delete a photo from the remote source. */
     void deletePhoto(String photoId, String sessionId);
 
