@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -96,6 +97,21 @@ class ICloudSessionManager:
 
         session_id = str(uuid.uuid4())
         requires_2fa = bool(api.requires_2fa or api.requires_2sa)
+
+        if requires_2fa:
+            # Cached session_token caused icloudpy to use /validate instead of full
+            # SRP /signin/complete. Apple only pushes the 2FA code during SRP auth,
+            # so we must clear stale files and redo authentication from scratch.
+            sanitized = "".join(c for c in apple_id if re.match(r"\w", c))
+            for stale in [cookie_dir / sanitized, cookie_dir / f"{sanitized}.session"]:
+                stale.unlink(missing_ok=True)
+            try:
+                api = ICloudPyService(apple_id, password, cookie_directory=str(cookie_dir))
+            except ICloudPyFailedLoginException as exc:
+                raise InvalidCredentialsException(str(exc)) from exc
+            except Exception as exc:
+                raise ICloudUnavailableException(str(exc)) from exc
+            requires_2fa = bool(api.requires_2fa or api.requires_2sa)
 
         self._sessions[session_id] = {
             "apple_id": apple_id,
