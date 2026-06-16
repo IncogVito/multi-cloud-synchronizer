@@ -280,7 +280,12 @@ export class SetupWizardComponent implements OnInit {
   }
 
   private startIndexingAndNavigate(): void {
-    this.diskIndexingService.start().subscribe({
+    const accountId = this.state().accountId;
+    if (!accountId) {
+      this.router.navigate(['/dashboard']);
+      return;
+    }
+    this.diskIndexingService.start(accountId).subscribe({
       next: () => this.router.navigate(['/dashboard'], { queryParams: { scanning: 'true' } }),
       error: () => this.router.navigate(['/dashboard']),
     });

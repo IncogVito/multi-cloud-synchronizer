@@ -1,5 +1,6 @@
 package com.cloudsync.controller;
 
+import com.cloudsync.model.dto.DiskIndexProgressEvent;
 import com.cloudsync.model.dto.IPhoneRepairProgress;
 import com.cloudsync.model.dto.IPhoneRepairResult;
 import com.cloudsync.model.dto.MergeDuplicatesProgress;
@@ -7,6 +8,8 @@ import com.cloudsync.model.dto.MergeDuplicatesResult;
 import com.cloudsync.model.dto.SyncProgressEvent;
 import com.cloudsync.model.dto.SyncStartResponse;
 import com.cloudsync.model.enums.ProviderType;
+import com.cloudsync.service.DiskIndexStateHolder;
+import com.cloudsync.service.DiskIndexingService;
 import com.cloudsync.service.IPhoneRepairJobService;
 import com.cloudsync.service.MergeDuplicatesJobService;
 import com.cloudsync.service.SyncService;
@@ -35,15 +38,21 @@ public class SyncController {
     private final SyncStateHolder syncStateHolder;
     private final IPhoneRepairJobService iPhoneRepairJobService;
     private final MergeDuplicatesJobService mergeDuplicatesJobService;
+    private final DiskIndexingService diskIndexingService;
+    private final DiskIndexStateHolder diskIndexStateHolder;
 
     public SyncController(SyncService syncService,
                           SyncStateHolder syncStateHolder,
                           IPhoneRepairJobService iPhoneRepairJobService,
-                          MergeDuplicatesJobService mergeDuplicatesJobService) {
+                          MergeDuplicatesJobService mergeDuplicatesJobService,
+                          DiskIndexingService diskIndexingService,
+                          DiskIndexStateHolder diskIndexStateHolder) {
         this.syncService = syncService;
         this.syncStateHolder = syncStateHolder;
         this.iPhoneRepairJobService = iPhoneRepairJobService;
         this.mergeDuplicatesJobService = mergeDuplicatesJobService;
+        this.diskIndexingService = diskIndexingService;
+        this.diskIndexStateHolder = diskIndexStateHolder;
     }
 
     @Post("/{accountId}")
@@ -92,6 +101,33 @@ public class SyncController {
     @Produces(MediaType.APPLICATION_JSON)
     public Map<String, Object> reorganize(@PathVariable String accountId) {
         return syncService.reorganize(accountId);
+    }
+
+    /**
+     * Start indexing the account's {@code syncFolderPath}. Scans only that folder (not the global
+     * device path) and persists discovered media. Returns immediately; progress is streamed via
+     * {@code /{accountId}/index/events}.
+     */
+    @Get("/{accountId}/index")
+    @ExecuteOn(TaskExecutors.BLOCKING)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> indexAccount(@PathVariable String accountId) {
+        if (diskIndexingService.isRunning(accountId)) {
+            return Map.of("status", "ALREADY_RUNNING");
+        }
+        diskIndexingService.startIndexing(accountId);
+        return Map.of("status", "STARTED");
+    }
+
+    @Get(value = "/{accountId}/index/events", produces = MediaType.TEXT_EVENT_STREAM)
+    public Publisher<Event<DiskIndexProgressEvent>> indexEvents(@PathVariable String accountId) {
+        return Flux.from(diskIndexStateHolder.subscribe(accountId)).map(Event::of);
+    }
+
+    @Get("/{accountId}/index/status")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Optional<DiskIndexProgressEvent> indexStatus(@PathVariable String accountId) {
+        return diskIndexStateHolder.getSnapshot(accountId);
     }
 
     @Post("/{accountId}/iphone-repair")

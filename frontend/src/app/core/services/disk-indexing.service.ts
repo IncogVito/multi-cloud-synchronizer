@@ -33,11 +33,11 @@ export class DiskIndexingService {
 
   private abortController: AbortController | null = null;
 
-  start(): Observable<{ status: string }> {
-    return this.apiService.startIndexing<{ status: string }>();
+  start(accountId: string): Observable<{ status: string }> {
+    return this.apiService.indexAccount<{ status: string }>(accountId);
   }
 
-  subscribeToEvents(): void {
+  subscribeToEvents(accountId: string): void {
     this.closeEvents();
     this.abortController = new AbortController();
 
@@ -45,7 +45,7 @@ export class DiskIndexingService {
     const headers: Record<string, string> = { Accept: 'text/event-stream' };
     if (creds) headers['Authorization'] = `Basic ${creds.encoded}`;
 
-    fetch('/api/disk-index/events', {
+    fetch(`/api/sync/${accountId}/index/events`, {
       headers,
       signal: this.abortController.signal,
     }).then(async (response) => {
@@ -84,11 +84,11 @@ export class DiskIndexingService {
     this._progress.next(null);
   }
 
-  reorganizePreview(): Observable<ReorganizePreview> {
-    return this.apiService.reorganizePreview<ReorganizePreview>();
+  reorganizePreview(accountId: string): Observable<ReorganizePreview> {
+    return this.apiService.reorganizePreview<ReorganizePreview>(accountId);
   }
 
-  reorganize(): Observable<ReorganizeResult> {
-    return this.apiService.reorganize1<ReorganizeResult>();
+  reorganize(accountId: string): Observable<ReorganizeResult> {
+    return this.apiService.reorganize1<ReorganizeResult>(accountId);
   }
 }

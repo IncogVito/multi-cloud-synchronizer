@@ -99,6 +99,9 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
     @Query("SELECT * FROM photos WHERE storage_device_id = :storageDeviceId AND file_path IS NOT NULL")
     List<Photo> findAllWithFilePathByStorageDeviceId(String storageDeviceId);
 
+    @Query("SELECT * FROM photos WHERE account_id = :accountId AND file_path IS NOT NULL")
+    List<Photo> findAllWithFilePathByAccountId(String accountId);
+
     @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND created_date >= :startInclusive AND created_date < :endExclusive ORDER BY created_date DESC",
            countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk AND storage_device_id = :storageDeviceId AND created_date >= :startInclusive AND created_date < :endExclusive")
     Page<Photo> findBySyncedToDiskAndStorageDeviceIdAndCreatedDateBetween(

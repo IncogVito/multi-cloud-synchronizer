@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { DiskIndexingService, ReorganizePreview, ReorganizeResult } from '../../../core/services/disk-indexing.service';
+import { ReorganizePreview, ReorganizeResult } from '../../../core/services/disk-indexing.service';
 import { SyncService } from '../../../core/services/sync.service';
 import { AccountService } from '../../../core/services/account.service';
 import { AccountResponse } from '../../../core/api/generated/model/accountResponse';
@@ -76,7 +76,6 @@ import { AccountResponse } from '../../../core/api/generated/model/accountRespon
   `]
 })
 export class ReorganizeSectionComponent implements OnInit {
-  private diskIndexingService = inject(DiskIndexingService);
   private syncService = inject(SyncService);
   private accountService = inject(AccountService);
 
@@ -96,57 +95,38 @@ export class ReorganizeSectionComponent implements OnInit {
   }
 
   loadPreview(): void {
-    // Try device-level reorganize preview (covers both LOCAL and cloud-synced photos)
-    this.diskIndexingService.reorganizePreview().subscribe({
-      next: (p) => {
-        if (p.unorganizedCount > 0) this.preview.set(p);
-      },
-      error: () => {
-        // Fall back to account-based preview if no active context
-        this.loadAccountPreview();
-      }
-    });
-  }
-
-  private loadAccountPreview(): void {
-    this.accountService.listAccounts().subscribe({
-      next: (accounts: AccountResponse[]) => {
-        const primary = accounts.find(a => a.hasActiveSession) ?? accounts[0] ?? null;
-        if (primary) {
-          this.syncService.reorganizePreview(primary.id).subscribe({
-            next: (p) => {
-              if (p.unorganizedCount > 0) this.preview.set(p);
-            },
-            error: () => {}
-          });
-        }
-      }
+    this.withPrimaryAccount((accountId) => {
+      this.syncService.reorganizePreview(accountId).subscribe({
+        next: (p) => {
+          if (p.unorganizedCount > 0) this.preview.set(p);
+        },
+        error: () => {}
+      });
     });
   }
 
   startReorganize(): void {
     this.reorganizing.set(true);
     this.preview.set(null);
-    this.diskIndexingService.reorganize().subscribe({
-      next: (r) => {
-        this.reorganizing.set(false);
-        this.result.set(r);
-      },
-      error: () => {
-        this.reorganizing.set(false);
-        // Fall back to account-based reorganize
-        this.accountService.listAccounts().subscribe({
-          next: (accounts: AccountResponse[]) => {
-            const primary = accounts.find(a => a.hasActiveSession) ?? accounts[0] ?? null;
-            if (primary) {
-              this.syncService.reorganize(primary.id).subscribe({
-                next: (r) => { this.reorganizing.set(false); this.result.set(r); },
-                error: () => this.reorganizing.set(false)
-              });
-            }
-          }
+    this.withPrimaryAccount(
+      (accountId) => {
+        this.syncService.reorganize(accountId).subscribe({
+          next: (r) => { this.reorganizing.set(false); this.result.set(r); },
+          error: () => this.reorganizing.set(false)
         });
-      }
+      },
+      () => this.reorganizing.set(false)
+    );
+  }
+
+  private withPrimaryAccount(run: (accountId: string) => void, onNone?: () => void): void {
+    this.accountService.listAccounts().subscribe({
+      next: (accounts: AccountResponse[]) => {
+        const primary = accounts.find(a => a.hasActiveSession) ?? accounts[0] ?? null;
+        if (primary) run(primary.id);
+        else onNone?.();
+      },
+      error: () => onNone?.()
     });
   }
 

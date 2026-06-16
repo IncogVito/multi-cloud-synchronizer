@@ -1,11 +1,14 @@
 package com.cloudsync.service;
 
-import com.cloudsync.model.dto.AppContext;
 import com.cloudsync.model.dto.DiskIndexProgressEvent;
+import com.cloudsync.model.entity.ICloudAccount;
 import com.cloudsync.model.entity.Photo;
 import com.cloudsync.model.enums.MediaType;
+import com.cloudsync.repository.AccountRepository;
 import com.cloudsync.repository.PhotoRepository;
 import com.cloudsync.repository.StorageDeviceRepository;
+import io.micronaut.http.HttpStatus;
+import io.micronaut.http.exceptions.HttpStatusException;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -21,14 +24,18 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
+/**
+ * Account-scoped disk indexing (issue #8). Scans {@code account.getSyncFolderPath()} for media
+ * files and persists them tagged with the account's id and storage device. Progress is broadcast
+ * per-account via {@link DiskIndexStateHolder}.
+ */
 @Singleton
 public class DiskIndexingService {
 
@@ -43,63 +50,71 @@ public class DiskIndexingService {
     private static final int BATCH_SIZE = 100;
 
     private final PhotoRepository photoRepository;
-    private final AppContextService appContextService;
+    private final AccountRepository accountRepository;
     private final DiskIndexStateHolder stateHolder;
     private final ExecutorService syncVirtualThreadExecutor;
     private final StorageDeviceRepository storageDeviceRepository;
 
-    private final AtomicBoolean running = new AtomicBoolean(false);
+    private final ConcurrentHashMap<String, AtomicBoolean> running = new ConcurrentHashMap<>();
 
     public DiskIndexingService(PhotoRepository photoRepository,
-                               AppContextService appContextService,
+                               AccountRepository accountRepository,
                                DiskIndexStateHolder stateHolder,
                                @Named("syncVirtualThreadExecutor") ExecutorService syncVirtualThreadExecutor,
                                StorageDeviceRepository storageDeviceRepository) {
         this.photoRepository = photoRepository;
-        this.appContextService = appContextService;
+        this.accountRepository = accountRepository;
         this.stateHolder = stateHolder;
         this.syncVirtualThreadExecutor = syncVirtualThreadExecutor;
         this.storageDeviceRepository = storageDeviceRepository;
     }
 
-    public boolean isRunning() {
-        return running.get();
+    public boolean isRunning(String accountId) {
+        AtomicBoolean flag = running.get(accountId);
+        return flag != null && flag.get();
     }
 
     /**
-     * Start async disk indexing using the active app context.
-     * Scans the base path for media files and saves them to the DB.
+     * Start async disk indexing for the given account. Scans {@code account.getSyncFolderPath()}
+     * for media files and saves them to the DB. Progress is broadcast via SSE through
+     * {@link DiskIndexStateHolder}.
      */
-    public void startIndexing() {
-        AppContext ctx = appContextService.requireActive();
-        if (running.compareAndSet(false, true)) {
-            emitEvent("SCANNING", 0, 0, 0.0, null, 0);
+    public void startIndexing(String accountId) {
+        ICloudAccount account = requireAccount(accountId);
+        String folderPath = account.getSyncFolderPath();
+        String storageDeviceId = account.getStorageDeviceId();
+        AtomicBoolean flag = running.computeIfAbsent(accountId, k -> new AtomicBoolean(false));
+        if (flag.compareAndSet(false, true)) {
+            emitEvent(accountId, "SCANNING", 0, 0, 0.0, null, 0);
             CompletableFuture.runAsync(
-                    () -> doIndex(ctx.basePath(), ctx.storageDeviceId()),
+                    () -> doIndex(accountId, folderPath, storageDeviceId),
                     syncVirtualThreadExecutor
             );
         }
     }
 
-    private void doIndex(String folderPath, String storageDeviceId) {
+    private void doIndex(String accountId, String folderPath, String storageDeviceId) {
         try {
+            if (folderPath == null) {
+                emitEvent(accountId, "ERROR", 0, 0, 0.0, "Konto nie ma ustawionego folderu synchronizacji", 0);
+                return;
+            }
             Path root = Path.of(folderPath);
             if (!Files.isDirectory(root)) {
-                emitEvent("ERROR", 0, 0, 0.0, "Folder nie istnieje: " + folderPath, 0);
-                running.set(false);
+                emitEvent(accountId, "ERROR", 0, 0, 0.0, "Folder nie istnieje: " + folderPath, 0);
                 return;
             }
 
             List<Path> mediaFiles = collectMediaFiles(root);
             int total = mediaFiles.size();
-            LOG.info("DiskIndexing: found {} media files in {}", total, folderPath);
+            LOG.info("DiskIndexing[{}]: found {} media files in {}", accountId, total, folderPath);
 
             // Reset syncedToDisk flag — will be re-set only for files actually found on disk
-            List<Photo> currentlySynced = photoRepository.findByStorageDeviceIdAndSyncedToDisk(storageDeviceId, true);
+            List<Photo> currentlySynced = photoRepository.findByAccountIdAndSyncedToDisk(accountId, true);
             resetSyncedToDisk(currentlySynced);
 
-            // Path → Photo map (all photos with a path, including deleted) for reconciliation
-            Map<String, Photo> existingByPath = buildExistingPhotosByPath(storageDeviceId);
+            // Path → Photo map (all photos with a path) for reconciliation
+            Map<String, Photo> existingByPath = buildExistingPhotosByPath(accountId);
 
             int scanned = 0;
             List<Photo> toSave = new ArrayList<>();
@@ -113,7 +128,7 @@ public class DiskIndexingService {
                     existing.setSyncedToDisk(true);
                     toUpdate.add(existing);
                 } else {
-                    Photo photo = buildPhotoFromFile(file, storageDeviceId);
+                    Photo photo = buildPhotoFromFile(file, accountId, storageDeviceId);
                     if (photo != null) {
                         toSave.add(photo);
                         existingByPath.put(absPath, photo);
@@ -132,24 +147,27 @@ public class DiskIndexingService {
 
                 if (scanned % 50 == 0 || scanned == total) {
                     double pct = total > 0 ? (double) scanned / total * 100 : 100.0;
-                    emitEvent("SCANNING", scanned, total, pct, null, 0);
+                    emitEvent(accountId, "SCANNING", scanned, total, pct, null, 0);
                 }
             }
 
             if (!toSave.isEmpty()) photoRepository.saveAll(toSave);
             if (!toUpdate.isEmpty()) photoRepository.updateAll(toUpdate);
 
-            LOG.info("DiskIndexing complete: {} files processed", total);
-            emitDoneEvent(scanned, total, 0);
-            storageDeviceRepository.findById(storageDeviceId).ifPresent(d -> {
-                d.setLastIndexedAt(Instant.now());
-                storageDeviceRepository.update(d);
-            });
+            LOG.info("DiskIndexing[{}] complete: {} files processed", accountId, total);
+            emitDoneEvent(accountId, scanned, total, 0);
+            if (storageDeviceId != null) {
+                storageDeviceRepository.findById(storageDeviceId).ifPresent(d -> {
+                    d.setLastIndexedAt(Instant.now());
+                    storageDeviceRepository.update(d);
+                });
+            }
         } catch (Exception e) {
-            LOG.error("DiskIndexing failed: {}", e.getMessage(), e);
-            emitEvent("ERROR", 0, 0, 0.0, e.getMessage(), 0);
+            LOG.error("DiskIndexing[{}] failed: {}", accountId, e.getMessage(), e);
+            emitEvent(accountId, "ERROR", 0, 0, 0.0, e.getMessage(), 0);
         } finally {
-            running.set(false);
+            AtomicBoolean flag = running.get(accountId);
+            if (flag != null) flag.set(false);
         }
     }
 
@@ -166,10 +184,10 @@ public class DiskIndexingService {
         if (!batch.isEmpty()) photoRepository.updateAll(batch);
     }
 
-    private Map<String, Photo> buildExistingPhotosByPath(String storageDeviceId) {
+    private Map<String, Photo> buildExistingPhotosByPath(String accountId) {
         Map<String, Photo> map = new HashMap<>();
         try {
-            photoRepository.findAllWithFilePathByStorageDeviceId(storageDeviceId)
+            photoRepository.findAllWithFilePathByAccountId(accountId)
                     .forEach(p -> map.put(p.getFilePath(), p));
         } catch (Exception e) {
             LOG.warn("Could not load existing photos by path: {}", e.getMessage());
@@ -187,7 +205,7 @@ public class DiskIndexingService {
         return files;
     }
 
-    private Photo buildPhotoFromFile(Path file, String storageDeviceId) {
+    private Photo buildPhotoFromFile(Path file, String accountId, String storageDeviceId) {
         try {
             BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
             String filename = file.getFileName().toString();
@@ -203,7 +221,6 @@ public class DiskIndexingService {
                 }
             }
 
-            // TODO: Delegate to builder
             Photo photo = new Photo();
             photo.setId(UUID.randomUUID().toString());
             photo.setFilename(filename);
@@ -213,6 +230,7 @@ public class DiskIndexingService {
             photo.setImportedDate(Instant.now());
             photo.setSyncedToDisk(true);
             photo.setSourceProvider("LOCAL");
+            photo.setAccountId(accountId);
             photo.setStorageDeviceId(storageDeviceId);
             photo.setMediaType(detectMediaType(filename));
             photo.setSyncStatus("SYNCED");
@@ -229,27 +247,22 @@ public class DiskIndexingService {
      * then EXIF DateTime, then QuickTime creation_time). Returns null if no metadata
      * date is available, so the caller can fall back to filesystem timestamps.
      */
-    // TODO: Move to somekind of helper
     private Instant readExifCreationDate(Path file) {
         try {
             Metadata metadata = ImageMetadataReader.readMetadata(file.toFile());
 
-            // JPEG / TIFF / HEIC with embedded EXIF — most accurate tag
             ExifSubIFDDirectory exifSub = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
             if (exifSub != null) {
                 var date = exifSub.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
-                // TODO: Maybe worth to use TAG_DATETIME_DIGITIZED
                 if (date != null) return date.toInstant();
             }
 
-            // EXIF IFD0 DateTime (some cameras write only this tag)
             ExifIFD0Directory exif0 = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
             if (exif0 != null) {
                 var date = exif0.getDate(ExifIFD0Directory.TAG_DATETIME);
                 if (date != null) return date.toInstant();
             }
 
-            // MOV / MP4 / HEIC QuickTime creation_time atom
             QuickTimeDirectory qt = metadata.getFirstDirectoryOfType(QuickTimeDirectory.class);
             if (qt != null) {
                 var date = qt.getDate(QuickTimeDirectory.TAG_CREATION_TIME);
@@ -261,118 +274,12 @@ public class DiskIndexingService {
         return null;
     }
 
-    // ── Reorganize ────────────────────────────────────────────────────────────
-
-    /**
-     * Preview photos on the active device that are outside a year/month folder structure.
-     */
-    public Map<String, Object> reorganizePreview() {
-        AppContext ctx = appContextService.requireActive();
-        Path basePath = Path.of(ctx.basePath());
-        List<Photo> candidates = findUnorganized(ctx.storageDeviceId(), basePath);
-
-        List<String> samples = candidates.stream()
-                .map(p -> Path.of(p.getFilePath()).getFileName().toString())
-                .limit(5)
-                .toList();
-
-        List<String> estimatedFolders = candidates.stream()
-                .filter(p -> p.getCreatedDate() != null)
-                .map(p -> {
-                    Path dest = resolveDestDir(ctx.basePath(), p.getCreatedDate());
-                    return basePath.relativize(dest).toString();
-                })
-                .distinct()
-                .sorted()
-                .toList();
-
-        return Map.of(
-                "unorganizedCount", candidates.size(),
-                "samples", samples,
-                "estimatedFolders", estimatedFolders
-        );
-    }
-
-    /**
-     * Move unorganized photos on the active device into year/month subdirectories.
-     */
-    public Map<String, Object> reorganize() {
-        AppContext ctx = appContextService.requireActive();
-        Path basePath = Path.of(ctx.basePath());
-        List<Photo> candidates = findUnorganized(ctx.storageDeviceId(), basePath);
-
-        int moved = 0;
-        int errors = 0;
-        for (int i = 0; i < candidates.size(); i += BATCH_SIZE) {
-            List<Photo> batch = candidates.subList(i, Math.min(i + BATCH_SIZE, candidates.size()));
-            for (Photo photo : batch) {
-                try {
-                    Path currentPath = Path.of(photo.getFilePath());
-                    Path destDir = resolveDestDir(ctx.basePath(), photo.getCreatedDate());
-                    Path destPath = resolveWithoutCollision(destDir, currentPath.getFileName());
-                    Files.createDirectories(destDir);
-                    Files.move(currentPath, destPath);
-                    photo.setFilePath(destPath.toString());
-                    photoRepository.update(photo);
-                    moved++;
-                } catch (IOException e) {
-                    LOG.error("Failed to move photo {}: {}", photo.getId(), e.getMessage());
-                    errors++;
-                }
-            }
-        }
-
-        return Map.of("moved", moved, "errors", errors);
-    }
-
-    private List<Photo> findUnorganized(String storageDeviceId, Path basePath) {
-        return photoRepository.findByStorageDeviceIdAndSyncedToDisk(storageDeviceId, true)
-                .stream()
-                .filter(p -> p.getFilePath() != null)
-                .filter(p -> {
-                    Path filePath = Path.of(p.getFilePath());
-                    if (!Files.exists(filePath)) return false;
-                    Path parent = filePath.getParent();
-                    if (parent == null) return true;
-                    try {
-                        Path rel = basePath.relativize(parent);
-                        String relStr = rel.toString().replace('\\', '/');
-                        return !relStr.matches("\\d{4}/\\d{2}");
-                    } catch (IllegalArgumentException e) {
-                        return true;
-                    }
-                })
-                .toList();
-    }
-
-    private Path resolveDestDir(String basePath, Instant createdDate) {
-        if (createdDate == null) {
-            return Path.of(basePath, "unknown");
-        }
-        LocalDate date = createdDate.atZone(ZoneId.systemDefault()).toLocalDate();
-        return Path.of(basePath,
-                String.valueOf(date.getYear()),
-                String.format("%02d", date.getMonthValue()));
-    }
-
-    private Path resolveWithoutCollision(Path targetDir, Path filename) {
-        Path target = targetDir.resolve(filename);
-        if (!Files.exists(target)) return target;
-
-        String name = filename.toString();
-        int dotIdx = name.lastIndexOf('.');
-        String base = dotIdx >= 0 ? name.substring(0, dotIdx) : name;
-        String ext = dotIdx >= 0 ? name.substring(dotIdx) : "";
-
-        int i = 1;
-        while (true) {
-            Path candidate = targetDir.resolve(base + "_" + i + ext);
-            if (!Files.exists(candidate)) return candidate;
-            i++;
-        }
-    }
-
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    private ICloudAccount requireAccount(String accountId) {
+        return accountRepository.findById(accountId)
+                .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Account not found: " + accountId));
+    }
 
     private boolean isMediaFile(String filename) {
         int dot = filename.lastIndexOf('.');
@@ -388,22 +295,22 @@ public class DiskIndexingService {
         return VIDEO_EXTENSIONS.contains(ext) ? MediaType.VIDEO.name() : MediaType.PHOTO.name();
     }
 
-    private void emitDoneEvent(int scanned, int total, int newlyDeleted) {
+    private void emitDoneEvent(String accountId, int scanned, int total, int newlyDeleted) {
         DiskIndexProgressEvent event = new DiskIndexProgressEvent("DONE");
         event.setScanned(scanned);
         event.setTotal(total);
         event.setPercentComplete(100.0);
         event.setNewlyDeleted(newlyDeleted);
-        stateHolder.updateAndEmit(event);
+        stateHolder.updateAndEmit(accountId, event);
     }
 
-    private void emitEvent(String phase, int scanned, int total, double pct, String error, int newlyDeleted) {
+    private void emitEvent(String accountId, String phase, int scanned, int total, double pct, String error, int newlyDeleted) {
         DiskIndexProgressEvent event = new DiskIndexProgressEvent(phase);
         event.setScanned(scanned);
         event.setTotal(total);
         event.setPercentComplete(pct);
         event.setError(error);
         event.setNewlyDeleted(newlyDeleted);
-        stateHolder.updateAndEmit(event);
+        stateHolder.updateAndEmit(accountId, event);
     }
 }

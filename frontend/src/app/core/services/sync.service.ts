@@ -97,11 +97,11 @@ export class SyncService {
   }
 
   reorganizePreview(accountId: string): Observable<ReorganizePreview> {
-    return this.apiService.reorganizePreview1<ReorganizePreview>(accountId);
+    return this.apiService.reorganizePreview<ReorganizePreview>(accountId);
   }
 
   reorganize(accountId: string): Observable<ReorganizeResult> {
-    return this.apiService.reorganize2<ReorganizeResult>(accountId);
+    return this.apiService.reorganize1<ReorganizeResult>(accountId);
   }
 
   reset(): void {

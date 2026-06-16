@@ -59,7 +59,8 @@ export class StorageStatsCardComponent implements OnInit, OnDestroy {
     this.diskIndexingService.progress$
       .pipe(filter(p => p?.phase === 'DONE'), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.load());
-    this.diskIndexingService.subscribeToEvents();
+    const accountId = this.accountSession.activeAccountId();
+    if (accountId) this.diskIndexingService.subscribeToEvents(accountId);
   }
 
   ngOnDestroy(): void {
@@ -79,8 +80,10 @@ export class StorageStatsCardComponent implements OnInit, OnDestroy {
 
   startReindex(): void {
     if (this.reindexing()) return;
+    const accountId = this.accountSession.activeAccountId();
+    if (!accountId) return;
     this.reindexing.set(true);
-    this.diskIndexingService.start().subscribe({
+    this.diskIndexingService.start(accountId).subscribe({
       next: () => {
         this.reindexing.set(false);
         this.reindexRequested.emit();
