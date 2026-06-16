@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { AccountService } from '../../core/services/account.service';
 import { AppContextService } from '../../core/services/app-context.service';
+import { AccountSessionService } from '../../core/services/account-session.service';
 import { AccountResponse } from '../../core/api/generated/model';
 
 @Component({
@@ -18,6 +19,7 @@ export class LoginComponent {
   private authService = inject(AuthService);
   private accountService = inject(AccountService);
   private appContextService = inject(AppContextService);
+  private accountSession = inject(AccountSessionService);
   private router = inject(Router);
 
   accounts = signal<AccountResponse[]>([]);
@@ -117,6 +119,11 @@ export class LoginComponent {
           this.isLoading.set(false);
         } else {
           this.isLoading.set(false);
+          if (!response.accountId) {
+            this.errorMessage.set('Logowanie nieudane: brak accountId w odpowiedzi serwera.');
+            return;
+          }
+          this.accountSession.setActiveAccount(response.accountId);
           setTimeout(() => {
             this.authService.setCredentials(this.selectedAccount()!.appleId, password);
             this.navigateAfterLogin();
@@ -144,8 +151,13 @@ export class LoginComponent {
     this.accountService.submitTwoFa({ accountId: this.currentAccountId(), code }).subscribe({
       next: (response) => {
         if (response.authenticated) {
-          this.authService.setCredentials(this.selectedAccount()!.appleId, password);
           this.isLoading.set(false);
+          if (!this.currentAccountId()) {
+            this.errorMessage.set('Weryfikacja 2FA nieudana: brak accountId.');
+            return;
+          }
+          this.accountSession.setActiveAccount(this.currentAccountId());
+          this.authService.setCredentials(this.selectedAccount()!.appleId, password);
           this.navigateAfterLogin();
         } else {
           this.isLoading.set(false);
@@ -182,6 +194,11 @@ export class LoginComponent {
           this.isLoading.set(false);
         } else {
           this.isLoading.set(false);
+          if (!response.accountId) {
+            this.errorMessage.set('Dodawanie konta nieudane: brak accountId w odpowiedzi serwera.');
+            return;
+          }
+          this.accountSession.setActiveAccount(response.accountId);
           setTimeout(() => {
             this.authService.setCredentials(username, password);
             this.navigateAfterLogin();

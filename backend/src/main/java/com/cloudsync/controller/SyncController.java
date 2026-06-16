@@ -5,6 +5,9 @@ import com.cloudsync.model.dto.IPhoneRepairProgress;
 import com.cloudsync.model.dto.IPhoneRepairResult;
 import com.cloudsync.model.dto.MergeDuplicatesProgress;
 import com.cloudsync.model.dto.MergeDuplicatesResult;
+import com.cloudsync.model.dto.OrphanPhotosCountResponse;
+import com.cloudsync.model.dto.OrphanPhotosProgress;
+import com.cloudsync.model.dto.OrphanPhotosResult;
 import com.cloudsync.model.dto.SyncProgressEvent;
 import com.cloudsync.model.dto.SyncStartResponse;
 import com.cloudsync.model.enums.ProviderType;
@@ -12,6 +15,7 @@ import com.cloudsync.service.DiskIndexStateHolder;
 import com.cloudsync.service.DiskIndexingService;
 import com.cloudsync.service.IPhoneRepairJobService;
 import com.cloudsync.service.MergeDuplicatesJobService;
+import com.cloudsync.service.OrphanPhotosJobService;
 import com.cloudsync.service.SyncService;
 import com.cloudsync.service.SyncStateHolder;
 import io.micronaut.http.HttpStatus;
@@ -38,6 +42,7 @@ public class SyncController {
     private final SyncStateHolder syncStateHolder;
     private final IPhoneRepairJobService iPhoneRepairJobService;
     private final MergeDuplicatesJobService mergeDuplicatesJobService;
+    private final OrphanPhotosJobService orphanPhotosJobService;
     private final DiskIndexingService diskIndexingService;
     private final DiskIndexStateHolder diskIndexStateHolder;
 
@@ -45,12 +50,14 @@ public class SyncController {
                           SyncStateHolder syncStateHolder,
                           IPhoneRepairJobService iPhoneRepairJobService,
                           MergeDuplicatesJobService mergeDuplicatesJobService,
+                          OrphanPhotosJobService orphanPhotosJobService,
                           DiskIndexingService diskIndexingService,
                           DiskIndexStateHolder diskIndexStateHolder) {
         this.syncService = syncService;
         this.syncStateHolder = syncStateHolder;
         this.iPhoneRepairJobService = iPhoneRepairJobService;
         this.mergeDuplicatesJobService = mergeDuplicatesJobService;
+        this.orphanPhotosJobService = orphanPhotosJobService;
         this.diskIndexingService = diskIndexingService;
         this.diskIndexStateHolder = diskIndexStateHolder;
     }
@@ -156,5 +163,26 @@ public class SyncController {
         return mergeDuplicatesJobService.getJob(jobId)
                 .map(job -> (Publisher<Event<MergeDuplicatesProgress>>) Flux.from(job.subscribe()).map(Event::of))
                 .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Merge-duplicates job not found: " + jobId));
+    }
+
+    @Get("/{accountId}/orphan-photos/count")
+    @ExecuteOn(TaskExecutors.BLOCKING)
+    @Produces(MediaType.APPLICATION_JSON)
+    public OrphanPhotosCountResponse orphanPhotosCount(@PathVariable String accountId) {
+        return new OrphanPhotosCountResponse(orphanPhotosJobService.countOrphans(accountId));
+    }
+
+    @Post("/{accountId}/orphan-photos/assign")
+    @ExecuteOn(TaskExecutors.BLOCKING)
+    @Produces(MediaType.APPLICATION_JSON)
+    public OrphanPhotosResult assignOrphanPhotos(@PathVariable String accountId) {
+        return orphanPhotosJobService.startJob(accountId);
+    }
+
+    @Get(value = "/orphan-photos/{jobId}/progress", produces = MediaType.TEXT_EVENT_STREAM)
+    public Publisher<Event<OrphanPhotosProgress>> getOrphanPhotosProgress(@PathVariable String jobId) {
+        return orphanPhotosJobService.getJob(jobId)
+                .map(job -> (Publisher<Event<OrphanPhotosProgress>>) Flux.from(job.subscribe()).map(Event::of))
+                .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Orphan-photos job not found: " + jobId));
     }
 }

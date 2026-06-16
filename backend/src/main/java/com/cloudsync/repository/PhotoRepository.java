@@ -39,6 +39,12 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
 
     List<Photo> findByAccountIdAndSyncStatus(String accountId, String syncStatus);
 
+    @Query("SELECT COUNT(*) FROM photos WHERE account_id IS NULL AND storage_device_id = :storageDeviceId")
+    long countByAccountIdIsNullAndStorageDeviceId(String storageDeviceId);
+
+    @Query("SELECT * FROM photos WHERE account_id IS NULL AND storage_device_id = :storageDeviceId")
+    List<Photo> findByAccountIdIsNullAndStorageDeviceId(String storageDeviceId);
+
     long countByAccountIdAndSyncStatus(String accountId, String syncStatus);
 
     @Query("SELECT COUNT(*) FROM photos WHERE account_id = :accountId AND sync_status = :syncStatus AND source_provider = :sourceProvider")

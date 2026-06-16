@@ -6,13 +6,14 @@ import { RepairIPhoneService } from '../../core/services/repair-iphone.service';
 import { BackupDatabaseService } from '../../core/services/backup-database.service';
 import { DeletePendingService } from '../../core/services/delete-pending.service';
 import { MergeDuplicatesService } from '../../core/services/merge-duplicates.service';
+import { OrphanPhotosService } from '../../core/services/orphan-photos.service';
 import { TaskHistoryDto } from '../../core/api/generated/model/taskHistoryDto';
 import { TaskHistoryDetailDto } from '../../core/api/generated/model/taskHistoryDetailDto';
 import { Store } from '@ngxs/store';
 import { AccountsState } from '../../state/accounts/accounts.state';
 import { AccountSessionService } from '../../core/services/account-session.service';
 
-type FilterType = 'ALL' | 'SYNC' | 'DELETION' | 'THUMBNAIL' | 'IPHONE_REPAIR' | 'DB_BACKUP' | 'MERGE_DUPLICATES';
+type FilterType = 'ALL' | 'SYNC' | 'DELETION' | 'THUMBNAIL' | 'IPHONE_REPAIR' | 'DB_BACKUP' | 'MERGE_DUPLICATES' | 'ASSIGN_ORPHAN_PHOTOS';
 type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 @Component({
@@ -124,6 +125,36 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
           </div>
         </div>
       </div>
+
+      @if (orphanPhotosService.orphanCount() > 0 || orphanPhotosService.running() || orphanDoneMessage()) {
+        <div class="available-actions">
+          <h2 class="available-actions-title">Dostępne akcje</h2>
+          <div class="action-card">
+            <div class="action-card-icon">⇲</div>
+            <div class="action-card-body">
+              <div class="action-card-title">Przypisz zdjęcia bez konta</div>
+              <div class="action-card-desc">
+                @if (orphanPhotosService.running()) {
+                  @if (orphanPhotosService.progress(); as p) {
+                    Przypisywanie... {{ p.processed }}/{{ p.total }}
+                  } @else {
+                    Uruchamianie...
+                  }
+                } @else if (orphanDoneMessage()) {
+                  {{ orphanDoneMessage() }}
+                } @else {
+                  {{ orphanPhotosService.orphanCount() }} zdjęć na tym dysku nie ma przypisanego konta.
+                }
+              </div>
+            </div>
+            <button class="action-run-btn" type="button"
+                    (click)="assignOrphanPhotos()"
+                    [disabled]="orphanPhotosService.running() || !activeAccountId()">
+              {{ orphanPhotosService.running() ? 'Trwa...' : 'Uruchom' }}
+            </button>
+          </div>
+        </div>
+      }
 
       <div class="filters">
         <div class="filter-group">
@@ -326,6 +357,7 @@ export class TasksComponent implements OnInit, OnDestroy {
   readonly backupService = inject(BackupDatabaseService);
   readonly deletePendingService = inject(DeletePendingService);
   readonly mergeDuplicatesService = inject(MergeDuplicatesService);
+  readonly orphanPhotosService = inject(OrphanPhotosService);
   private pollInterval: ReturnType<typeof setInterval> | null = null;
 
   tasks = signal<TaskHistoryDto[]>([]);
@@ -384,6 +416,16 @@ export class TasksComponent implements OnInit, OnDestroy {
     return accounts.find(a => a.hasActiveSession)?.id ?? accounts[0]?.id ?? null;
   });
 
+  readonly activeAccountId = computed<string | null>(() =>
+    this.accountSession.activeAccountId() ?? this.primaryAccountId());
+
+  readonly orphanDoneMessage = computed(() => {
+    const p = this.orphanPhotosService.progress();
+    if (!p?.done) return null;
+    if (p.assigned === 0) return 'Brak zdjęć bez konta do przypisania.';
+    return `Przypisano ${p.assigned} zdjęć do aktywnego konta.`;
+  });
+
   typeOptions: { value: FilterType; label: string }[] = [
     { value: 'ALL', label: 'All' },
     { value: 'SYNC', label: 'Sync' },
@@ -392,6 +434,7 @@ export class TasksComponent implements OnInit, OnDestroy {
     { value: 'IPHONE_REPAIR', label: 'iPhone Repair' },
     { value: 'DB_BACKUP', label: 'Backup bazy' },
     { value: 'MERGE_DUPLICATES', label: 'Scalanie duplikatów' },
+    { value: 'ASSIGN_ORPHAN_PHOTOS', label: 'Przypisanie zdjęć bez konta' },
   ];
 
   statusOptions: { value: FilterStatus; label: string }[] = [
@@ -404,7 +447,13 @@ export class TasksComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.load(0);
+    this.refreshOrphanCount();
     this.pollInterval = setInterval(() => this.refresh(), 10000);
+  }
+
+  private refreshOrphanCount(): void {
+    const accountId = this.activeAccountId();
+    if (accountId) this.orphanPhotosService.refreshCount(accountId);
   }
 
   ngOnDestroy(): void {
@@ -466,6 +515,7 @@ export class TasksComponent implements OnInit, OnDestroy {
       case 'IPHONE_REPAIR': return '⚙';
       case 'DB_BACKUP': return '▦';
       case 'MERGE_DUPLICATES': return '⊕';
+      case 'ASSIGN_ORPHAN_PHOTOS': return '⇲';
       default: return '·';
     }
   }
@@ -478,6 +528,7 @@ export class TasksComponent implements OnInit, OnDestroy {
       case 'IPHONE_REPAIR': return 'Find missing iPhone photos';
       case 'DB_BACKUP': return 'Backup bazy danych';
       case 'MERGE_DUPLICATES': return 'Scalanie duplikatów';
+      case 'ASSIGN_ORPHAN_PHOTOS': return 'Przypisanie zdjęć bez konta';
       default: return task.type;
     }
   }
@@ -517,6 +568,12 @@ export class TasksComponent implements OnInit, OnDestroy {
     if (!accountId) return;
     this.actionsOpen.set(false);
     this.mergeDuplicatesService.startJob(accountId).then(() => this.refresh());
+  }
+
+  assignOrphanPhotos(): void {
+    const accountId = this.activeAccountId();
+    if (!accountId) return;
+    this.orphanPhotosService.startJob(accountId).then(() => this.refresh());
   }
 
   private load(page: number, silent = false): void {
