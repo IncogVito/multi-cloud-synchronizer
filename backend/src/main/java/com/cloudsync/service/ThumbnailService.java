@@ -69,13 +69,13 @@ public class ThumbnailService {
         return photoRepository.countMissingThumbnails();
     }
 
-    public long countMissingByDevice(String storageDeviceId) {
-        return photoRepository.countMissingThumbnailsByDevice(storageDeviceId);
+    public long countMissingByAccount(String accountId) {
+        return photoRepository.countMissingThumbnailsByAccount(accountId);
     }
 
-    public List<Photo> findCandidates(String storageDeviceId) {
-        if (storageDeviceId != null && !storageDeviceId.isBlank()) {
-            return photoRepository.findSyncedWithoutThumbnailByDevice(storageDeviceId);
+    public List<Photo> findCandidates(String accountId) {
+        if (accountId != null && !accountId.isBlank()) {
+            return photoRepository.findSyncedWithoutThumbnailByAccount(accountId);
         }
         return photoRepository.findSyncedWithoutThumbnail();
     }

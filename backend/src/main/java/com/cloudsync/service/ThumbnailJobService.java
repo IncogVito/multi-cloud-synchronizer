@@ -39,12 +39,12 @@ public class ThumbnailJobService {
         this.thumbnailExecutor = thumbnailExecutor;
     }
 
-    public ThumbnailJobResponse startJob(String storageDeviceId, List<String> photoIds) {
+    public ThumbnailJobResponse startJob(String accountId, List<String> photoIds) {
         List<Photo> candidates;
         if (photoIds != null && !photoIds.isEmpty()) {
             candidates = photoRepository.findByIdIn(photoIds);
         } else {
-            candidates = thumbnailService.findCandidates(storageDeviceId);
+            candidates = thumbnailService.findCandidates(accountId);
         }
 
         ThumbnailJob job = new ThumbnailJob(UUID.randomUUID().toString(), candidates.size());

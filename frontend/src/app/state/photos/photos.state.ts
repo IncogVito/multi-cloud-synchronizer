@@ -31,8 +31,8 @@ export interface PhotosStateModel {
   monthsSummary: MonthSummaryResponse[];
   /** Active year-month filter "YYYY-MM", or null for all months. */
   activeMonth: string | null;
-  /** Current storage device context for which photos are loaded. */
-  activeStorageDeviceId: string | null;
+  /** Current account for which photos are loaded. */
+  activeAccountId: string | null;
   loading: boolean;
   loadingMore: boolean;
   hasMore: boolean;
@@ -52,7 +52,7 @@ export interface PhotosStateModel {
     photos: [],
     monthsSummary: [],
     activeMonth: null,
-    activeStorageDeviceId: null,
+    activeAccountId: null,
     loading: false,
     loadingMore: false,
     hasMore: false,
@@ -142,8 +142,7 @@ export class PhotosState {
   @Action(LoadMonthsSummary)
   loadMonthsSummary(ctx: StateContext<PhotosStateModel>, action: LoadMonthsSummary) {
     return this.photosService.getMonthsSummary({
-      storageDeviceId: action.storageDeviceId,
-      accountId: action.accountId ?? '',
+      accountId: action.accountId,
     }).pipe(
       tap(summary => ctx.patchState({ monthsSummary: summary })),
       catchError(err => {
@@ -169,13 +168,12 @@ export class PhotosState {
       currentPage: 0,
       hasMore: false,
       error: null,
-      activeStorageDeviceId: action.storageDeviceId,
+      activeAccountId: action.accountId,
     });
 
     return this.photosService.listPhotos({
-      storageDeviceId: action.storageDeviceId,
+      accountId: action.accountId,
       synced: 'true',
-      accountId: '',
       yearMonth: action.yearMonth ?? '',
       year: action.year ?? '',
       page: 0,
@@ -205,15 +203,14 @@ export class PhotosState {
   @Action(LoadMorePhotos)
   loadMorePhotos(ctx: StateContext<PhotosStateModel>) {
     const state = ctx.getState();
-    if (!state.hasMore || state.loadingMore || !state.activeStorageDeviceId) return;
+    if (!state.hasMore || state.loadingMore || !state.activeAccountId) return;
 
     const nextPage = state.currentPage + 1;
     ctx.patchState({ loadingMore: true, currentPage: nextPage });
 
     return this.photosService.listPhotos({
-      storageDeviceId: state.activeStorageDeviceId,
+      accountId: state.activeAccountId,
       synced: 'true',
-      accountId: '',
       yearMonth: state.activeMonth ?? '',
       year: '',
       page: nextPage,
@@ -246,9 +243,9 @@ export class PhotosState {
     const state = ctx.getState();
     ctx.patchState({ activeMonth: action.yearMonth });
 
-    if (state.activeStorageDeviceId) {
+    if (state.activeAccountId) {
       return ctx.dispatch(new LoadPhotos(
-        state.activeStorageDeviceId,
+        state.activeAccountId,
         action.yearMonth ?? undefined,
       ));
     }

@@ -14,7 +14,7 @@ const defaults: PhotosStateModel = {
   photos: [],
   monthsSummary: [],
   activeMonth: null,
-  activeStorageDeviceId: null,
+  activeAccountId: null,
   loading: false,
   loadingMore: false,
   hasMore: false,

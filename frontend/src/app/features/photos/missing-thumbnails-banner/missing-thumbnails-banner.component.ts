@@ -11,7 +11,7 @@ import { ThumbnailJobStateService } from '../../../core/services/thumbnail-job-s
 export class MissingThumbnailsBannerComponent implements OnInit {
   private jobState = inject(ThumbnailJobStateService);
 
-  storageDeviceId = input('');
+  accountId = input('');
   selectedPhotoIds = input<string[]>([]);
   deleteStatus = input<string | null>(null);
 
@@ -24,8 +24,8 @@ export class MissingThumbnailsBannerComponent implements OnInit {
 
   constructor() {
     effect(() => {
-      const deviceId = this.storageDeviceId();
-      if (deviceId) this.jobState.fetchMissingCount(deviceId);
+      const accountId = this.accountId();
+      if (accountId) this.jobState.fetchMissingCount(accountId);
     });
 
     effect(() => {
@@ -39,7 +39,7 @@ export class MissingThumbnailsBannerComponent implements OnInit {
   }
 
   generateAll(): void {
-    this.jobState.startJob(this.storageDeviceId(), null);
+    this.jobState.startJob(this.accountId(), null);
   }
 
   generateForSelected(): void {

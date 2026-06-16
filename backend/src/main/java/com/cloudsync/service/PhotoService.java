@@ -51,19 +51,14 @@ public class PhotoService {
      * Groups synced photos by calendar month and returns a summary for each.
      * Results are sorted newest-month-first.
      *
-     * @param storageDeviceId required — only photos on this device are included
-     * @param accountId       optional — when non-null only photos from this account are included
+     * @param accountId required — only photos owned by this account are included
      */
-    public List<MonthSummaryResponse> getMonthsSummary(String storageDeviceId, String accountId) {
+    public List<MonthSummaryResponse> getMonthsSummary(String accountId) {
         appContextService.requireActive();
 
-        List<Photo> syncedPhotos = photoRepository.findByStorageDeviceIdAndSyncedToDisk(storageDeviceId, true);
+        List<Photo> syncedPhotos = photoRepository.findByAccountIdAndSyncedToDisk(accountId, true);
 
-        List<Photo> filteredPhotos = accountId != null
-                ? syncedPhotos.stream().filter(p -> accountId.equals(p.getAccountId())).toList()
-                : syncedPhotos;
-
-        Map<String, List<Photo>> photosByYearMonth = filteredPhotos.stream()
+        Map<String, List<Photo>> photosByYearMonth = syncedPhotos.stream()
                 .filter(p -> p.getCreatedDate() != null)
                 .collect(Collectors.groupingBy(p -> formatYearMonth(p.getCreatedDate())));
 
@@ -112,22 +107,20 @@ public class PhotoService {
     }
 
     /**
-     * Lists photos with optional filters.
-     * When both storageDeviceId and a date range (from yearMonth or year) are provided,
-     * the date range takes priority and is applied alongside the device filter.
+     * Lists photos with optional filters, scoped to a single account.
+     * When both an account and a date range (from yearMonth or year) are provided,
+     * the date range is applied alongside the account filter.
      *
-     * @param accountId       filter by account (optional)
-     * @param synced          filter by disk-sync status (optional)
-     * @param storageDeviceId filter by storage device (optional)
-     * @param yearMonth       restrict to a single month, format "YYYY-MM" (optional)
-     * @param year            restrict to a full year, format "YYYY" (optional, ignored when yearMonth is set)
-     * @param page            zero-based page index
-     * @param size            page size
+     * @param accountId  filter by owning account
+     * @param synced     filter by disk-sync status (optional)
+     * @param yearMonth  restrict to a single month, format "YYYY-MM" (optional)
+     * @param year       restrict to a full year, format "YYYY" (optional, ignored when yearMonth is set)
+     * @param page       zero-based page index
+     * @param size       page size
      */
     public PhotoListResponse listPhotos(
             String accountId,
             Boolean synced,
-            String storageDeviceId,
             String yearMonth,
             String year,
             int page,
@@ -140,10 +133,10 @@ public class PhotoService {
 
         DateRange dateRange = resolveDateRange(yearMonth, year);
 
-        if (dateRange != null && storageDeviceId != null) {
+        if (dateRange != null && accountId != null) {
             boolean syncedFlag = synced != null ? synced : true;
-            Page<Photo> result = photoRepository.findBySyncedToDiskAndStorageDeviceIdAndCreatedDateBetween(
-                    syncedFlag, storageDeviceId, dateRange.startInclusive(), dateRange.endExclusive(), unsortedPageable);
+            Page<Photo> result = photoRepository.findBySyncedToDiskAndAccountIdAndCreatedDateBetween(
+                    syncedFlag, accountId, dateRange.startInclusive(), dateRange.endExclusive(), unsortedPageable);
             return toPhotoListResponse(result, page, size);
         }
 
@@ -151,8 +144,6 @@ public class PhotoService {
         if (accountId != null && synced != null) {
             List<Photo> photos = photoRepository.findByAccountIdAndSyncedToDisk(accountId, synced);
             return new PhotoListResponse(photos.stream().map(this::toResponse).toList(), photos.size(), page, size);
-        } else if (storageDeviceId != null && synced != null) {
-            result = photoRepository.findBySyncedToDiskAndStorageDeviceId(synced, storageDeviceId, unsortedPageable);
         } else if (accountId != null) {
             result = photoRepository.findByAccountId(accountId, sortedPageable);
         } else if (synced != null) {

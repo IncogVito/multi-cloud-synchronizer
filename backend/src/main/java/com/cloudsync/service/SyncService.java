@@ -185,8 +185,8 @@ public class SyncService {
      * Preview which photos are outside the year/month folder structure.
      */
     public Map<String, Object> reorganizePreview(String accountId) {
-        AppContext ctx = appContextService.requireActive();
-        Path basePath = Path.of(ctx.basePath());
+        ICloudAccount account = requireAccount(accountId);
+        Path basePath = Path.of(account.getSyncFolderPath());
         List<Photo> candidates = findUnorganizedPhotos(accountId, basePath);
 
         List<String> samples = candidates.stream()
@@ -196,7 +196,7 @@ public class SyncService {
 
         List<String> estimatedFolders = candidates.stream()
                 .map(p -> {
-                    Path dest = resolveDestDir(ctx.basePath(), p.getCreatedDate());
+                    Path dest = resolveDestDir(account.getSyncFolderPath(), p.getCreatedDate());
                     return basePath.relativize(dest).toString();
                 })
                 .distinct()
@@ -214,8 +214,8 @@ public class SyncService {
      * Move unorganized photos into year/month subdirectories.
      */
     public Map<String, Object> reorganize(String accountId) {
-        AppContext ctx = appContextService.requireActive();
-        Path basePath = Path.of(ctx.basePath());
+        ICloudAccount account = requireAccount(accountId);
+        Path basePath = Path.of(account.getSyncFolderPath());
         List<Photo> candidates = findUnorganizedPhotos(accountId, basePath);
 
         int moved = 0;
@@ -225,7 +225,7 @@ public class SyncService {
             for (Photo photo : batch) {
                 try {
                     Path currentPath = Path.of(photo.getFilePath());
-                    Path destDir = resolveDestDir(ctx.basePath(), photo.getCreatedDate());
+                    Path destDir = resolveDestDir(account.getSyncFolderPath(), photo.getCreatedDate());
                     Path destPath = destDir.resolve(currentPath.getFileName());
                     Files.createDirectories(destDir);
                     Files.move(currentPath, destPath);

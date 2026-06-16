@@ -11,7 +11,7 @@
   ></app-photos-toolbar>
 
   <app-missing-thumbnails-banner
-    [storageDeviceId]="storageDeviceId()"
+    [accountId]="activeAccountId()"
     [selectedPhotoIds]="selectedMissingThumbnailIds()"
     [deleteStatus]="operationStatus()"
     (thumbnailsGenerated)="onThumbnailsGenerated()"

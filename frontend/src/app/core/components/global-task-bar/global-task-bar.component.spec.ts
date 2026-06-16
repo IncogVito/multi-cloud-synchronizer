@@ -79,7 +79,7 @@ describe('GlobalTaskBarComponent', () => {
     const { el } = await setup([
       { jobId: 'j1', type: 'THUMBNAIL', status: 'RUNNING', label: 'Thumbnails', total: 5, done: 0, failed: 0 },
     ]);
-    expect(el.querySelector('.task-icon')?.textContent?.trim()).toBe('🖼');
+    expect(el.querySelector('.task-icon')?.textContent?.trim()).toBe('▣');
   });
 
   it('shows progress counts for running job', async () => {

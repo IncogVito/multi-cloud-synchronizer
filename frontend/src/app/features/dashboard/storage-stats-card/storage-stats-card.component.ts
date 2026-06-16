@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
 import { filter } from 'rxjs/operators';
 import { StatsService } from '../../../core/api/generated/stats/stats.service';
-import { AppContextService } from '../../../core/services/app-context.service';
+import { AccountSessionService } from '../../../core/services/account-session.service';
 import { SyncService } from '../../../core/services/sync.service';
 import { DiskIndexingService } from '../../../core/services/disk-indexing.service';
 import { StatsResponse } from '../../../core/api/generated/model/statsResponse';
@@ -17,7 +17,7 @@ import { StatsResponse } from '../../../core/api/generated/model/statsResponse';
 })
 export class StorageStatsCardComponent implements OnInit, OnDestroy {
   private statsApi = inject(StatsService);
-  appContext = inject(AppContextService);
+  private accountSession = inject(AccountSessionService);
   private syncService = inject(SyncService);
   private diskIndexingService = inject(DiskIndexingService);
   private destroyRef = inject(DestroyRef);
@@ -27,6 +27,8 @@ export class StorageStatsCardComponent implements OnInit, OnDestroy {
   stats = signal<StatsResponse | null>(null);
   loading = signal(true);
   reindexing = signal(false);
+
+  hasAccount = computed(() => this.accountSession.activeAccountId() != null);
 
   diskPhotosPercent = computed(() => {
     const s = this.stats();
@@ -65,11 +67,11 @@ export class StorageStatsCardComponent implements OnInit, OnDestroy {
   }
 
   private load(): void {
-    const ctx = this.appContext.context();
-    if (!ctx) return;
+    const accountId = this.accountSession.activeAccountId();
+    if (!accountId) return;
 
     this.loading.set(true);
-    this.statsApi.getOverview({ storageDeviceId: ctx.storageDeviceId }).subscribe({
+    this.statsApi.getOverview({ accountId }).subscribe({
       next: s => { this.stats.set(s); this.loading.set(false); },
       error: () => this.loading.set(false)
     });

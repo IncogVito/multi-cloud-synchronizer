@@ -5,4 +5,4 @@ import io.micronaut.serde.annotation.Serdeable;
 import java.util.List;
 
 @Serdeable
-public record GenerateThumbnailsRequest(String storageDeviceId, List<String> photoIds) {}
+public record GenerateThumbnailsRequest(String accountId, List<String> photoIds) {}

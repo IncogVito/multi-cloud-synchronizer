@@ -29,23 +29,23 @@ export class ThumbnailJobStateService implements OnDestroy {
 
   constructor(private authService: AuthService) {}
 
-  fetchMissingCount(storageDeviceId: string): void {
+  fetchMissingCount(accountId: string): void {
     const headers = this.buildHeaders({ Accept: 'application/json' });
-    const qs = storageDeviceId ? `?storageDeviceId=${encodeURIComponent(storageDeviceId)}` : '';
+    const qs = accountId ? `?accountId=${encodeURIComponent(accountId)}` : '';
     fetch(`/api/photos/missing-thumbnails-count${qs}`, { headers })
       .then(r => r.json())
       .then((data: { count: number }) => this.missingCount.set(data.count ?? 0))
       .catch(() => this.missingCount.set(0));
   }
 
-  async startJob(storageDeviceId: string | null, photoIds: string[] | null): Promise<void> {
+  async startJob(accountId: string | null, photoIds: string[] | null): Promise<void> {
     if (this.generating()) return;
     this.generating.set(true);
     this.progress.set(null);
 
     const headers = this.buildHeaders({ 'Content-Type': 'application/json' });
     const body = JSON.stringify({
-      storageDeviceId: storageDeviceId || null,
+      accountId: accountId || null,
       photoIds: photoIds?.length ? photoIds : null,
     });
 

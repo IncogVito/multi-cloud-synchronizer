@@ -25,11 +25,12 @@ public class StatsController {
     }
 
     @Operation(summary = "Get storage statistics",
-               description = "Returns photo counts and sizes for disk, iCloud and iPhone within a storage device context")
+               description = "Returns photo counts and sizes for disk, iCloud and iPhone for a single account. "
+                       + "Disk capacity/free space are derived internally from the account's storage device.")
     @ApiResponse(responseCode = "200", description = "Stats overview")
     @Get("/overview")
     @Produces(MediaType.APPLICATION_JSON)
-    public StatsResponse getOverview(@QueryValue String storageDeviceId) {
-        return statsService.getStats(storageDeviceId);
+    public StatsResponse getOverview(@QueryValue String accountId) {
+        return statsService.getStats(accountId);
     }
 }

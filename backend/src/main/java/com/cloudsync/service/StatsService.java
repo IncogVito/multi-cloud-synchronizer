@@ -15,8 +15,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 @Singleton
@@ -39,38 +37,39 @@ public class StatsService {
         this.appContextService = appContextService;
     }
 
-    public StatsResponse getStats(String storageDeviceId) {
-        StorageDevice device = storageDeviceRepository.findById(storageDeviceId).orElse(null);
+    public StatsResponse getStats(String accountId) {
+        ICloudAccount account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown account: " + accountId));
+        String storageDeviceId = account.getStorageDeviceId();
+
+        StorageDevice device = storageDeviceId != null
+                ? storageDeviceRepository.findById(storageDeviceId).orElse(null)
+                : null;
         Long diskCapacity = device != null ? device.getSizeBytes() : null;
 
         Long diskFreeBytes = null;
         try {
             Optional<AppContext> ctxOpt = appContextService.getActive();
-            if (ctxOpt.isPresent() && storageDeviceId.equals(ctxOpt.get().storageDeviceId())) {
+            if (ctxOpt.isPresent() && storageDeviceId != null
+                    && storageDeviceId.equals(ctxOpt.get().storageDeviceId())) {
                 diskFreeBytes = Files.getFileStore(Path.of(ctxOpt.get().basePath())).getUsableSpace();
             }
         } catch (IOException e) {
             LOG.warn("Could not read free disk space: {}", e.getMessage());
         }
 
-        long diskCount = photoRepository.countBySyncedToDiskAndStorageDeviceId(true, storageDeviceId);
-        Long diskSize = photoRepository.sumFileSizeOnDisk(storageDeviceId);
+        long diskCount = photoRepository.countBySyncedToDiskAndAccountId(true, accountId);
+        Long diskSize = photoRepository.sumFileSizeOnDiskByAccount(accountId);
 
-        long icloudCount = photoRepository.countByStorageDeviceIdAndExistsOnIcloud(storageDeviceId);
-        Long icloudSizeVal = photoRepository.sumFileSizeOnIcloudByDevice(storageDeviceId);
+        long icloudCount = photoRepository.countByAccountIdAndExistsOnIcloud(accountId, true);
+        Long icloudSizeVal = photoRepository.sumFileSizeOnIcloud(accountId);
         long icloudSize = icloudSizeVal != null ? icloudSizeVal : 0;
 
-        long iphoneCount = photoRepository.countByStorageDeviceIdAndExistsOnIphone(storageDeviceId);
-        Long iphoneSizeVal = photoRepository.sumFileSizeOnIphoneByDevice(storageDeviceId);
+        long iphoneCount = photoRepository.countByAccountIdAndExistsOnIphone(accountId, true);
+        Long iphoneSizeVal = photoRepository.sumFileSizeOnIphone(accountId);
         long iphoneSize = iphoneSizeVal != null ? iphoneSizeVal : 0;
 
-        List<ICloudAccount> accounts = accountRepository.findByStorageDeviceId(storageDeviceId);
-
-        Instant icloudLastSync = accounts.stream()
-                .map(ICloudAccount::getLastSyncAt)
-                .filter(Objects::nonNull)
-                .max(Instant::compareTo)
-                .orElse(null);
+        Instant icloudLastSync = account.getLastSyncAt();
 
         Instant iphoneLastSync = icloudLastSync;
 

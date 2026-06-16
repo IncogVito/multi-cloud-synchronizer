@@ -69,20 +69,17 @@ public class PhotoController {
     @Get
     @Produces(MediaType.APPLICATION_JSON)
     public PhotoListResponse listPhotos(
-            @QueryValue(defaultValue = "") String accountId,
+            @QueryValue String accountId,
             @QueryValue(defaultValue = "") String synced,
-            @QueryValue(defaultValue = "") String storageDeviceId,
             @QueryValue(defaultValue = "") String yearMonth,
             @QueryValue(defaultValue = "") String year,
             @QueryValue(defaultValue = "0") int page,
             @QueryValue(defaultValue = "20") int size) {
 
-        String accountIdParam = accountId.isBlank() ? null : accountId;
         Boolean syncedParam = synced.isBlank() ? null : Boolean.parseBoolean(synced);
-        String deviceIdParam = storageDeviceId.isBlank() ? null : storageDeviceId;
         String yearMonthParam = yearMonth.isBlank() ? null : yearMonth;
         String yearParam = year.isBlank() ? null : year;
-        return photoService.listPhotos(accountIdParam, syncedParam, deviceIdParam, yearMonthParam, yearParam, page, size);
+        return photoService.listPhotos(accountId, syncedParam, yearMonthParam, yearParam, page, size);
     }
 
     @Operation(summary = "Photos grouped by month", description = "Returns photo counts and size totals per calendar month, sorted newest-first")
@@ -90,11 +87,9 @@ public class PhotoController {
     @Get("/months-summary")
     @Produces(MediaType.APPLICATION_JSON)
     public List<MonthSummaryResponse> getMonthsSummary(
-            @QueryValue String storageDeviceId,
-            @QueryValue(defaultValue = "") String accountId) {
+            @QueryValue String accountId) {
 
-        String accountIdParam = accountId.isBlank() ? null : accountId;
-        return photoService.getMonthsSummary(storageDeviceId, accountIdParam);
+        return photoService.getMonthsSummary(accountId);
     }
 
     @Operation(summary = "Count photos missing thumbnails")
@@ -102,11 +97,11 @@ public class PhotoController {
     @Get("/missing-thumbnails-count")
     @Produces(MediaType.APPLICATION_JSON)
     public MissingThumbnailsCount countMissingThumbnails(
-            @QueryValue(defaultValue = "") String storageDeviceId) {
+            @QueryValue(defaultValue = "") String accountId) {
 
-        long count = storageDeviceId.isBlank()
+        long count = accountId.isBlank()
                 ? thumbnailService.countMissing()
-                : thumbnailService.countMissingByDevice(storageDeviceId);
+                : thumbnailService.countMissingByAccount(accountId);
         return new MissingThumbnailsCount(count);
     }
 
@@ -116,9 +111,9 @@ public class PhotoController {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public ThumbnailJobResponse startThumbnailJob(@Body GenerateThumbnailsRequest request) {
-        String deviceId = request != null ? request.storageDeviceId() : null;
+        String accountId = request != null ? request.accountId() : null;
         List<String> photoIds = request != null ? request.photoIds() : null;
-        return thumbnailJobService.startJob(deviceId, photoIds);
+        return thumbnailJobService.startJob(accountId, photoIds);
     }
 
     @Operation(summary = "Stream thumbnail job progress (SSE)", description = "Reconnect-safe: replays all past progress events on reconnect.")

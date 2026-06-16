@@ -1,15 +1,14 @@
 export class LoadMonthsSummary {
   static readonly type = '[Photos] Load months summary';
   constructor(
-    public readonly storageDeviceId: string,
-    public readonly accountId?: string,
+    public readonly accountId: string,
   ) {}
 }
 
 export class LoadPhotos {
   static readonly type = '[Photos] Load first page';
   constructor(
-    public readonly storageDeviceId: string,
+    public readonly accountId: string,
     public readonly yearMonth?: string,
     public readonly year?: string,
   ) {}

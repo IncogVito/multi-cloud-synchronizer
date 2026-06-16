@@ -14,6 +14,7 @@ import { MonthsNavComponent } from './photos-months-nav/months-nav.component';
 import { SyncService } from '../../core/services/sync.service';
 import { DiskIndexingService } from '../../core/services/disk-indexing.service';
 import { AppContextService } from '../../core/services/app-context.service';
+import { AccountSessionService } from '../../core/services/account-session.service';
 import { ThumbnailSpriteService } from '../../core/services/thumbnail-sprite.service';
 import { ThumbnailJobStateService } from '../../core/services/thumbnail-job-state.service';
 import { SyncProgressEvent } from '../../core/models/sync-progress.model';
@@ -48,11 +49,13 @@ export class PhotosComponent implements OnInit, OnDestroy {
   private syncService = inject(SyncService);
   private diskIndexingService = inject(DiskIndexingService);
   private appContextService = inject(AppContextService);
+  private accountSession = inject(AccountSessionService);
   private thumbnailSpriteService = inject(ThumbnailSpriteService);
   private thumbnailJobState = inject(ThumbnailJobStateService);
   private destroyRef = inject(DestroyRef);
 
   storageDeviceId = computed(() => this.appContextService.context()?.storageDeviceId ?? '');
+  activeAccountId = computed(() => this.accountSession.activeAccountId() ?? '');
   granularity = signal<Granularity>('year');
   sourceFilter = signal<SourceFilter>('all');
   tocCollapsed = signal<boolean>(localStorage.getItem('cloudsync-months-collapsed') === '1');
@@ -137,19 +140,19 @@ export class PhotosComponent implements OnInit, OnDestroy {
   private syncSub: Subscription | null = null;
   private statusTimer: ReturnType<typeof setTimeout> | null = null;
   private detailBlobUrl: string | null = null;
-  private previousDeviceId: string | null = null;
+  private previousAccountId: string | null = null;
 
   constructor() {
     effect(() => {
-      const deviceId = this.storageDeviceId();
-      if (this.previousDeviceId !== deviceId) {
+      const accountId = this.activeAccountId();
+      if (this.previousAccountId !== accountId) {
         this.resetThumbnailState();
         this.selectedIds.set(new Set());
-        if (deviceId) {
-          this.store.dispatch(new LoadPhotos(deviceId, this.activeMonth() ?? undefined));
-          this.store.dispatch(new LoadMonthsSummary(deviceId));
+        if (accountId) {
+          this.store.dispatch(new LoadPhotos(accountId, this.activeMonth() ?? undefined));
+          this.store.dispatch(new LoadMonthsSummary(accountId));
         }
-        this.previousDeviceId = deviceId;
+        this.previousAccountId = accountId;
       }
     });
 
@@ -349,10 +352,10 @@ export class PhotosComponent implements OnInit, OnDestroy {
   }
 
   private reloadCurrent(): void {
-    const deviceId = this.storageDeviceId();
-    if (!deviceId) return;
-    this.store.dispatch(new LoadPhotos(deviceId, this.activeMonth() ?? undefined));
-    this.store.dispatch(new LoadMonthsSummary(deviceId));
+    const accountId = this.activeAccountId();
+    if (!accountId) return;
+    this.store.dispatch(new LoadPhotos(accountId, this.activeMonth() ?? undefined));
+    this.store.dispatch(new LoadMonthsSummary(accountId));
   }
 
   private firstAccountId(photoIds: string[]): string {

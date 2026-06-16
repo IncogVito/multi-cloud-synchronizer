@@ -50,6 +50,12 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
     @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId")
     Long sumFileSizeOnDisk(String storageDeviceId);
 
+    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND account_id = :accountId")
+    long countBySyncedToDiskAndAccountId(boolean syncedToDisk, String accountId);
+
+    @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE synced_to_disk = true AND account_id = :accountId")
+    Long sumFileSizeOnDiskByAccount(String accountId);
+
     long countByAccountIdAndExistsOnIcloud(String accountId, boolean existsOnIcloud);
 
     @Query("SELECT COALESCE(SUM(file_size), 0) FROM photos WHERE account_id = :accountId AND exists_on_icloud = true")
@@ -75,14 +81,14 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
     @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND (thumbnail_path IS NULL OR thumbnail_path = '')")
     long countMissingThumbnails();
 
-    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (thumbnail_path IS NULL OR thumbnail_path = '')")
-    long countMissingThumbnailsByDevice(String storageDeviceId);
+    @Query("SELECT COUNT(*) FROM photos WHERE synced_to_disk = true AND account_id = :accountId AND (thumbnail_path IS NULL OR thumbnail_path = '')")
+    long countMissingThumbnailsByAccount(String accountId);
 
     @Query("SELECT * FROM photos WHERE synced_to_disk = true AND (thumbnail_path IS NULL OR thumbnail_path = '')")
     List<Photo> findSyncedWithoutThumbnail();
 
-    @Query("SELECT * FROM photos WHERE synced_to_disk = true AND storage_device_id = :storageDeviceId AND (thumbnail_path IS NULL OR thumbnail_path = '')")
-    List<Photo> findSyncedWithoutThumbnailByDevice(String storageDeviceId);
+    @Query("SELECT * FROM photos WHERE synced_to_disk = true AND account_id = :accountId AND (thumbnail_path IS NULL OR thumbnail_path = '')")
+    List<Photo> findSyncedWithoutThumbnailByAccount(String accountId);
 
     @Query("SELECT * FROM photos WHERE storage_device_id = :storageDeviceId AND synced_to_disk = :syncedToDisk")
     List<Photo> findByStorageDeviceIdAndSyncedToDisk(String storageDeviceId, boolean syncedToDisk);
@@ -98,6 +104,15 @@ public interface PhotoRepository extends PageableRepository<Photo, String> {
     Page<Photo> findBySyncedToDiskAndStorageDeviceIdAndCreatedDateBetween(
             boolean syncedToDisk,
             String storageDeviceId,
+            Instant startInclusive,
+            Instant endExclusive,
+            Pageable pageable);
+
+    @Query(value = "SELECT * FROM photos WHERE synced_to_disk = :syncedToDisk AND account_id = :accountId AND created_date >= :startInclusive AND created_date < :endExclusive ORDER BY created_date DESC",
+           countQuery = "SELECT COUNT(*) FROM photos WHERE synced_to_disk = :syncedToDisk AND account_id = :accountId AND created_date >= :startInclusive AND created_date < :endExclusive")
+    Page<Photo> findBySyncedToDiskAndAccountIdAndCreatedDateBetween(
+            boolean syncedToDisk,
+            String accountId,
             Instant startInclusive,
             Instant endExclusive,
             Pageable pageable);
