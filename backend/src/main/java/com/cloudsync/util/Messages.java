@@ -33,6 +33,11 @@ public final class Messages {
     public static final String LOG_DELETE_SESSION_FAILED = "[DELETE] Failed to delete session from icloud-service: {}";
     public static final String LOG_DELETE_SUCCESS = "[DELETE] Account successfully deleted: {}";
     public static final String LOG_DELETE_ERROR = "[DELETE] Error during account deletion for id: {}";
+    public static final String LOG_LOGOUT_START = "[LOGOUT] Starting logout for account id: {}";
+    public static final String LOG_LOGOUT_ACCOUNT_NOT_FOUND = "[LOGOUT] Account not found: {}";
+    public static final String LOG_LOGOUT_SESSION_DELETED = "[LOGOUT] Session invalidated in iCloud Service";
+    public static final String LOG_LOGOUT_SESSION_FAILED = "[LOGOUT] Failed to invalidate session in icloud-service: {}";
+    public static final String LOG_LOGOUT_SUCCESS = "[LOGOUT] Account logged out: {}";
 
     // AccountService — convert
     public static final String LOG_CONVERT_ACCOUNT = "[CONVERT] Converting account: appleId={}";

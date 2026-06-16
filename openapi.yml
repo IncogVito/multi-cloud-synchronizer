@@ -73,6 +73,24 @@ paths:
       responses:
         "204":
           description: Account deleted
+  /api/accounts/{id}/logout:
+    post:
+      tags:
+      - Accounts
+      summary: Log out account
+      description: Invalidate the iCloud session but keep the account record
+      operationId: logout
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Account logged out
+        "404":
+          description: Account not found
   /api/accounts/{id}/reorganize:
     post:
       operationId: reorganize
@@ -500,6 +518,11 @@ paths:
         schema:
           type: string
           nullable: true
+      - name: accountId
+        in: query
+        schema:
+          type: string
+          nullable: true
       responses:
         "200":
           description: listHistory 200 response
@@ -560,11 +583,6 @@ paths:
         schema:
           type: string
       - name: synced
-        in: query
-        required: true
-        schema:
-          type: string
-      - name: storageDeviceId
         in: query
         required: true
         schema:
@@ -698,7 +716,7 @@ paths:
       summary: Count photos missing thumbnails
       operationId: countMissingThumbnails
       parameters:
-      - name: storageDeviceId
+      - name: accountId
         in: query
         required: true
         schema:
@@ -719,11 +737,6 @@ paths:
         \ newest-first"
       operationId: getMonthsSummary
       parameters:
-      - name: storageDeviceId
-        in: query
-        required: true
-        schema:
-          type: string
       - name: accountId
         in: query
         required: true
@@ -1047,11 +1060,12 @@ paths:
       tags:
       - Stats
       summary: Get storage statistics
-      description: "Returns photo counts and sizes for disk, iCloud and iPhone within\
-        \ a storage device context"
+      description: "Returns photo counts and sizes for disk, iCloud and iPhone for\
+        \ a single account. Disk capacity/free space are derived internally from the\
+        \ account's storage device."
       operationId: getOverview
       parameters:
-      - name: storageDeviceId
+      - name: accountId
         in: query
         required: true
         schema:
@@ -1151,6 +1165,22 @@ paths:
             text/event-stream:
               schema:
                 $ref: "#/components/schemas/Event_IPhoneRepairProgress_"
+  /api/sync/merge-duplicates/{jobId}/progress:
+    get:
+      operationId: getMergeDuplicatesProgress
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: getMergeDuplicatesProgress 200 response
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_MergeDuplicatesProgress_"
   /api/sync/{accountId}:
     post:
       operationId: startSync
@@ -1227,6 +1257,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/IPhoneRepairResult"
+  /api/sync/{accountId}/merge-duplicates:
+    post:
+      operationId: startMergeDuplicates
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: startMergeDuplicates 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MergeDuplicatesResult"
   /api/sync/{accountId}/reorganize:
     post:
       operationId: reorganize_2
@@ -1633,6 +1679,19 @@ components:
           type: string
         retry:
           type: string
+    Event_MergeDuplicatesProgress_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/MergeDuplicatesProgress"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
     Event_RepairProgress_:
       type: object
       properties:
@@ -1703,11 +1762,11 @@ components:
             $ref: "#/components/schemas/FolderResponse"
     GenerateThumbnailsRequest:
       required:
+      - accountId
       - photoIds
-      - storageDeviceId
       type: object
       properties:
-        storageDeviceId:
+        accountId:
           type: string
         photoIds:
           type: array
@@ -1816,6 +1875,39 @@ components:
           type: boolean
         accountId:
           type: string
+    MergeDuplicatesProgress:
+      required:
+      - checked
+      - deleted
+      - done
+      - merged
+      - total
+      type: object
+      properties:
+        checked:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        merged:
+          type: integer
+          format: int32
+        deleted:
+          type: integer
+          format: int32
+        done:
+          type: boolean
+    MergeDuplicatesResult:
+      required:
+      - jobId
+      - progress
+      type: object
+      properties:
+        jobId:
+          type: string
+        progress:
+          $ref: "#/components/schemas/MergeDuplicatesProgress"
     MissingThumbnailsCount:
       required:
       - count

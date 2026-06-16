@@ -128,6 +128,32 @@ public class AccountService {
         }
     }
 
+    /**
+     * Invalidates the iCloud session for an account but keeps the {@code icloud_accounts}
+     * record. Used by the dashboard "Log out" action. Photos on disk are untouched.
+     */
+    public void logout(String id) {
+        LOG.debug(Messages.LOG_LOGOUT_START, id);
+        ICloudAccount account = accountRepository.findById(id)
+                .orElseThrow(() -> {
+                    LOG.error(Messages.LOG_LOGOUT_ACCOUNT_NOT_FOUND, id);
+                    return new IllegalArgumentException(Messages.ERR_ACCOUNT_NOT_FOUND + id);
+                });
+
+        if (account.getSessionId() != null) {
+            try {
+                iCloudServiceClient.deleteSession(account.getSessionId());
+                LOG.debug(Messages.LOG_LOGOUT_SESSION_DELETED);
+            } catch (Exception e) {
+                LOG.warn(Messages.LOG_LOGOUT_SESSION_FAILED, e.getMessage());
+            }
+        }
+
+        account.setSessionId(null);
+        accountRepository.update(account);
+        LOG.debug(Messages.LOG_LOGOUT_SUCCESS, id);
+    }
+
     public void deleteAccount(String id) {
         LOG.debug(Messages.LOG_DELETE_START, id);
         try {

@@ -125,19 +125,9 @@ public class TaskHistoryService {
         }
     }
 
-    public TaskHistoryPageDto listHistory(int page, int size, String type, String status) {
+    public TaskHistoryPageDto listHistory(int page, int size, String type, String status, String accountId) {
         Pageable pageable = Pageable.from(page, size);
-        Page<TaskHistoryEntity> result;
-
-        if (type != null && status != null) {
-            result = taskHistoryRepository.listByTypeAndStatus(type, status, pageable);
-        } else if (type != null) {
-            result = taskHistoryRepository.listByType(type, pageable);
-        } else if (status != null) {
-            result = taskHistoryRepository.listByStatus(status, pageable);
-        } else {
-            result = taskHistoryRepository.listAll(pageable);
-        }
+        Page<TaskHistoryEntity> result = taskHistoryRepository.listFiltered(accountId, type, status, pageable);
 
         List<TaskHistoryDto> dtos = result.getContent().stream().map(this::toDto).toList();
         return new TaskHistoryPageDto(dtos, result.getTotalSize(), result.getTotalPages(), page, size);

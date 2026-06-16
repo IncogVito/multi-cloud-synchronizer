@@ -10,6 +10,7 @@ import { TaskHistoryDto } from '../../core/api/generated/model/taskHistoryDto';
 import { TaskHistoryDetailDto } from '../../core/api/generated/model/taskHistoryDetailDto';
 import { Store } from '@ngxs/store';
 import { AccountsState } from '../../state/accounts/accounts.state';
+import { AccountSessionService } from '../../core/services/account-session.service';
 
 type FilterType = 'ALL' | 'SYNC' | 'DELETION' | 'THUMBNAIL' | 'IPHONE_REPAIR' | 'DB_BACKUP' | 'MERGE_DUPLICATES';
 type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
@@ -319,6 +320,7 @@ type FilterStatus = 'ALL' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export class TasksComponent implements OnInit, OnDestroy {
   private jobsService = inject(JobsService);
   private store = inject(Store);
+  private accountSession = inject(AccountSessionService);
   readonly repairService = inject(RepairThumbnailsService);
   readonly repairIPhoneService = inject(RepairIPhoneService);
   readonly backupService = inject(BackupDatabaseService);
@@ -524,6 +526,8 @@ export class TasksComponent implements OnInit, OnDestroy {
     const params: Record<string, string | number> = { page, size: 25 };
     if (typeVal !== 'ALL') params['type'] = typeVal;
     if (statusVal !== 'ALL') params['status'] = statusVal;
+    const accountId = this.accountSession.activeAccountId();
+    if (accountId) params['accountId'] = accountId;
 
     this.jobsService.listHistory(params as any).subscribe({
       next: (result) => {

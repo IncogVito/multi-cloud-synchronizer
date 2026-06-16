@@ -106,8 +106,9 @@ public class JobsController {
             @QueryValue(defaultValue = "0") int page,
             @QueryValue(defaultValue = "20") int size,
             @QueryValue Optional<String> type,
-            @QueryValue Optional<String> status) {
-        return taskHistoryService.listHistory(page, size, type.orElse(null), status.orElse(null));
+            @QueryValue Optional<String> status,
+            @QueryValue Optional<String> accountId) {
+        return taskHistoryService.listHistory(page, size, type.orElse(null), status.orElse(null), accountId.orElse(null));
     }
 
     @Operation(summary = "Get task history detail by ID")

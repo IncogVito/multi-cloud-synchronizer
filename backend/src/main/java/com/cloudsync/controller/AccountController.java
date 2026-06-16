@@ -100,6 +100,25 @@ public class AccountController {
         }
     }
 
+    @Operation(summary = "Log out account", description = "Invalidate the iCloud session but keep the account record")
+    @ApiResponse(responseCode = "204", description = "Account logged out")
+    @ApiResponse(responseCode = "404", description = "Account not found")
+    @Post("/{id}/logout")
+    @Secured(SecurityRule.IS_AUTHENTICATED)
+    public HttpResponse<Void> logout(@PathVariable String id) {
+        LOG.debug("[CTRL] POST /api/accounts/{}/logout", id);
+        try {
+            accountService.logout(id);
+            return HttpResponse.noContent();
+        } catch (IllegalArgumentException e) {
+            LOG.warn("[CTRL] POST /api/accounts/{}/logout - Not found: {}", id, e.getMessage());
+            return HttpResponse.notFound();
+        } catch (Exception e) {
+            LOG.error("[CTRL] POST /api/accounts/{}/logout - Error: {}", id, e.getMessage());
+            throw e;
+        }
+    }
+
     @Operation(summary = "Delete account")
     @ApiResponse(responseCode = "204", description = "Account deleted")
     @Delete("/{id}")
