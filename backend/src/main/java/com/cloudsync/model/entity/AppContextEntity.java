@@ -12,7 +12,6 @@ public class AppContextEntity {
     private Integer id;
 
     private String storageDeviceId;
-    private String basePath;
     private Instant setAt;
     private String setBy;
 
@@ -23,9 +22,6 @@ public class AppContextEntity {
 
     public String getStorageDeviceId() { return storageDeviceId; }
     public void setStorageDeviceId(String storageDeviceId) { this.storageDeviceId = storageDeviceId; }
-
-    public String getBasePath() { return basePath; }
-    public void setBasePath(String basePath) { this.basePath = basePath; }
 
     public Instant getSetAt() { return setAt; }
     public void setSetAt(Instant setAt) { this.setAt = setAt; }

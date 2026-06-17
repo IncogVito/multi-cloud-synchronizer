@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { appContextGuard } from './core/guards/app-context.guard';
 import { accountGuard } from './core/guards/account.guard';
+import { syncFolderGuard } from './core/guards/sync-folder.guard';
 
 export const routes: Routes = [
   {
@@ -30,18 +31,18 @@ export const routes: Routes = [
     path: 'dashboard',
     loadComponent: () =>
       import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent),
-    canActivate: [authGuard, appContextGuard, accountGuard]
+    canActivate: [authGuard, appContextGuard, accountGuard, syncFolderGuard]
   },
   {
     path: 'photos',
     loadComponent: () =>
       import('./features/photos/photos.component').then(m => m.PhotosComponent),
-    canActivate: [authGuard, appContextGuard]
+    canActivate: [authGuard, appContextGuard, syncFolderGuard]
   },
   {
     path: 'tasks',
     loadComponent: () =>
       import('./features/tasks/tasks.component').then(m => m.TasksComponent),
-    canActivate: [authGuard, appContextGuard]
+    canActivate: [authGuard, appContextGuard, syncFolderGuard]
   }
 ];

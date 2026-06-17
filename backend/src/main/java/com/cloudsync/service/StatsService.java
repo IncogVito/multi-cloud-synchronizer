@@ -1,6 +1,5 @@
 package com.cloudsync.service;
 
-import com.cloudsync.model.dto.AppContext;
 import com.cloudsync.model.dto.StatsResponse;
 import com.cloudsync.model.entity.ICloudAccount;
 import com.cloudsync.model.entity.StorageDevice;
@@ -15,7 +14,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.Optional;
 
 @Singleton
 public class StatsService {
@@ -25,16 +23,13 @@ public class StatsService {
     private final PhotoRepository photoRepository;
     private final AccountRepository accountRepository;
     private final StorageDeviceRepository storageDeviceRepository;
-    private final AppContextService appContextService;
 
     public StatsService(PhotoRepository photoRepository,
                         AccountRepository accountRepository,
-                        StorageDeviceRepository storageDeviceRepository,
-                        AppContextService appContextService) {
+                        StorageDeviceRepository storageDeviceRepository) {
         this.photoRepository = photoRepository;
         this.accountRepository = accountRepository;
         this.storageDeviceRepository = storageDeviceRepository;
-        this.appContextService = appContextService;
     }
 
     public StatsResponse getStats(String accountId) {
@@ -48,14 +43,13 @@ public class StatsService {
         Long diskCapacity = device != null ? device.getSizeBytes() : null;
 
         Long diskFreeBytes = null;
-        try {
-            Optional<AppContext> ctxOpt = appContextService.getActive();
-            if (ctxOpt.isPresent() && storageDeviceId != null
-                    && storageDeviceId.equals(ctxOpt.get().storageDeviceId())) {
-                diskFreeBytes = Files.getFileStore(Path.of(ctxOpt.get().basePath())).getUsableSpace();
+        String syncFolderPath = account.getSyncFolderPath();
+        if (syncFolderPath != null && !syncFolderPath.isBlank()) {
+            try {
+                diskFreeBytes = Files.getFileStore(Path.of(syncFolderPath)).getUsableSpace();
+            } catch (IOException e) {
+                LOG.warn("Could not read free disk space for {}: {}", syncFolderPath, e.getMessage());
             }
-        } catch (IOException e) {
-            LOG.warn("Could not read free disk space: {}", e.getMessage());
         }
 
         long diskCount = photoRepository.countBySyncedToDiskAndAccountId(true, accountId);

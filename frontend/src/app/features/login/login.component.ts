@@ -186,7 +186,7 @@ export class LoginComponent {
         if (response.requires2fa) {
           this.selectedAccount.set({
             id: '', displayName: username, appleId: username,
-            hasActiveSession: false, lastSyncAt: '', createdAt: ''
+            hasActiveSession: false, lastSyncAt: '', createdAt: '', syncFolderPath: ''
           });
           this.requires2fa.set(true);
           this.sessionId.set(response.sessionId || '');

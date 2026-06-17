@@ -537,7 +537,7 @@ export class DiskSetupComponent implements OnInit {
     }
     this.saving.set(true);
     this.errorMessage.set(null);
-    this.appContextService.set(status.deviceId, this.selectedAbsolutePath(), true).subscribe({
+    this.appContextService.set(status.deviceId).subscribe({
       next: () => {
         this.saving.set(false);
         this.toast.success('Kontekst zapisany — aplikacja aktywna');

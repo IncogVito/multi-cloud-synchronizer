@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -56,12 +55,9 @@ public class AppContextService {
         return getActive().orElseThrow(NoActiveContextException::new);
     }
 
-    public synchronized AppContext setContext(String storageDeviceId, String basePath, boolean createIfMissing) {
+    public synchronized AppContext setContext(String storageDeviceId) {
         if (storageDeviceId == null || storageDeviceId.isBlank()) {
             throw new IllegalArgumentException("storageDeviceId is required");
-        }
-        if (basePath == null || basePath.isBlank()) {
-            throw new IllegalArgumentException("basePath is required");
         }
 
         StorageDevice device = storageDeviceRepository.findById(storageDeviceId)
@@ -72,31 +68,6 @@ public class AppContextService {
             throw new IllegalStateException("Dysk nie jest aktualnie zamontowany");
         }
 
-        Path mountPath = Paths.get(mountPoint).toAbsolutePath().normalize();
-        Path absolute = Paths.get(basePath).toAbsolutePath().normalize();
-
-        if (!absolute.startsWith(mountPath)) {
-            throw new IllegalArgumentException("INVALID_BASE_PATH: ścieżka musi być wewnątrz mount point dysku");
-        }
-
-        if (!Files.exists(absolute)) {
-            if (createIfMissing) {
-                try {
-                    Files.createDirectories(absolute);
-                } catch (IOException e) {
-                    throw new IllegalStateException("Nie udało się utworzyć katalogu: " + e.getMessage(), e);
-                }
-            } else {
-                throw new IllegalArgumentException("Katalog nie istnieje");
-            }
-        }
-        if (!Files.isDirectory(absolute)) {
-            throw new IllegalArgumentException("Ścieżka nie jest katalogiem");
-        }
-        if (!Files.isWritable(absolute)) {
-            throw new IllegalArgumentException("Brak uprawnień do zapisu w katalogu");
-        }
-
         Optional<AppContextEntity> existing = repository.findById(SINGLETON_ID);
         AppContextEntity entity = existing.orElseGet(() -> {
             AppContextEntity e = new AppContextEntity();
@@ -104,7 +75,6 @@ public class AppContextService {
             return e;
         });
         entity.setStorageDeviceId(storageDeviceId);
-        entity.setBasePath(absolute.toString());
         entity.setSetAt(Instant.now());
         if (existing.isPresent()) {
             repository.update(entity);
@@ -123,7 +93,6 @@ public class AppContextService {
             if (existing.isPresent()) {
                 AppContextEntity entity = existing.get();
                 entity.setStorageDeviceId(null);
-                entity.setBasePath(null);
                 entity.setSetAt(null);
                 repository.update(entity);
             }
@@ -140,29 +109,21 @@ public class AppContextService {
 
     private Optional<AppContext> loadFromDb() {
         return repository.findById(SINGLETON_ID)
-                .filter(e -> e.getStorageDeviceId() != null && e.getBasePath() != null)
+                .filter(e -> e.getStorageDeviceId() != null)
                 .flatMap(e -> storageDeviceRepository.findById(e.getStorageDeviceId())
                         .map(d -> build(e, d)));
     }
 
     private AppContext build(AppContextEntity entity, StorageDevice device) {
         String mountPoint = device.getMountPoint();
-        String basePath = entity.getBasePath();
-        String relative = basePath;
-        if (mountPoint != null && basePath.startsWith(mountPoint)) {
-            relative = basePath.substring(mountPoint.length());
-            if (relative.startsWith("/")) relative = relative.substring(1);
-        }
 
         boolean degraded = mountPoint == null || !isMounted(mountPoint);
-        Long freeBytes = degraded ? null : queryFreeBytes(basePath);
+        Long freeBytes = degraded ? null : queryFreeBytes(mountPoint);
 
         return new AppContext(
                 device.getId(),
                 device.getLabel(),
                 mountPoint,
-                basePath,
-                relative,
                 freeBytes,
                 entity.getSetAt(),
                 degraded

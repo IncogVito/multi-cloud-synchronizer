@@ -57,13 +57,11 @@ public class AppContextController {
     @Secured(SecurityRule.IS_AUTHENTICATED)
     public HttpResponse<?> setContext(@Body Map<String, Object> body) {
         String storageDeviceId = (String) body.get("storageDeviceId");
-        String basePath = (String) body.get("basePath");
-        boolean create = Boolean.TRUE.equals(body.get("create"));
         try {
-            AppContext ctx = appContextService.setContext(storageDeviceId, basePath, create);
+            AppContext ctx = appContextService.setContext(storageDeviceId);
             return HttpResponse.ok(ctx);
         } catch (IllegalArgumentException e) {
-            return HttpResponse.badRequest(Map.of("error", "INVALID_BASE_PATH", "message", e.getMessage()));
+            return HttpResponse.badRequest(Map.of("error", "INVALID_STORAGE_DEVICE", "message", e.getMessage()));
         } catch (IllegalStateException e) {
             return HttpResponse.badRequest(Map.of("error", "CONTEXT_DRIVE_UNAVAILABLE", "message", e.getMessage()));
         }

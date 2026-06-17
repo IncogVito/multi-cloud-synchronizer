@@ -11,5 +11,6 @@ public record AccountResponse(
         String displayName,
         boolean hasActiveSession,
         Instant lastSyncAt,
-        Instant createdAt
+        Instant createdAt,
+        String syncFolderPath
 ) {}

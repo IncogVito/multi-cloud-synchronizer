@@ -33,9 +33,9 @@ export class AppContextService {
     );
   }
 
-  set(storageDeviceId: string, basePath: string, create = false): Observable<AppContext> {
+  set(storageDeviceId: string): Observable<AppContext> {
     return this.http
-      .post<AppContext>(this.base, { storageDeviceId, basePath, create })
+      .post<AppContext>(this.base, { storageDeviceId })
       .pipe(tap(ctx => this._context.set(ctx)));
   }
 

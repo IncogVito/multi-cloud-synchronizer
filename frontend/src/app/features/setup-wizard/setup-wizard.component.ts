@@ -2,9 +2,11 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AccountService } from '../../core/services/account.service';
+import { AccountSessionService } from '../../core/services/account-session.service';
 import { AppContextService } from '../../core/services/app-context.service';
 import { DiskIndexingService } from '../../core/services/disk-indexing.service';
-import { WizardState } from '../../core/models/sync-config.model';
+import { SetupWizardService } from '../../core/services/setup-wizard.service';
+import { SyncConfigRequest, WizardState } from '../../core/models/sync-config.model';
 import { DiskConfirmStepComponent } from './steps/disk-confirm-step.component';
 import { FolderPickerStepComponent } from './steps/folder-picker-step.component';
 import { OrganizeStrategyStepComponent } from './steps/organize-strategy-step.component';
@@ -199,8 +201,10 @@ type WizardStep = 1 | 2 | 3 | 4;
 })
 export class SetupWizardComponent implements OnInit {
   private accountService = inject(AccountService);
+  private session = inject(AccountSessionService);
   private appContextService = inject(AppContextService);
   private diskIndexingService = inject(DiskIndexingService);
+  private wizardService = inject(SetupWizardService);
   private router = inject(Router);
 
   currentStep = signal<WizardStep>(1);
@@ -229,7 +233,11 @@ export class SetupWizardComponent implements OnInit {
         if (!accounts || accounts.length === 0) {
           this.error.set('Brak kont iCloud. Zaloguj się najpierw.');
         } else {
-          this.state.update(s => ({ ...s, accountId: accounts[0].id }));
+          // Configure the ACTIVE account (the one redirected here by the guard),
+          // not blindly the first account.
+          const activeId = this.session.activeAccountId();
+          const accountId = accounts.some(a => a.id === activeId) ? activeId! : accounts[0].id;
+          this.state.update(s => ({ ...s, accountId }));
         }
         this.loading.set(false);
       },
@@ -247,7 +255,28 @@ export class SetupWizardComponent implements OnInit {
 
   onFolderSelected(event: { path: string; scanResult: import('../../core/models/sync-config.model').DiskScanResult }): void {
     this.state.update(s => ({ ...s, selectedFolder: event.path, scanResult: event.scanResult }));
+    // Persist syncFolderPath immediately and unconditionally at folder pick.
+    // This is the single source of truth for the account's folder; deferring it to the
+    // optional reorganize step (4) left empty folders with syncFolderPath = null → 400.
+    this.persistSyncFolder();
     this.currentStep.set(3);
+  }
+
+  private persistSyncFolder(): void {
+    const s = this.state();
+    const accountId = s.accountId ?? this.session.activeAccountId();
+    if (!accountId || !s.selectedFolder) {
+      return;
+    }
+    const config: SyncConfigRequest = {
+      syncFolderPath: s.selectedFolder,
+      storageDeviceId: s.deviceId,
+      organizeBy: s.organizeBy,
+    };
+    this.wizardService.saveSyncConfig(accountId, config).subscribe({
+      next: () => {},
+      error: () => {},
+    });
   }
 
   onStrategySelected(organizeBy: 'YEAR' | 'MONTH'): void {
@@ -270,7 +299,7 @@ export class SetupWizardComponent implements OnInit {
   onWizardDone(): void {
     const s = this.state();
     if (s.deviceId && s.selectedFolder) {
-      this.appContextService.set(s.deviceId, s.selectedFolder, true).subscribe({
+      this.appContextService.set(s.deviceId).subscribe({
         next: () => this.startIndexingAndNavigate(),
         error: () => this.startIndexingAndNavigate(),
       });

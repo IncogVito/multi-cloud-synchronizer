@@ -2,8 +2,6 @@ export interface AppContext {
   storageDeviceId: string;
   storageDeviceLabel: string | null;
   mountPoint: string;
-  basePath: string;
-  relativePath: string;
   freeBytes: number | null;
   setAt: string;
   degraded: boolean;

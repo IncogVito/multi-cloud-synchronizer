@@ -14,7 +14,7 @@ import { AppContextService } from '../../../core/services/app-context.service';
           <span class="icon">&#128190;</span>
           <div class="ctx-title">
             <strong>{{ c.storageDeviceLabel || 'dysk zewnętrzny' }}</strong>
-            <span class="path">/{{ c.relativePath }}</span>
+            <span class="path">{{ c.mountPoint }}</span>
           </div>
           @if (c.degraded) {
             <span class="badge warn">Dysk niedostępny</span>

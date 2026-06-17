@@ -9,8 +9,6 @@ public record AppContext(
         String storageDeviceId,
         String storageDeviceLabel,
         String mountPoint,
-        String basePath,
-        String relativePath,
         Long freeBytes,
         Instant setAt,
         boolean degraded

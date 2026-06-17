@@ -2,7 +2,6 @@ package com.cloudsync.service;
 
 import com.cloudsync.exception.PhotoNotSyncedException;
 import com.cloudsync.exception.SyncFolderNotConfiguredException;
-import com.cloudsync.model.dto.AppContext;
 import com.cloudsync.model.dto.PhotoAsset;
 import com.cloudsync.model.dto.PrefetchStatus;
 import com.cloudsync.model.dto.SyncProgressEvent;
@@ -118,8 +117,8 @@ public class SyncService {
      * Progress is broadcast via SSE through SyncStateHolder.
      */
     public SyncStartResponse startSync(String accountId, String providerType) {
-        AppContext ctx = appContextService.requireActive();
         ICloudAccount account = requireAccount(accountId);
+        requireSyncFolderPath(account);
 
 
         // FIXME: Maybe more abstract?
@@ -143,7 +142,7 @@ public class SyncService {
 
 
         CompletableFuture.runAsync(
-                () -> pollMetadataAndContinue(accountId, account, ctx, provider),
+                () -> pollMetadataAndContinue(accountId, account, provider),
                 syncVirtualThreadExecutor);
 
         return new SyncStartResponse(accountId, SyncPhase.FETCHING_METADATA, Messages.MSG_FETCHING_LIST, Instant.now());
@@ -155,10 +154,10 @@ public class SyncService {
      */
     public void confirmSync(String accountId) {
         ICloudAccount account = requireAccount(accountId);
-        AppContext ctx = appContextService.requireActive();
+        requireSyncFolderPath(account);
         String providerType = activeProviderType.getOrDefault(accountId, "ICLOUD");
         resetCancellation(accountId);
-        CompletableFuture.runAsync(() -> downloadPendingPhotosAsync(accountId, account, ctx, providerType), syncVirtualThreadExecutor);
+        CompletableFuture.runAsync(() -> downloadPendingPhotosAsync(accountId, account, providerType), syncVirtualThreadExecutor);
     }
 
     /**
@@ -318,7 +317,7 @@ public class SyncService {
 
     // ── metadata polling ──────────────────────────────────────────────────────
 
-    private void pollMetadataAndContinue(String accountId, ICloudAccount account, AppContext ctx, PhotoSyncProvider provider) {
+    private void pollMetadataAndContinue(String accountId, ICloudAccount account, PhotoSyncProvider provider) {
         try {
 
             // TODO: Maybe extract to some method.
@@ -333,7 +332,7 @@ public class SyncService {
 
                 if (Messages.FETCH_STATUS_READY.equals(status.status())) {
                     if (!isCancelled(accountId)) {
-                        compareAndPersist(accountId, account, ctx, provider);
+                        compareAndPersist(accountId, account, provider);
                     }
                     return;
                 }
@@ -365,12 +364,12 @@ public class SyncService {
 
     // TODO: Change the method name
     // TODO: Keep change logs -> Display them later.
-    private void compareAndPersist(String accountId, ICloudAccount account, AppContext appContext, PhotoSyncProvider provider) {
+    private void compareAndPersist(String accountId, ICloudAccount account, PhotoSyncProvider provider) {
         try {
             List<PhotoAsset> remotePhotos = provider.listAllPhotos(account.getSessionId());
             if (isCancelled(accountId)) return;
 
-            Path destDir = Path.of(appContext.basePath());
+            Path destDir = Path.of(requireSyncFolderPath(account));
             Map<String, Long> diskFiles = scanDiskFiles(destDir);
             Map<String, Photo> externalIdToExistingPhoto = loadExistingPhotosAsMap(accountId, provider.providerType());
             Map<String, Photo> filenameToSyncedPhoto = loadSyncedPhotosByFilename(accountId);
@@ -388,7 +387,7 @@ public class SyncService {
                     updateCrossProviderFlag(filenameToSyncedPhoto, asset, provider.providerType(), toUpdate);
                     continue;
                 }
-                classifyAsset(asset, accountId, appContext.storageDeviceId(), provider.providerType(), externalIdToExistingPhoto, toSave, toUpdate);
+                classifyAsset(asset, accountId, account.getStorageDeviceId(), provider.providerType(), externalIdToExistingPhoto, toSave, toUpdate);
             }
 
             int newlyDeleted = markPhotosDeletedFromCloud(provider.providerType(), remotePhotos, externalIdToExistingPhoto, toUpdate);
@@ -666,7 +665,7 @@ public class SyncService {
 
     // ── download ──────────────────────────────────────────────────────────────
 
-    private void downloadPendingPhotosAsync(String accountId, ICloudAccount account, AppContext ctx, String providerType) {
+    private void downloadPendingPhotosAsync(String accountId, ICloudAccount account, String providerType) {
         lastEmitTime.remove(accountId);
         downloadedSinceEmit.remove(accountId);
         List<Photo> pending = Stream.concat(
@@ -685,19 +684,19 @@ public class SyncService {
 
         List<CompletableFuture<Void>> regularFutures = regularPending.stream()
                 .map(photo -> CompletableFuture.runAsync(
-                        () -> downloadWithSemaphore(photo, account, accountId, ctx, false),
+                        () -> downloadWithSemaphore(photo, account, accountId, false),
                         syncVirtualThreadExecutor))
                 .toList();
 
         CompletableFuture.allOf(regularFutures.toArray(new CompletableFuture[0]))
                 .thenRun(() -> {
                     if (!isCancelled(accountId)) {
-                        startLargeFilesPhase(accountId, account, ctx, providerType, largePending, pending);
+                        startLargeFilesPhase(accountId, account, providerType, largePending, pending);
                     }
                 });
     }
 
-    private void startLargeFilesPhase(String accountId, ICloudAccount account, AppContext ctx,
+    private void startLargeFilesPhase(String accountId, ICloudAccount account,
                                        String providerType, List<Photo> largePending, List<Photo> allPending) {
         if (largePending.isEmpty()) {
             finishDownload(accountId, providerType, allPending);
@@ -718,7 +717,7 @@ public class SyncService {
 
         List<CompletableFuture<Void>> largeFutures = largePending.stream()
                 .map(photo -> CompletableFuture.runAsync(
-                        () -> downloadWithSemaphore(photo, account, accountId, ctx, true),
+                        () -> downloadWithSemaphore(photo, account, accountId, true),
                         syncVirtualThreadExecutor))
                 .toList();
 
@@ -788,14 +787,14 @@ public class SyncService {
         LOG.info("EXIF backfill done: {} updated [account={}]", updated, accountId);
     }
 
-    private void downloadWithSemaphore(Photo photo, ICloudAccount account, String accountId, AppContext ctx, boolean isLarge) {
+    private void downloadWithSemaphore(Photo photo, ICloudAccount account, String accountId, boolean isLarge) {
         if (isCancelled(accountId)) return;
         Semaphore semaphore = "IPHONE".equals(photo.getSourceProvider()) ? iphoneDownloadSemaphore : downloadSemaphore;
         try {
             semaphore.acquire();
             try {
                 if (isCancelled(accountId)) return;
-                downloadOne(photo, account, accountId, ctx, isLarge);
+                downloadOne(photo, account, accountId, isLarge);
             } finally {
                 semaphore.release();
             }
@@ -804,7 +803,7 @@ public class SyncService {
         }
     }
 
-    private void downloadOne(Photo photo, ICloudAccount account, String accountId, AppContext ctx, boolean isLarge) {
+    private void downloadOne(Photo photo, ICloudAccount account, String accountId, boolean isLarge) {
         try {
             markDownloading(photo);
 
@@ -828,7 +827,7 @@ public class SyncService {
             }
 
             String filename = resolveFilename(photo, photoId);
-            Path destDir = resolveDestDir(ctx.basePath(), photo.getCreatedDate());
+            Path destDir = resolveDestDir(account.getSyncFolderPath(), photo.getCreatedDate());
             Path destFile = writePhotoToDisk(data, destDir, filename);
 
             markSynced(photo, destFile, (long) data.length);

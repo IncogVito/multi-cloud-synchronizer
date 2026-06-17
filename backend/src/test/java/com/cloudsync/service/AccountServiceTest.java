@@ -85,6 +85,31 @@ public class AccountServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    // ── sync folder exposure ────────────────────────────────────────────────────
+
+    @Test
+    void getAccountStatus_exposesSyncFolderPath() {
+        ICloudAccount acc = account("acc-1", "sess-123");
+        acc.setSyncFolderPath("/mnt/drive/folder-a");
+        when(accountRepository.findById("acc-1")).thenReturn(Optional.of(acc));
+
+        var response = service().getAccountStatus("acc-1");
+
+        assertThat(response).isPresent();
+        assertThat(response.get().syncFolderPath()).isEqualTo("/mnt/drive/folder-a");
+    }
+
+    @Test
+    void getAccountStatus_nullSyncFolderPath_exposedAsNull() {
+        ICloudAccount acc = account("acc-1", "sess-123");
+        when(accountRepository.findById("acc-1")).thenReturn(Optional.of(acc));
+
+        var response = service().getAccountStatus("acc-1");
+
+        assertThat(response).isPresent();
+        assertThat(response.get().syncFolderPath()).isNull();
+    }
+
     // ── existing TODO stubs ─────────────────────────────────────────────────────
 
 

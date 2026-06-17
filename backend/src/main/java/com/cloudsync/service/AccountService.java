@@ -189,7 +189,8 @@ public class AccountService {
                 account.getDisplayName(),
                 account.getSessionId() != null,
                 account.getLastSyncAt(),
-                account.getCreatedAt()
+                account.getCreatedAt(),
+                account.getSyncFolderPath()
         );
     }
 }

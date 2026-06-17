@@ -9,9 +9,12 @@ import com.cloudsync.repository.StorageDeviceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -25,13 +28,12 @@ class StatsServiceTest {
     @Mock PhotoRepository photoRepository;
     @Mock AccountRepository accountRepository;
     @Mock StorageDeviceRepository storageDeviceRepository;
-    @Mock AppContextService appContextService;
 
     StatsService service;
 
     @BeforeEach
     void setUp() {
-        service = new StatsService(photoRepository, accountRepository, storageDeviceRepository, appContextService);
+        service = new StatsService(photoRepository, accountRepository, storageDeviceRepository);
     }
 
     private ICloudAccount account(String id, String deviceId) {
@@ -52,7 +54,6 @@ class StatsServiceTest {
         device.setId(deviceId);
         device.setSizeBytes(1_000L);
         when(storageDeviceRepository.findById(deviceId)).thenReturn(Optional.of(device));
-        when(appContextService.getActive()).thenReturn(Optional.empty());
 
         // Account A photos
         when(photoRepository.countBySyncedToDiskAndAccountId(true, "acc-A")).thenReturn(5L);
@@ -78,6 +79,21 @@ class StatsServiceTest {
         // disk capacity still derived internally from the account's storage device
         assertThat(a.diskCapacityBytes()).isEqualTo(1_000L);
         assertThat(b.diskCapacityBytes()).isEqualTo(1_000L);
+    }
+
+    @Test
+    void getStats_freeBytesDerivedFromAccountSyncFolderPath(@TempDir Path syncFolder) throws Exception {
+        ICloudAccount acc = account("acc-A", "dev-1");
+        acc.setSyncFolderPath(syncFolder.toString());
+        when(accountRepository.findById("acc-A")).thenReturn(Optional.of(acc));
+        when(storageDeviceRepository.findById("dev-1")).thenReturn(Optional.empty());
+
+        StatsResponse stats = service.getStats("acc-A");
+
+        long expected = Files.getFileStore(syncFolder).getUsableSpace();
+        assertThat(stats.diskFreeBytes()).isNotNull();
+        // free space is dynamic; assert it is in a sane range around the actual filestore value
+        assertThat(stats.diskFreeBytes()).isCloseTo(expected, org.assertj.core.data.Offset.offset(1_000_000_000L));
     }
 
     @Test

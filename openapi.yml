@@ -1384,6 +1384,7 @@ components:
       - hasActiveSession
       - id
       - lastSyncAt
+      - syncFolderPath
       type: object
       properties:
         id:
@@ -1400,6 +1401,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        syncFolderPath:
+          type: string
     AgentStepEvent:
       required:
       - action
