@@ -1,6 +1,7 @@
 package com.cloudsync.service;
 
 import com.cloudsync.exception.PhotoNotSyncedException;
+import com.cloudsync.exception.SyncFolderNotConfiguredException;
 import com.cloudsync.model.dto.AppContext;
 import com.cloudsync.model.dto.PhotoAsset;
 import com.cloudsync.model.dto.PrefetchStatus;
@@ -186,7 +187,7 @@ public class SyncService {
      */
     public Map<String, Object> reorganizePreview(String accountId) {
         ICloudAccount account = requireAccount(accountId);
-        Path basePath = Path.of(account.getSyncFolderPath());
+        Path basePath = Path.of(requireSyncFolderPath(account));
         List<Photo> candidates = findUnorganizedPhotos(accountId, basePath);
 
         List<String> samples = candidates.stream()
@@ -215,7 +216,7 @@ public class SyncService {
      */
     public Map<String, Object> reorganize(String accountId) {
         ICloudAccount account = requireAccount(accountId);
-        Path basePath = Path.of(account.getSyncFolderPath());
+        Path basePath = Path.of(requireSyncFolderPath(account));
         List<Photo> candidates = findUnorganizedPhotos(accountId, basePath);
 
         int moved = 0;
@@ -337,7 +338,7 @@ public class SyncService {
                     return;
                 }
                 if (Messages.FETCH_STATUS_ERROR.equals(status.status())) {
-                    emitError(accountId);
+                    emitError(accountId, status.error());
                     return;
                 }
             }
@@ -346,7 +347,7 @@ public class SyncService {
             LOG.warn(Messages.LOG_POLL_INTERRUPTED, accountId);
         } catch (Exception e) {
             LOG.error(Messages.LOG_POLL_FAILED, accountId, e.getMessage());
-            emitError(accountId);
+            emitError(accountId, e.getMessage());
         }
     }
 
@@ -403,7 +404,7 @@ public class SyncService {
             }
         } catch (Exception e) {
             LOG.error(Messages.LOG_COMPARE_FAILED, accountId, e.getMessage());
-            emitError(accountId);
+            emitError(accountId, e.getMessage());
         }
     }
 
@@ -503,10 +504,35 @@ public class SyncService {
     }
 
     private Map<String, Photo> loadExistingPhotosAsMap(String accountId, String providerType) {
-        return photoRepository.findByAccountId(accountId).stream()
+        return indexExistingByExternalId(photoRepository.findByAccountId(accountId), providerType);
+    }
+
+    /**
+     * Index existing photos by their external (iCloud) id for the given provider.
+     * <p>
+     * Duplicate icloudPhotoIds can exist in the DB (e.g. a legacy null-source row plus a typed row
+     * for the same asset, or two rows created by an earlier mis-targeted sync). A plain
+     * {@code toMap} throws {@code IllegalStateException: Duplicate key …} on those, aborting the
+     * whole compare-and-persist. Merge instead: keep the most "complete" row — prefer one already
+     * synced to disk, then one with a SYNCED status — so the surviving record is the safest to update.
+     */
+    static Map<String, Photo> indexExistingByExternalId(List<Photo> photos, String providerType) {
+        return photos.stream()
                 .filter(p -> p.getIcloudPhotoId() != null)
                 .filter(p -> providerType.equals(p.getSourceProvider()) || p.getSourceProvider() == null)
-                .collect(Collectors.toMap(Photo::getIcloudPhotoId, p -> p));
+                .collect(Collectors.toMap(Photo::getIcloudPhotoId, p -> p, SyncService::preferMoreComplete));
+    }
+
+    private static Photo preferMoreComplete(Photo a, Photo b) {
+        if (a.isSyncedToDisk() != b.isSyncedToDisk()) {
+            return a.isSyncedToDisk() ? a : b;
+        }
+        boolean aSynced = SyncStatus.SYNCED.name().equals(a.getSyncStatus());
+        boolean bSynced = SyncStatus.SYNCED.name().equals(b.getSyncStatus());
+        if (aSynced != bSynced) {
+            return aSynced ? a : b;
+        }
+        return a;
     }
 
     private boolean checkSyncedAndUpdateMetadata(Map<String, Photo> existingByExternalId,
@@ -967,6 +993,14 @@ public class SyncService {
                 .orElseThrow(() -> new IllegalArgumentException(Messages.ERR_ACCOUNT_NOT_FOUND + accountId));
     }
 
+    private String requireSyncFolderPath(ICloudAccount account) {
+        String path = account.getSyncFolderPath();
+        if (path == null || path.isBlank()) {
+            throw new SyncFolderNotConfiguredException(account.getId());
+        }
+        return path;
+    }
+
     private Photo requirePhoto(String photoId) {
         return photoRepository.findById(photoId)
                 .orElseThrow(() -> new IllegalArgumentException(Messages.ERR_PHOTO_NOT_FOUND + photoId));
@@ -992,12 +1026,15 @@ public class SyncService {
         return filename.replace("/", "_");
     }
 
-    private void emitError(String accountId) {
-        syncStateHolder.updateAndEmit(accountId, new SyncProgressEvent(accountId, SyncPhase.ERROR));
+    private void emitError(String accountId, String errorMessage) {
+        String detail = (errorMessage == null || errorMessage.isBlank()) ? Messages.ERR_SYNC_FAILED : errorMessage;
+        SyncProgressEvent event = new SyncProgressEvent(accountId, SyncPhase.ERROR);
+        event.setErrorMessage(detail);
+        syncStateHolder.updateAndEmit(accountId, event);
         String taskId = activeSyncTaskId.get(accountId);
         if (taskId != null) {
-            taskHistoryService.recordSyncPhaseEnd(taskId, SyncPhase.ERROR.name(), "Sync failed");
-            taskHistoryService.completeTask(taskId, "FAILED", 0, 0, "Sync failed with error");
+            taskHistoryService.recordSyncPhaseEnd(taskId, SyncPhase.ERROR.name(), detail);
+            taskHistoryService.completeTask(taskId, "FAILED", 0, 0, detail);
         }
     }
 

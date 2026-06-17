@@ -9,5 +9,6 @@ import io.micronaut.serde.annotation.Serdeable;
 public record PrefetchStatus(
     String status,
     int fetched,
-    Integer total
+    Integer total,
+    String error
 ) {}

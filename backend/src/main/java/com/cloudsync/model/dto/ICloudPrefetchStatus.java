@@ -6,5 +6,6 @@ import io.micronaut.serde.annotation.Serdeable;
 public record ICloudPrefetchStatus(
     String status,
     int fetched,
-    Integer total
+    Integer total,
+    String error
 ) {}

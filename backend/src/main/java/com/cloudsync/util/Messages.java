@@ -68,4 +68,6 @@ public final class Messages {
     public static final String ERR_NO_ACTIVE_SESSION = "Account has no active session. Please log in first.";
     public static final String ERR_UNKNOWN_PROVIDER = "Unknown sync provider: ";
     public static final String ERR_IPHONE_MISSING_LOCATION = "iPhone photo missing location: ";
+    public static final String ERR_NO_SYNC_FOLDER = "Account has no sync folder configured. Set a sync folder before reorganizing: ";
+    public static final String ERR_SYNC_FAILED = "Synchronizacja nie powiodła się z nieznanego powodu.";
 }

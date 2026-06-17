@@ -9,6 +9,7 @@ import { SyncProgressEvent } from '../../../core/models/sync-progress.model';
 import { DevicesState } from '../../../state/devices/devices.state';
 import { AccountsState } from '../../../state/accounts/accounts.state';
 import { AccountResponse } from '../../../core/api/generated/model/accountResponse';
+import { AccountSessionService } from '../../../core/services/account-session.service';
 
 interface DeviceReadiness {
   drive: boolean;
@@ -120,6 +121,9 @@ interface DeviceReadiness {
                [class.sync-title--cancelled]="activeProgress()?.phase === 'CANCELLED'">
               Status: {{ progressTitle() }}
             </p>
+            @if (activeProgress()?.phase === 'ERROR') {
+              <p class="sync-error-detail">{{ errorDetail() }}</p>
+            }
             @if (!isErrorOrCancelled()) {
               <div class="progress-wrap">
                 <div class="progress-bar">
@@ -213,6 +217,7 @@ interface DeviceReadiness {
     .stats .err { color: #dc2626; }
     .stats .deleted-notice { color: #d97706; }
     .sync-title--error { color: #dc2626; }
+    .sync-error-detail { color: #b91c1c; font-size: 0.85rem; margin: 0.25rem 0 0.5rem; white-space: pre-wrap; word-break: break-word; }
     .sync-title--cancelled { color: #6b7280; }
     .sync-card:has(.sync-title--error) { border-color: #fca5a5; background: #fff5f5; }
     .btn-danger { border-color: #fca5a5; color: #dc2626; }
@@ -228,6 +233,7 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
   private store = inject(Store);
   private syncService = inject(SyncService);
   private diskSetupService = inject(DiskSetupService);
+  private accountSession = inject(AccountSessionService);
 
   loading = signal(false);
   starting = signal(false);
@@ -272,8 +278,12 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
   });
 
   primaryAccount = computed<AccountResponse | null>(() => {
-    const list = this.accounts();
-    return list.find(a => a.hasActiveSession) ?? list[0] ?? null;
+    // Resolve strictly to the account the user explicitly selected/logged into.
+    // No fallback: picking "first account with a session" synced the wrong Apple ID
+    // when several accounts are logged in.
+    const activeId = this.accountSession.activeAccountId();
+    if (!activeId) return null;
+    return this.accounts().find(a => a.id === activeId) ?? null;
   });
 
   /** Can we actually start a sync right now for the selected provider? */
@@ -300,6 +310,11 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
       || phase === 'DOWNLOADING'
       || phase === 'DOWNLOADING_LARGE'
       || phase === 'EXIF_BACKFILL';
+  });
+
+  errorDetail = computed<string>(() => {
+    const msg = this.activeProgress()?.errorMessage?.trim();
+    return msg && msg.length > 0 ? msg : 'Nie udało się ustalić przyczyny błędu.';
   });
 
   isErrorOrCancelled = computed<boolean>(() => {
@@ -338,6 +353,9 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
     if (this.starting() && !p) return 'Uruchamianie synchronizacji...';
     if (!p) return 'Synchronizacja';
     if (p.phase === 'FETCHING_METADATA' && p.currentFile === 'MOUNTING') return 'Montowanie iPhone...';
+    if (p.phase === 'FETCHING_METADATA') {
+      return this.selectedProvider() === 'IPHONE' ? 'Skanowanie iPhone' : 'Skanowanie iCloud';
+    }
     return this.phaseLabel(p.phase);
   });
 
@@ -425,7 +443,9 @@ export class SyncSectionComponent implements OnInit, OnDestroy {
   startSync(): void {
     const acc = this.primaryAccount();
     const provider = this.selectedProvider();
-    if (provider === 'ICLOUD' && !acc) return;
+    if (provider === 'ICLOUD' && !acc) {
+      throw new Error('No active iCloud account selected — cannot start sync.');
+    }
     this.starting.set(true);
     this.syncStartTime = Date.now();
     // For iPhone, use any account's session (Apple ID link) or a placeholder empty string

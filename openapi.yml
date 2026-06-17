@@ -2329,6 +2329,8 @@ components:
           format: int32
         thumbnailJobId:
           type: string
+        errorMessage:
+          type: string
     SyncStartResponse:
       required:
       - accountId

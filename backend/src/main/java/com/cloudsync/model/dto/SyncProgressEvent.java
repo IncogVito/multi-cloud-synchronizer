@@ -20,6 +20,7 @@ public class SyncProgressEvent {
     private Long diskPhotoCount;
     private int newlyDeleted;
     private String thumbnailJobId;
+    private String errorMessage;
 
     public SyncProgressEvent() {}
 
@@ -58,4 +59,6 @@ public class SyncProgressEvent {
     public void setNewlyDeleted(int newlyDeleted) { this.newlyDeleted = newlyDeleted; }
     public String getThumbnailJobId() { return thumbnailJobId; }
     public void setThumbnailJobId(String thumbnailJobId) { this.thumbnailJobId = thumbnailJobId; }
+    public String getErrorMessage() { return errorMessage; }
+    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 }

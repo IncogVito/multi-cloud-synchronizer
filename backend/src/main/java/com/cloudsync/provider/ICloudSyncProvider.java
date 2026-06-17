@@ -60,7 +60,7 @@ public class ICloudSyncProvider implements PhotoSyncProvider {
         HttpResponse<ICloudPrefetchStatus> resp = client.getPrefetchStatus(sessionId);
         ICloudPrefetchStatus s = resp.body();
         if (s == null) return null;
-        return new PrefetchStatus(s.status(), s.fetched(), s.total());
+        return new PrefetchStatus(s.status(), s.fetched(), s.total(), s.error());
     }
 
     @Override

@@ -72,10 +72,10 @@ public class IPhoneSyncProvider implements PhotoSyncProvider {
         SessionState state = sessions.get(sessionId);
         if (state == null) return null;
         return switch (state) {
-            case SessionState.Mounting ignored  -> new PrefetchStatus("mounting", 0, null);
-            case SessionState.Scanning s        -> new PrefetchStatus("scanning", s.fetched(), null);
-            case SessionState.Ready r           -> new PrefetchStatus("ready", r.photos().size(), r.photos().size());
-            case SessionState.Failed ignored    -> new PrefetchStatus("error", 0, null);
+            case SessionState.Mounting ignored  -> new PrefetchStatus("mounting", 0, null, null);
+            case SessionState.Scanning s        -> new PrefetchStatus("scanning", s.fetched(), null, null);
+            case SessionState.Ready r           -> new PrefetchStatus("ready", r.photos().size(), r.photos().size(), null);
+            case SessionState.Failed f          -> new PrefetchStatus("error", 0, null, f.error());
         };
     }
 

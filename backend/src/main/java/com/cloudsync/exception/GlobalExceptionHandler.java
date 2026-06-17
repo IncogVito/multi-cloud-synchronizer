@@ -32,6 +32,9 @@ public class GlobalExceptionHandler implements ExceptionHandler<RuntimeException
         if (exception instanceof PhotoNotSyncedException) {
             return HttpResponse.badRequest(new ErrorResponse("PHOTO_NOT_SYNCED", exception.getMessage()));
         }
+        if (exception instanceof SyncFolderNotConfiguredException) {
+            return HttpResponse.badRequest(new ErrorResponse("SYNC_FOLDER_NOT_CONFIGURED", exception.getMessage()));
+        }
         LOG.error("Unhandled exception on {} {}: {}", request.getMethod(), request.getPath(), exception.getMessage(), exception);
         return HttpResponse.serverError(new ErrorResponse("INTERNAL_ERROR", exception.getMessage()));
     }

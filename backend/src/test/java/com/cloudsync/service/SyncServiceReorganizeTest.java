@@ -21,7 +21,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 
+import com.cloudsync.exception.SyncFolderNotConfiguredException;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 /**
@@ -168,6 +171,38 @@ class SyncServiceReorganizeTest {
         assertEquals(0, result.get("unorganizedCount"),
                 "Account B's photo under <folderB>/2023/06/ must not be reported as unorganized " +
                 "even when ctx.basePath() is the device root");
+    }
+
+    /**
+     * Regression: an account with a null syncFolderPath (e.g. freshly added, sync folder
+     * not configured yet) must NOT cause a NullPointerException via Path.of(null) → 500.
+     * It must surface a clear SyncFolderNotConfiguredException (mapped to HTTP 400).
+     */
+    @Test
+    void reorganizePreview_nullSyncFolderPath_throwsConfiguredException() {
+        ICloudAccount account = account("acc-a", null);
+        when(accountRepository.findById("acc-a")).thenReturn(Optional.of(account));
+
+        assertThrows(SyncFolderNotConfiguredException.class,
+                () -> service.reorganizePreview("acc-a"));
+    }
+
+    @Test
+    void reorganizePreview_blankSyncFolderPath_throwsConfiguredException() {
+        ICloudAccount account = account("acc-a", "   ");
+        when(accountRepository.findById("acc-a")).thenReturn(Optional.of(account));
+
+        assertThrows(SyncFolderNotConfiguredException.class,
+                () -> service.reorganizePreview("acc-a"));
+    }
+
+    @Test
+    void reorganize_nullSyncFolderPath_throwsConfiguredException() {
+        ICloudAccount account = account("acc-a", null);
+        when(accountRepository.findById("acc-a")).thenReturn(Optional.of(account));
+
+        assertThrows(SyncFolderNotConfiguredException.class,
+                () -> service.reorganize("acc-a"));
     }
 
     // ── reorganize ────────────────────────────────────────────────────────────

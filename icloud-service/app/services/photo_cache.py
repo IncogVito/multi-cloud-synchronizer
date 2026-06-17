@@ -92,6 +92,7 @@ class PhotoCache:
                 "photo_index": {},
                 "fetched": 0,
                 "total": None,
+                "error": None,
             }
         return self._cache[session_id]
 
@@ -111,7 +112,7 @@ class PhotoCache:
             state = self._cache[session_id]
             if state["status"] == "fetching":
                 return  # double-checked after acquiring lock
-            state.update({"status": "fetching", "fetched": 0, "total": None, "photos": [], "photo_index": {}})
+            state.update({"status": "fetching", "fetched": 0, "total": None, "photos": [], "photo_index": {}, "error": None})
             logger.info("starting prefetch for session %s", session_id)
             try:
                 await asyncio.to_thread(self._iterate_album, session_id)
@@ -119,6 +120,7 @@ class PhotoCache:
                 logger.info("prefetch done for session %s — %d photos", session_id, state["fetched"])
             except Exception as exc:
                 state["status"] = "error"
+                state["error"] = str(exc) or exc.__class__.__name__
                 logger.exception("prefetch failed for session %s: %s", session_id, exc)
 
     def _fetch_page(
@@ -263,6 +265,7 @@ class PhotoCache:
             "status": state["status"],
             "fetched": state["fetched"],
             "total": state["total"],
+            "error": state.get("error"),
         }
 
     def get_photos(self, session_id: str) -> list[dict]:

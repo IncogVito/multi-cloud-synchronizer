@@ -26,6 +26,7 @@ export interface SyncProgressEvent {
   diskPhotoCount?: number;
   newlyDeleted?: number;
   thumbnailJobId?: string;
+  errorMessage?: string;
 }
 
 export interface SyncStartResponse {

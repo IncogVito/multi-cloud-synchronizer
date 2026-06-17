@@ -6,3 +6,7 @@ cloud-sync.db-wal
 dev/*
 !dev/mounted-drive/.gitkeep
 !dev/db-data/.gitkeep
+# Python bytecode cache
+__pycache__/
+*.pyc
+*.pyo
