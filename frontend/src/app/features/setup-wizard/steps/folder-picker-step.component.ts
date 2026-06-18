@@ -285,7 +285,7 @@ export class FolderPickerStepComponent implements OnInit {
   }
 
   private buildExtSummary(r: DiskScanResult): string {
-    return Object.entries(r.byExtension)
+    return Object.entries(r.byExtension ?? {})
       .sort(([, a], [, b]) => b - a)
       .slice(0, 4)
       .map(([ext, count]) => `${ext}: ${count}`)

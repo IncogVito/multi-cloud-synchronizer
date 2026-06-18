@@ -80,7 +80,9 @@ export class ActiveContextCardComponent {
   }
 
   changeFolder(): void {
-    this.router.navigate(['/setup'], { queryParams: { action: 'change-folder' } });
+    // Per-account folder picker (persists account.syncFolderPath via saveSyncConfig).
+    // The /setup (disk-setup) flow only sets the global app_context, never syncFolderPath.
+    this.router.navigate(['/setup/wizard'], { queryParams: { action: 'change-folder' } });
   }
 
   formatBytes(bytes: number): string {

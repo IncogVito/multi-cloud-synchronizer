@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AccountService } from '../../core/services/account.service';
 import { AccountSessionService } from '../../core/services/account-session.service';
 import { AppContextService } from '../../core/services/app-context.service';
@@ -206,6 +206,7 @@ export class SetupWizardComponent implements OnInit {
   private diskIndexingService = inject(DiskIndexingService);
   private wizardService = inject(SetupWizardService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   currentStep = signal<WizardStep>(1);
   loading = signal(true);
@@ -238,6 +239,7 @@ export class SetupWizardComponent implements OnInit {
           const activeId = this.session.activeAccountId();
           const accountId = accounts.some(a => a.id === activeId) ? activeId! : accounts[0].id;
           this.state.update(s => ({ ...s, accountId }));
+          this.maybeStartAtFolderStep();
         }
         this.loading.set(false);
       },
@@ -246,6 +248,23 @@ export class SetupWizardComponent implements OnInit {
         this.loading.set(false);
       }
     });
+  }
+
+  /**
+   * "Zmień folder" from the dashboard re-uses this wizard but the disk is already chosen
+   * (lives in app_context). Pre-fill the device and jump to the folder step so the pick
+   * persists account.syncFolderPath via saveSyncConfig.
+   */
+  private maybeStartAtFolderStep(): void {
+    if (this.route.snapshot.queryParamMap.get('action') !== 'change-folder') {
+      return;
+    }
+    const ctx = this.appContextService.context();
+    if (!ctx?.storageDeviceId) {
+      return; // No device context yet — fall back to the full flow from step 1.
+    }
+    this.state.update(s => ({ ...s, deviceId: ctx.storageDeviceId, deviceLabel: ctx.storageDeviceLabel }));
+    this.currentStep.set(2);
   }
 
   onDiskConfirmed(event: { deviceId: string; label: string }): void {
