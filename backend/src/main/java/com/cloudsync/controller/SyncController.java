@@ -8,6 +8,8 @@ import com.cloudsync.model.dto.MergeDuplicatesResult;
 import com.cloudsync.model.dto.OrphanPhotosCountResponse;
 import com.cloudsync.model.dto.OrphanPhotosProgress;
 import com.cloudsync.model.dto.OrphanPhotosResult;
+import com.cloudsync.model.dto.ReindexDatesProgress;
+import com.cloudsync.model.dto.ReindexDatesResult;
 import com.cloudsync.model.dto.SyncProgressEvent;
 import com.cloudsync.model.dto.SyncStartResponse;
 import com.cloudsync.model.enums.ProviderType;
@@ -16,6 +18,7 @@ import com.cloudsync.service.DiskIndexingService;
 import com.cloudsync.service.IPhoneRepairJobService;
 import com.cloudsync.service.MergeDuplicatesJobService;
 import com.cloudsync.service.OrphanPhotosJobService;
+import com.cloudsync.service.ReindexDatesJobService;
 import com.cloudsync.service.SyncService;
 import com.cloudsync.service.SyncStateHolder;
 import io.micronaut.http.HttpStatus;
@@ -43,6 +46,7 @@ public class SyncController {
     private final IPhoneRepairJobService iPhoneRepairJobService;
     private final MergeDuplicatesJobService mergeDuplicatesJobService;
     private final OrphanPhotosJobService orphanPhotosJobService;
+    private final ReindexDatesJobService reindexDatesJobService;
     private final DiskIndexingService diskIndexingService;
     private final DiskIndexStateHolder diskIndexStateHolder;
 
@@ -51,6 +55,7 @@ public class SyncController {
                           IPhoneRepairJobService iPhoneRepairJobService,
                           MergeDuplicatesJobService mergeDuplicatesJobService,
                           OrphanPhotosJobService orphanPhotosJobService,
+                          ReindexDatesJobService reindexDatesJobService,
                           DiskIndexingService diskIndexingService,
                           DiskIndexStateHolder diskIndexStateHolder) {
         this.syncService = syncService;
@@ -58,6 +63,7 @@ public class SyncController {
         this.iPhoneRepairJobService = iPhoneRepairJobService;
         this.mergeDuplicatesJobService = mergeDuplicatesJobService;
         this.orphanPhotosJobService = orphanPhotosJobService;
+        this.reindexDatesJobService = reindexDatesJobService;
         this.diskIndexingService = diskIndexingService;
         this.diskIndexStateHolder = diskIndexStateHolder;
     }
@@ -163,6 +169,20 @@ public class SyncController {
         return mergeDuplicatesJobService.getJob(jobId)
                 .map(job -> (Publisher<Event<MergeDuplicatesProgress>>) Flux.from(job.subscribe()).map(Event::of))
                 .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Merge-duplicates job not found: " + jobId));
+    }
+
+    @Post("/{accountId}/reindex-dates")
+    @ExecuteOn(TaskExecutors.BLOCKING)
+    @Produces(MediaType.APPLICATION_JSON)
+    public ReindexDatesResult startReindexDates(@PathVariable String accountId) {
+        return reindexDatesJobService.startJob(accountId);
+    }
+
+    @Get(value = "/reindex-dates/{jobId}/progress", produces = MediaType.TEXT_EVENT_STREAM)
+    public Publisher<Event<ReindexDatesProgress>> getReindexDatesProgress(@PathVariable String jobId) {
+        return reindexDatesJobService.getJob(jobId)
+                .map(job -> (Publisher<Event<ReindexDatesProgress>>) Flux.from(job.subscribe()).map(Event::of))
+                .orElseThrow(() -> new HttpStatusException(HttpStatus.NOT_FOUND, "Reindex-dates job not found: " + jobId));
     }
 
     @Get("/{accountId}/orphan-photos/count")

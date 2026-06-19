@@ -6,6 +6,7 @@ import com.cloudsync.model.dto.DeletionProgress;
 import com.cloudsync.model.dto.JobSummary;
 import com.cloudsync.model.dto.JobsListResponse;
 import com.cloudsync.model.dto.MergeDuplicatesProgress;
+import com.cloudsync.model.dto.ReindexDatesProgress;
 import com.cloudsync.model.dto.TaskHistoryDetailDto;
 import com.cloudsync.model.dto.TaskHistoryPageDto;
 import com.cloudsync.model.dto.ThumbnailProgress;
@@ -15,6 +16,8 @@ import com.cloudsync.service.DeletionJob;
 import com.cloudsync.service.DeletionJobService;
 import com.cloudsync.service.MergeDuplicatesJob;
 import com.cloudsync.service.MergeDuplicatesJobService;
+import com.cloudsync.service.ReindexDatesJob;
+import com.cloudsync.service.ReindexDatesJobService;
 import com.cloudsync.service.TaskHistoryService;
 import com.cloudsync.service.ThumbnailJob;
 import com.cloudsync.service.ThumbnailJobService;
@@ -51,17 +54,20 @@ public class JobsController {
     private final TaskHistoryService taskHistoryService;
     private final DatabaseBackupJobService databaseBackupJobService;
     private final MergeDuplicatesJobService mergeDuplicatesJobService;
+    private final ReindexDatesJobService reindexDatesJobService;
 
     public JobsController(DeletionJobService deletionJobService,
                           ThumbnailJobService thumbnailJobService,
                           TaskHistoryService taskHistoryService,
                           DatabaseBackupJobService databaseBackupJobService,
-                          MergeDuplicatesJobService mergeDuplicatesJobService) {
+                          MergeDuplicatesJobService mergeDuplicatesJobService,
+                          ReindexDatesJobService reindexDatesJobService) {
         this.deletionJobService = deletionJobService;
         this.thumbnailJobService = thumbnailJobService;
         this.taskHistoryService = taskHistoryService;
         this.databaseBackupJobService = databaseBackupJobService;
         this.mergeDuplicatesJobService = mergeDuplicatesJobService;
+        this.reindexDatesJobService = reindexDatesJobService;
     }
 
     @Operation(summary = "List all active and recent jobs")
@@ -71,6 +77,7 @@ public class JobsController {
 // FIX: Create a facade service that aggregates job summaries from all job types, instead of doing it manually here        
         List<JobSummary> all = new ArrayList<>(deletionJobService.allJobSummaries());
         thumbnailJobService.allJobSummaries().forEach(all::add);
+        reindexDatesJobService.allJobSummaries().forEach(all::add);
         return new JobsListResponse(all);
     }
 
@@ -95,6 +102,12 @@ public class JobsController {
         if (merge.isPresent()) {
             MergeDuplicatesJob job = merge.get();
             return (Publisher<Event<MergeDuplicatesProgress>>) Flux.from(job.subscribe()).map(Event::of);
+        }
+
+        var reindex = reindexDatesJobService.getJob(jobId);
+        if (reindex.isPresent()) {
+            ReindexDatesJob job = reindex.get();
+            return (Publisher<Event<ReindexDatesProgress>>) Flux.from(job.subscribe()).map(Event::of);
         }
 
         throw new HttpStatusException(HttpStatus.NOT_FOUND, "Job not found: " + jobId);

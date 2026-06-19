@@ -7,18 +7,13 @@ import com.cloudsync.model.enums.MediaType;
 import com.cloudsync.repository.AccountRepository;
 import com.cloudsync.repository.PhotoRepository;
 import com.cloudsync.repository.StorageDeviceRepository;
+import com.cloudsync.util.ExifDateUtil;
 import io.micronaut.http.HttpStatus;
 import io.micronaut.http.exceptions.HttpStatusException;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.drew.imaging.ImageMetadataReader;
-import com.drew.metadata.Metadata;
-import com.drew.metadata.exif.ExifIFD0Directory;
-import com.drew.metadata.exif.ExifSubIFDDirectory;
-import com.drew.metadata.mov.QuickTimeDirectory;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -243,35 +238,12 @@ public class DiskIndexingService {
     }
 
     /**
-     * Reads the actual capture date from image/video metadata (EXIF DateTimeOriginal,
-     * then EXIF DateTime, then QuickTime creation_time). Returns null if no metadata
-     * date is available, so the caller can fall back to filesystem timestamps.
+     * Reads the actual capture date from image/video metadata via {@link ExifDateUtil} (EXIF,
+     * QuickTime, and MP4 movie/video-track creation times). Returns null if no metadata date is
+     * available, so the caller can fall back to filesystem timestamps.
      */
     private Instant readExifCreationDate(Path file) {
-        try {
-            Metadata metadata = ImageMetadataReader.readMetadata(file.toFile());
-
-            ExifSubIFDDirectory exifSub = metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
-            if (exifSub != null) {
-                var date = exifSub.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
-                if (date != null) return date.toInstant();
-            }
-
-            ExifIFD0Directory exif0 = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
-            if (exif0 != null) {
-                var date = exif0.getDate(ExifIFD0Directory.TAG_DATETIME);
-                if (date != null) return date.toInstant();
-            }
-
-            QuickTimeDirectory qt = metadata.getFirstDirectoryOfType(QuickTimeDirectory.class);
-            if (qt != null) {
-                var date = qt.getDate(QuickTimeDirectory.TAG_CREATION_TIME);
-                if (date != null) return date.toInstant();
-            }
-        } catch (Exception e) {
-            LOG.debug("Could not read EXIF from {}: {}", file.getFileName(), e.getMessage());
-        }
-        return null;
+        return ExifDateUtil.readCaptureDate(file, null);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

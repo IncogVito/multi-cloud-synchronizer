@@ -1147,6 +1147,22 @@ paths:
             text/event-stream:
               schema:
                 $ref: "#/components/schemas/Event_OrphanPhotosProgress_"
+  /api/sync/reindex-dates/{jobId}/progress:
+    get:
+      operationId: getReindexDatesProgress
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: getReindexDatesProgress 200 response
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event_ReindexDatesProgress_"
   /api/sync/{accountId}:
     post:
       operationId: startSync
@@ -1324,6 +1340,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrphanPhotosCountResponse"
+  /api/sync/{accountId}/reindex-dates:
+    post:
+      operationId: startReindexDates
+      parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: startReindexDates 200 response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReindexDatesResult"
   /api/sync/{accountId}/reorganize:
     post:
       operationId: reorganize_1
@@ -1759,6 +1791,19 @@ components:
           type: string
         retry:
           type: string
+    Event_ReindexDatesProgress_:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/ReindexDatesProgress"
+        id:
+          type: string
+        name:
+          type: string
+        comment:
+          type: string
+        retry:
+          type: string
     Event_RepairProgress_:
       type: object
       properties:
@@ -2137,6 +2182,43 @@ components:
       enum:
       - ICLOUD
       - IPHONE
+    ReindexDatesProgress:
+      required:
+      - checked
+      - done
+      - errors
+      - moved
+      - total
+      - updated
+      type: object
+      properties:
+        checked:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        updated:
+          type: integer
+          format: int32
+        moved:
+          type: integer
+          format: int32
+        errors:
+          type: integer
+          format: int32
+        done:
+          type: boolean
+    ReindexDatesResult:
+      required:
+      - jobId
+      - progress
+      type: object
+      properties:
+        jobId:
+          type: string
+        progress:
+          $ref: "#/components/schemas/ReindexDatesProgress"
     RepairProgress:
       required:
       - checked

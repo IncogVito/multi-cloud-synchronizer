@@ -10,6 +10,7 @@ import { RepairIPhoneService } from '../../core/services/repair-iphone.service';
 import { BackupDatabaseService } from '../../core/services/backup-database.service';
 import { DeletePendingService } from '../../core/services/delete-pending.service';
 import { MergeDuplicatesService } from '../../core/services/merge-duplicates.service';
+import { ReindexDatesService } from '../../core/services/reindex-dates.service';
 import { OrphanPhotosService } from '../../core/services/orphan-photos.service';
 import { Store } from '@ngxs/store';
 
@@ -45,6 +46,7 @@ describe('TasksComponent', () => {
         { provide: BackupDatabaseService, useValue: { running: () => false, progress: () => null } },
         { provide: DeletePendingService, useValue: { running: () => false, error: () => null, lastDeleted: () => null } },
         { provide: MergeDuplicatesService, useValue: { running: () => false, progress: () => null } },
+        { provide: ReindexDatesService, useValue: { running: () => false, progress: () => null, startJob: vi.fn().mockResolvedValue(undefined) } },
         { provide: OrphanPhotosService, useValue: orphan },
       ],
     });

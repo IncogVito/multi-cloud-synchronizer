@@ -15,6 +15,7 @@ import com.cloudsync.provider.PhotoSyncProvider;
 import com.cloudsync.repository.AccountRepository;
 import com.cloudsync.repository.PhotoRepository;
 import com.cloudsync.util.ExifDateUtil;
+import com.cloudsync.util.MediaPathUtil;
 import com.cloudsync.util.Messages;
 import io.micronaut.context.annotation.Value;
 import jakarta.inject.Named;
@@ -27,8 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -424,13 +423,7 @@ public class SyncService {
     }
 
     private Path resolveDestDir(String basePath, Instant createdDate) {
-        if (createdDate == null) {
-            return Path.of(basePath, "unknown");
-        }
-        LocalDate date = createdDate.atZone(ZoneId.systemDefault()).toLocalDate();
-        return Path.of(basePath,
-                String.valueOf(date.getYear()),
-                String.format("%02d", date.getMonthValue()));
+        return MediaPathUtil.resolveDateDir(basePath, createdDate);
     }
 
     private Map<String, Photo> loadSyncedPhotosByFilename(String accountId) {
