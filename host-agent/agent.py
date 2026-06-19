@@ -55,6 +55,7 @@ DISPATCH: dict[str, callable] = {
     "check_drive":          drive_handlers.check_drive,
     "list_disks":           drive_handlers.list_disks,
     "mount_drive":          drive_handlers.mount_drive,
+    "remount_drive":        drive_handlers.remount_drive,
     "unmount_drive":        drive_handlers.unmount_drive,
     "read_device_id":       drive_handlers.read_device_id,
     "get_disk_details":     drive_handlers.get_disk_details,

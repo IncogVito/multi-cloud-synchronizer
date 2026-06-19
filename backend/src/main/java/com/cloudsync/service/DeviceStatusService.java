@@ -36,6 +36,7 @@ public class DeviceStatusService {
     private final HostAgentClient hostAgent;
     private final DiskDetectionAgent diskDetectionAgent;
     private final ICloudServiceClient iCloudServiceClient;
+    private final DiskSetupService diskSetupService;
 
     @Value("${app.external-drive-path}")
     private String externalDrivePath;
@@ -49,11 +50,13 @@ public class DeviceStatusService {
     public DeviceStatusService(DeviceStatusRepository deviceStatusRepository,
                                HostAgentClient hostAgent,
                                DiskDetectionAgent diskDetectionAgent,
-                               ICloudServiceClient iCloudServiceClient) {
+                               ICloudServiceClient iCloudServiceClient,
+                               DiskSetupService diskSetupService) {
         this.deviceStatusRepository = deviceStatusRepository;
         this.hostAgent = hostAgent;
         this.diskDetectionAgent = diskDetectionAgent;
         this.iCloudServiceClient = iCloudServiceClient;
+        this.diskSetupService = diskSetupService;
     }
 
     public List<DeviceStatusResponse> getAllStatuses() {
@@ -85,6 +88,38 @@ public class DeviceStatusService {
                 driveDetails = "{\"available\": false, \"error\": \"" + e.getMessage() + "\"}";
             }
 
+            // Stale-mount recovery: the drive can read as unavailable after a
+            // USB yank+reinsert (dead mount). Try an in-place remount-by-UUID
+            // before falling back to the full detection agent — no restart needed.
+            DeviceCheckEvent recoveringEvent = null;
+            if (!available) {
+                try {
+                    if (diskSetupService.attemptStaleRecovery()) {
+                        var recheck = hostAgent.checkDrive(externalDrivePath);
+                        if (recheck.available()) {
+                            available = true;
+                            driveDetails = "{\"available\": true, \"path\": \"" + recheck.path()
+                                    + "\", \"free_bytes\": " + recheck.freeBytes() + ", \"recovered\": true}";
+                        }
+                    }
+                } catch (Exception e) {
+                    LOG.warn("Stale-mount recovery attempt failed", e);
+                }
+                recoveringEvent = new DeviceCheckEvent(
+                        DeviceType.EXTERNAL_DRIVE.name(),
+                        DeviceCheckStatus.CHECKING.name(),
+                        available
+                                ? "Wykryto nieaktualny montaż — naprawiono przez ponowne zamontowanie."
+                                : "Dysk niedostępny — próba automatycznej naprawy montażu nie powiodła się.",
+                        driveDetails,
+                        false
+                );
+            }
+
+            Flux<DeviceCheckEvent> head = recoveringEvent == null
+                    ? Flux.just(checkingEvent)
+                    : Flux.just(checkingEvent, recoveringEvent);
+
             if (available) {
                 DeviceCheckEvent finalEvent = new DeviceCheckEvent(
                         DeviceType.EXTERNAL_DRIVE.name(),
@@ -94,7 +129,7 @@ public class DeviceStatusService {
                         true
                 );
                 persistStatus(DeviceType.EXTERNAL_DRIVE.name(), DeviceCheckStatus.CONNECTED, driveDetails);
-                return Flux.just(checkingEvent, finalEvent);
+                return Flux.concat(head, Flux.just(finalEvent));
             }
 
             DeviceCheckEvent agentStartEvent = new DeviceCheckEvent(
@@ -127,7 +162,8 @@ public class DeviceStatusService {
                     });
 
             return Flux.concat(
-                    Flux.just(checkingEvent, agentStartEvent),
+                    head,
+                    Flux.just(agentStartEvent),
                     agentEvents
             );
         })

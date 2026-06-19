@@ -68,10 +68,30 @@ def check_drive(params: dict) -> DriveStatus:
     if not p.is_dir() or not _is_mountpoint(mount_path):
         return DriveStatus(available=False, path=None, free_bytes=None)
 
+    # A stale mount (e.g. USB drive yanked + reinserted) still appears in
+    # /proc/mounts, so `mountpoint -q` and statvfs both succeed against cached
+    # superblock data. Force a real directory read — that's what surfaces the
+    # EIO/ESTALE the rest of the app trips over.
+    try:
+        _probe_io(mount_path)
+    except OSError as exc:
+        LOG.warning("Stale mount at %s (%s) — reporting unavailable", mount_path, exc)
+        return DriveStatus(available=False, path=None, free_bytes=None)
+
     usage = _get_disk_usage(mount_path)
     free_bytes = usage.free if usage else None
     total_bytes = usage.total if usage else None
     return DriveStatus(available=True, path=mount_path, free_bytes=free_bytes, total_bytes=total_bytes)
+
+
+def _probe_io(path: str) -> None:
+    """Force a readdir syscall against *path* to detect a dead/stale mount.
+
+    Raises OSError (errno EIO or ESTALE) when the underlying device is gone.
+    Returns normally on a healthy mount, including an empty directory.
+    """
+    with os.scandir(path) as it:
+        next(it, None)
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +329,93 @@ def unmount_drive(params: dict) -> UnmountDriveResult:
         raise HandlerError(str(exc), "UMOUNT_FAILED") from exc
 
     return UnmountDriveResult(success=True, message=f"Unmounted {mount_point}")
+
+
+# ---------------------------------------------------------------------------
+# remount_drive  — recover a stale mount without restarting anything
+# ---------------------------------------------------------------------------
+
+def remount_drive(params: dict) -> MountDriveResult:
+    """Recover a stale/dead mount in place.
+
+    Steps:
+      1. Force + lazy unmount whatever is (stale) at ``mount_point``.
+      2. Re-resolve the device node by ``uuid`` if given — after a USB
+         re-plug the kernel often renames /dev/sdb1 → /dev/sdc1, so the old
+         ``device`` path is no longer valid.
+      3. Mount the freshly-resolved device at ``mount_point``.
+
+    Params: ``mount_point`` (default EXTERNAL_DRIVE_PATH), ``uuid`` (optional,
+    preferred), ``device`` (optional fallback).
+    """
+    mount_point = params.get("mount_point") or DEFAULT_MOUNT_POINT
+    if not mount_point:
+        raise HandlerError("No mount_point specified and EXTERNAL_DRIVE_PATH not set", "MISSING_PARAM")
+
+    uuid = params.get("uuid")
+    device = params.get("device")
+
+    if DEV_MOCK:
+        return MountDriveResult(
+            mounted=True,
+            device=device or "/dev/sdb1",
+            mount_point=mount_point,
+            message=f"[DEV_MOCK] Simulated remount at {mount_point}",
+        )
+
+    # 1. Clear any existing (possibly stale) mount. Lazy + force handles the
+    #    "device is gone, target busy / I/O error" case that plain umount can't.
+    if _is_mountpoint(mount_point):
+        _force_unmount(mount_point)
+
+    # 2. Resolve the current device node.
+    resolved = None
+    if uuid:
+        resolved = _resolve_device_by_uuid(uuid)
+    if not resolved:
+        resolved = device
+    if not resolved:
+        raise HandlerError(
+            "Could not resolve device to remount (no live device for uuid"
+            + (f"={uuid}" if uuid else "") + " and no device given)",
+            "DEVICE_NOT_FOUND",
+        )
+
+    # 3. Mount fresh, reusing the regular mount path.
+    result = mount_drive({"device": resolved, "mount_point": mount_point})
+    return MountDriveResult(
+        mounted=result.mounted,
+        device=resolved,
+        mount_point=mount_point,
+        message=f"Remounted {resolved} at {mount_point}: {result.message}",
+    )
+
+
+def _force_unmount(mount_point: str) -> None:
+    """Lazy + force unmount; best-effort. Raises only if the path stays mounted."""
+    for cmd in (["umount", "-l", mount_point], ["umount", "-f", "-l", mount_point]):
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        except Exception as exc:  # noqa: BLE001
+            LOG.warning("%s failed: %s", " ".join(cmd), exc)
+        if not _is_mountpoint(mount_point):
+            return
+    if _is_mountpoint(mount_point):
+        raise HandlerError(f"Could not unmount stale mount at {mount_point}", "UMOUNT_FAILED")
+
+
+def _resolve_device_by_uuid(uuid: str) -> str | None:
+    """Return the current /dev node for a filesystem UUID, or None if absent."""
+    try:
+        r = subprocess.run(
+            ["blkid", "-U", uuid],
+            capture_output=True, text=True, timeout=10
+        )
+        dev = r.stdout.strip()
+        return dev or None
+    except Exception as exc:  # noqa: BLE001
+        LOG.warning("blkid -U %s failed: %s", uuid, exc)
+        return None
 
 
 def _is_mountpoint(path: str) -> bool:

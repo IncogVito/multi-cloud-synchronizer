@@ -232,6 +232,49 @@ public class DiskSetupService {
         return storageDeviceRepository.findByDevicePath(device);
     }
 
+    /**
+     * Recover a stale mount in place (e.g. after the USB drive was yanked and
+     * reinserted, leaving a dead mount that statvfs still reports as healthy).
+     * Force-unmounts the stale mount on the host and remounts the registered
+     * device by UUID — the kernel often renames the node (sdb1 → sdc1) across a
+     * re-plug, so we resolve by UUID rather than the stored device path. Avoids
+     * needing an app/server restart.
+     *
+     * @return true if the drive is healthy at the host mount point afterwards.
+     */
+    public boolean attemptStaleRecovery() {
+        Optional<StorageDevice> reg = findMountedDevice();
+        if (reg.isEmpty()) {
+            LOG.warn("Stale-mount recovery: no registered storage device found to remount");
+            return false;
+        }
+        StorageDevice d = reg.get();
+        try {
+            LOG.info("Stale-mount recovery: remounting uuid={} (last devicePath={}) at {}",
+                    d.getFilesystemUuid(), d.getDevicePath(), hostMountPath);
+            var res = hostAgent.remountDrive(d.getFilesystemUuid(), d.getDevicePath(), hostMountPath);
+            if (!res.mounted()) {
+                LOG.warn("Stale-mount recovery: remount reported not mounted (uuid={})", d.getFilesystemUuid());
+                return false;
+            }
+            // Persist the (possibly new) device node so future lookups stay correct.
+            if (res.device() != null && !res.device().equals(d.getDevicePath())) {
+                d.setDevicePath(res.device());
+                d.setLastSeenAt(Instant.now());
+                storageDeviceRepository.update(d);
+            }
+        } catch (HostAgentException e) {
+            LOG.warn("Stale-mount recovery: remount failed (uuid={}): {}", d.getFilesystemUuid(), e.getMessage());
+            return false;
+        }
+        try {
+            return hostAgent.checkDrive(hostMountPath).available();
+        } catch (HostAgentException e) {
+            LOG.warn("Stale-mount recovery: post-remount check failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
     private Long querySizeBytes() {
         try {
             var status = hostAgent.checkDrive(hostMountPath);

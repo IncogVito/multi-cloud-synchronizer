@@ -67,6 +67,20 @@ public class HostAgentClient {
         return call("mount_drive", params, MountDriveResult.class);
     }
 
+    /**
+     * Recover a stale/dead mount in place: force-unmount whatever is at
+     * {@code mountPoint}, re-resolve the device by {@code uuid} (handles
+     * /dev/sdb1 → /dev/sdc1 renames after a USB re-plug), and mount fresh.
+     * Avoids needing a full app/server restart.
+     */
+    public MountDriveResult remountDrive(@Nullable String uuid, @Nullable String device, @Nullable String mountPoint) {
+        Map<String, Object> params = new HashMap<>();
+        if (uuid != null) params.put("uuid", uuid);
+        if (device != null) params.put("device", device);
+        if (mountPoint != null) params.put("mount_point", mountPoint);
+        return call("remount_drive", params, MountDriveResult.class);
+    }
+
     public UnmountDriveResult unmountDrive(@Nullable String mountPoint) {
         Map<String, Object> params = new HashMap<>();
         if (mountPoint != null) params.put("mount_point", mountPoint);
