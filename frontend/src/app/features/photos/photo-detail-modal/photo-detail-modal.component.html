@@ -92,7 +92,7 @@
           @if (p.createdDate) {
             <div class="detail-meta-item">
               <span class="meta-label">Date</span>
-              <span class="meta-value">{{ p.createdDate | date:'mediumDate' }}</span>
+              <span class="meta-value">{{ p.createdDate | date:'mediumDate' }} · {{ p.createdDate | date:'HH:mm' }}</span>
             </div>
           }
         </div>

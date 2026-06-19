@@ -214,7 +214,9 @@ export class PhotoTimelineComponent implements OnInit, OnDestroy {
     const d = new Date(dateStr);
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
-    return `${day}-${month}`;
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}-${month} ${hours}:${minutes}`;
   }
 
   formatFileSize(bytes: number | undefined): string {

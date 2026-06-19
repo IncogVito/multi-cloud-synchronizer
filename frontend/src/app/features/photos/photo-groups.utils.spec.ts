@@ -218,4 +218,14 @@ describe('buildGroupsFromPhotos — sortMode=date', () => {
     expect(buildGroupsFromPhotos([], 'year', 'none', 'date')).toEqual([]);
     expect(buildGroupsFromPhotos([], 'year', 'none', 'size')).toEqual([]);
   });
+
+  it('sorts same-day photos by capture time descending (real ISO Z format)', () => {
+    const sameDay = [
+      makePhoto('0800', '2025-03-21T08:00:07Z', 1000),
+      makePhoto('2039', '2025-03-21T20:39:07Z', 1000),
+      makePhoto('1215', '2025-03-21T12:15:07Z', 1000),
+    ];
+    const sorted = sortPhotosByDate(sameDay);
+    expect(sorted.map(p => p.id)).toEqual(['2039', '1215', '0800']);
+  });
 });
