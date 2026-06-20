@@ -144,7 +144,18 @@ export class PhotosState {
     return this.photosService.getMonthsSummary({
       accountId: action.accountId,
     }).pipe(
-      tap(summary => ctx.patchState({ monthsSummary: summary })),
+      tap(summary => {
+        ctx.patchState({ monthsSummary: summary });
+
+        if (ctx.getState().activeMonth === null && summary.length > 0) {
+          const mostRecent = summary.reduce(
+            (max, m) => (m.yearMonth > max ? m.yearMonth : max),
+            summary[0].yearMonth,
+          );
+          ctx.patchState({ activeMonth: mostRecent });
+          ctx.dispatch(new LoadPhotos(action.accountId, mostRecent));
+        }
+      }),
       catchError(err => {
         ctx.patchState({ error: err?.message ?? 'Failed to load months summary' });
         return EMPTY;

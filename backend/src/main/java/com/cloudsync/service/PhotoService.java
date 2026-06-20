@@ -284,6 +284,7 @@ public class PhotoService {
                 photo.getWidth(),
                 photo.getHeight(),
                 photo.getCreatedDate(),
+                photo.getCreatedDateTimezone(),
                 photo.getImportedDate(),
                 photo.getChecksum(),
                 photo.isSyncedToDisk(),

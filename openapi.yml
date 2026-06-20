@@ -2125,6 +2125,7 @@ components:
       - accountId
       - checksum
       - createdDate
+      - createdDateTimezone
       - existsOnIcloud
       - existsOnIphone
       - filePath
@@ -2164,6 +2165,8 @@ components:
         createdDate:
           type: string
           format: date-time
+        createdDateTimezone:
+          type: string
         importedDate:
           type: string
           format: date-time

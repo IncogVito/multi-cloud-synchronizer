@@ -67,6 +67,9 @@
       font-weight: 500;
       border-bottom: 1px solid var(--color-border, #e5e7eb);
       margin-bottom: 0.25rem;
+      cursor: default;
+
+      &:hover { background: transparent; }
     }
   }
 
@@ -108,16 +111,10 @@
     border-bottom: 1px solid var(--color-border, #e5e7eb);
     margin-bottom: 0.25rem;
     background: transparent;
-    cursor: pointer;
+    cursor: default;
     color: #6b7280;
-    transition: background 0.1s;
-
-    &:hover { background: #f3f4f6; }
-
-    &--active {
-      color: #3b82f6;
-      background: #eff6ff;
-    }
+    font-size: 0.72rem;
+    font-weight: 700;
   }
 
   &__compact-year {

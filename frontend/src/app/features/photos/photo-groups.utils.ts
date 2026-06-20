@@ -1,5 +1,6 @@
 import { PhotoResponse } from '../../core/api/generated/model/photoResponse';
 import { GroupingMode, SortMode } from '../../state/photos/photos.actions';
+import { captureLocalDate } from './capture-date.util';
 import { PhotoGroup } from './photo-timeline/photo-timeline.component';
 
 export type Granularity = 'year' | 'month';
@@ -43,7 +44,7 @@ export function parentLabel(pKey: string, granularity: Granularity, sampleDate: 
 }
 
 export function sortPhotosByDate(photos: PhotoResponse[]): PhotoResponse[] {
-  return photos.slice().sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+  return photos.slice().sort((a, b) => captureLocalDate(b).getTime() - captureLocalDate(a).getTime());
 }
 
 export function sortPhotosBySize(photos: PhotoResponse[]): PhotoResponse[] {
@@ -66,7 +67,7 @@ export function buildGroupsFromPhotos(
   if (sortMode === 'size') {
     const parentMap = new Map<string, PhotoResponse[]>();
     for (const photo of photos) {
-      const key = parentKey(new Date(photo.createdDate), granularity);
+      const key = parentKey(captureLocalDate(photo), granularity);
       if (!parentMap.has(key)) parentMap.set(key, []);
       parentMap.get(key)!.push(photo);
     }
@@ -75,7 +76,7 @@ export function buildGroupsFromPhotos(
     for (const [pKey, parentPhotos] of Array.from(parentMap.entries()).sort((a, b) => b[0].localeCompare(a[0]))) {
       result.push({
         key: pKey,
-        label: parentLabel(pKey, granularity, new Date(parentPhotos[0].createdDate)),
+        label: parentLabel(pKey, granularity, captureLocalDate(parentPhotos[0])),
         photos: [],
         level: 'primary',
         selectionPhotos: parentPhotos,
@@ -103,7 +104,7 @@ export function buildGroupsFromPhotos(
   if (groupingMode === 'day' || groupingMode === 'hour') {
     const parentMap = new Map<string, PhotoResponse[]>();
     for (const photo of photos) {
-      const key = parentKey(new Date(photo.createdDate), granularity);
+      const key = parentKey(captureLocalDate(photo), granularity);
       if (!parentMap.has(key)) parentMap.set(key, []);
       parentMap.get(key)!.push(photo);
     }
@@ -112,7 +113,7 @@ export function buildGroupsFromPhotos(
     for (const [pKey, parentPhotos] of Array.from(parentMap.entries()).sort((a, b) => b[0].localeCompare(a[0]))) {
       result.push({
         key: pKey,
-        label: parentLabel(pKey, granularity, new Date(parentPhotos[0].createdDate)),
+        label: parentLabel(pKey, granularity, captureLocalDate(parentPhotos[0])),
         photos: [],
         level: 'primary',
         selectionPhotos: parentPhotos,
@@ -121,14 +122,14 @@ export function buildGroupsFromPhotos(
       if (groupingMode === 'day') {
         const dayMap = new Map<string, PhotoResponse[]>();
         for (const photo of parentPhotos) {
-          const key = dayKey(new Date(photo.createdDate));
+          const key = dayKey(captureLocalDate(photo));
           if (!dayMap.has(key)) dayMap.set(key, []);
           dayMap.get(key)!.push(photo);
         }
         for (const [dKey, dayPhotos] of Array.from(dayMap.entries()).sort((a, b) => b[0].localeCompare(a[0]))) {
           result.push({
             key: `${pKey}/${dKey}`,
-            label: dayLabel(new Date(dayPhotos[0].createdDate)),
+            label: dayLabel(captureLocalDate(dayPhotos[0])),
             photos: sortPhotosByDate(dayPhotos),
             level: 'secondary',
           });
@@ -136,13 +137,13 @@ export function buildGroupsFromPhotos(
       } else {
         const slotMap = new Map<string, PhotoResponse[]>();
         for (const photo of parentPhotos) {
-          const date = new Date(photo.createdDate);
+          const date = captureLocalDate(photo);
           const key = `${dayKey(date)}-${Math.floor(date.getHours() / 4)}`;
           if (!slotMap.has(key)) slotMap.set(key, []);
           slotMap.get(key)!.push(photo);
         }
         for (const [sKey, slotPhotos] of Array.from(slotMap.entries()).sort((a, b) => b[0].localeCompare(a[0]))) {
-          const date = new Date(slotPhotos[0].createdDate);
+          const date = captureLocalDate(slotPhotos[0]);
           const slotIdx = Math.floor(date.getHours() / 4);
           result.push({
             key: `${pKey}/${sKey}`,
@@ -158,7 +159,7 @@ export function buildGroupsFromPhotos(
 
   const groupMap = new Map<string, PhotoResponse[]>();
   for (const photo of photos) {
-    const key = parentKey(new Date(photo.createdDate), granularity);
+    const key = parentKey(captureLocalDate(photo), granularity);
     if (!groupMap.has(key)) groupMap.set(key, []);
     groupMap.get(key)!.push(photo);
   }
@@ -166,7 +167,7 @@ export function buildGroupsFromPhotos(
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([key, groupPhotos]) => ({
       key,
-      label: parentLabel(key, granularity, new Date(groupPhotos[0].createdDate)),
+      label: parentLabel(key, granularity, captureLocalDate(groupPhotos[0])),
       photos: sortPhotosByDate(groupPhotos),
     }));
 }

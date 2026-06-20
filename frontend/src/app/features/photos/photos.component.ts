@@ -149,8 +149,10 @@ export class PhotosComponent implements OnInit, OnDestroy {
         this.resetThumbnailState();
         this.selectedIds.set(new Set());
         if (accountId) {
-          this.store.dispatch(new LoadPhotos(accountId, this.activeMonth() ?? undefined));
           this.store.dispatch(new LoadMonthsSummary(accountId));
+          if (this.activeMonth()) {
+            this.store.dispatch(new LoadPhotos(accountId, this.activeMonth() ?? undefined));
+          }
         }
         this.previousAccountId = accountId;
       }

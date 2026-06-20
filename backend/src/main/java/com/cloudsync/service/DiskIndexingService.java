@@ -208,7 +208,8 @@ public class DiskIndexingService {
             long size = attrs.size();
 
             // Prefer EXIF CreationDate; fall back to filesystem times
-            Instant createdDate = readExifCreationDate(file);
+            ExifDateUtil.CaptureDate capture = ExifDateUtil.readCaptureDateWithZone(file, null);
+            Instant createdDate = capture.instant();
             if (createdDate == null) {
                 createdDate = attrs.creationTime().toInstant();
                 if (createdDate.toEpochMilli() == 0L) {
@@ -222,6 +223,7 @@ public class DiskIndexingService {
             photo.setFilePath(absPath);
             photo.setFileSize(size);
             photo.setCreatedDate(createdDate);
+            photo.setCreatedDateTimezone(ExifDateUtil.offsetId(capture.offset()));
             photo.setImportedDate(Instant.now());
             photo.setSyncedToDisk(true);
             photo.setSourceProvider("LOCAL");
@@ -235,15 +237,6 @@ public class DiskIndexingService {
             LOG.warn("Could not read attributes for {}: {}", file, e.getMessage());
             return null;
         }
-    }
-
-    /**
-     * Reads the actual capture date from image/video metadata via {@link ExifDateUtil} (EXIF,
-     * QuickTime, and MP4 movie/video-track creation times). Returns null if no metadata date is
-     * available, so the caller can fall back to filesystem timestamps.
-     */
-    private Instant readExifCreationDate(Path file) {
-        return ExifDateUtil.readCaptureDate(file, null);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

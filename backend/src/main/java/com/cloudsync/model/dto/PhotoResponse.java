@@ -16,6 +16,7 @@ public record PhotoResponse(
         Integer width,
         Integer height,
         Instant createdDate,
+        String createdDateTimezone,
         Instant importedDate,
         String checksum,
         boolean syncedToDisk,

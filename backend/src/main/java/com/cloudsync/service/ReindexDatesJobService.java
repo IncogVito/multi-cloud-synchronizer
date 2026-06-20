@@ -130,14 +130,17 @@ public class ReindexDatesJobService {
             return;
         }
 
-        Instant metadataDate = ExifDateUtil.readCaptureDate(currentPath, null);
+        ExifDateUtil.CaptureDate capture = ExifDateUtil.readCaptureDateWithZone(currentPath, null);
+        Instant metadataDate = capture.instant();
         if (metadataDate == null) {
             // No reliable capture date in the file — leave the stored date as-is.
             job.onPhotoOk();
             return;
         }
 
-        boolean dateChanged = !metadataDate.equals(photo.getCreatedDate());
+        String metadataTz = ExifDateUtil.offsetId(capture.offset());
+        boolean dateChanged = !metadataDate.equals(photo.getCreatedDate())
+                || !java.util.Objects.equals(metadataTz, photo.getCreatedDateTimezone());
         Path targetDir = MediaPathUtil.resolveDateDir(basePath, metadataDate);
         boolean needsMove = currentPath.getParent() == null
                 || !currentPath.getParent().equals(targetDir);
@@ -158,6 +161,7 @@ public class ReindexDatesJobService {
             }
             if (dateChanged) {
                 photo.setCreatedDate(metadataDate);
+                photo.setCreatedDateTimezone(metadataTz);
             }
             photoRepository.update(photo);
             job.onPhotoUpdated(movedFile);

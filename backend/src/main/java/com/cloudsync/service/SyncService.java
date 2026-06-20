@@ -195,7 +195,7 @@ public class SyncService {
 
         List<String> estimatedFolders = candidates.stream()
                 .map(p -> {
-                    Path dest = resolveDestDir(account.getSyncFolderPath(), p.getCreatedDate());
+                    Path dest = resolveDestDir(account.getSyncFolderPath(), p);
                     return basePath.relativize(dest).toString();
                 })
                 .distinct()
@@ -224,7 +224,7 @@ public class SyncService {
             for (Photo photo : batch) {
                 try {
                     Path currentPath = Path.of(photo.getFilePath());
-                    Path destDir = resolveDestDir(account.getSyncFolderPath(), photo.getCreatedDate());
+                    Path destDir = resolveDestDir(account.getSyncFolderPath(), photo);
                     Path destPath = destDir.resolve(currentPath.getFileName());
                     Files.createDirectories(destDir);
                     Files.move(currentPath, destPath);
@@ -422,8 +422,8 @@ public class SyncService {
         return result;
     }
 
-    private Path resolveDestDir(String basePath, Instant createdDate) {
-        return MediaPathUtil.resolveDateDir(basePath, createdDate);
+    private Path resolveDestDir(String basePath, Photo photo) {
+        return MediaPathUtil.resolveDateDir(basePath, photo.getCreatedDate(), photo.getCreatedDateTimezone());
     }
 
     private Map<String, Photo> loadSyncedPhotosByFilename(String accountId) {
@@ -758,9 +758,14 @@ public class SyncService {
             try {
                 Path file = Path.of(photo.getFilePath());
                 if (!Files.exists(file)) { processed++; continue; }
-                Instant exifDate = ExifDateUtil.readCaptureDate(file, null);
-                if (exifDate != null && !exifDate.equals(photo.getCreatedDate())) {
+                ExifDateUtil.CaptureDate capture = ExifDateUtil.readCaptureDateWithZone(file, null);
+                Instant exifDate = capture.instant();
+                String exifTz = ExifDateUtil.offsetId(capture.offset());
+                if (exifDate != null
+                        && (!exifDate.equals(photo.getCreatedDate())
+                            || !java.util.Objects.equals(exifTz, photo.getCreatedDateTimezone()))) {
                     photo.setCreatedDate(exifDate);
+                    photo.setCreatedDateTimezone(exifTz);
                     photoRepository.update(photo);
                     updated++;
                 }
@@ -820,7 +825,7 @@ public class SyncService {
             }
 
             String filename = resolveFilename(photo, photoId);
-            Path destDir = resolveDestDir(account.getSyncFolderPath(), photo.getCreatedDate());
+            Path destDir = resolveDestDir(account.getSyncFolderPath(), photo);
             Path destFile = writePhotoToDisk(data, destDir, filename);
 
             markSynced(photo, destFile, (long) data.length);

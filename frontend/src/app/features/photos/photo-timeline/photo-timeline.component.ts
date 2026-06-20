@@ -1,6 +1,7 @@
 import { Component, computed, effect, ElementRef, HostListener, input, OnDestroy, OnInit, output, signal, ViewChild } from '@angular/core';
 import { PhotoResponse } from '../../../core/api/generated/model/photoResponse';
 import { ResolvedSlot } from '../../../core/services/thumbnail-sprite.service';
+import { captureLocalDate } from '../capture-date.util';
 
 export interface PhotoGroup {
   key: string;
@@ -209,9 +210,9 @@ export class PhotoTimelineComponent implements OnInit, OnDestroy {
     return new Set(allPhotos.slice(startIndex, endIndex + 1).map(p => p.id));
   }
 
-  formatPhotoDate(dateStr: string | undefined): string {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
+  formatPhotoDate(photo: PhotoResponse | undefined): string {
+    if (!photo?.createdDate) return '';
+    const d = captureLocalDate(photo);
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const hours = String(d.getHours()).padStart(2, '0');

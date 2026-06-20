@@ -22,6 +22,8 @@ public class Photo {
     private Integer width;
     private Integer height;
     private Instant createdDate;
+    /** ISO-8601 UTC offset the photo was captured at (e.g. "+12:00", "Z"); null when unknown. */
+    private String createdDateTimezone;
     private Instant importedDate;
     private String checksum;
     private boolean syncedToDisk;
@@ -74,6 +76,9 @@ public class Photo {
 
     public Instant getCreatedDate() { return createdDate; }
     public void setCreatedDate(Instant createdDate) { this.createdDate = createdDate; }
+
+    public String getCreatedDateTimezone() { return createdDateTimezone; }
+    public void setCreatedDateTimezone(String createdDateTimezone) { this.createdDateTimezone = createdDateTimezone; }
 
     public Instant getImportedDate() { return importedDate; }
     public void setImportedDate(Instant importedDate) { this.importedDate = importedDate; }
